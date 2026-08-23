@@ -42,3 +42,38 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # 성공/실패 모두 Discord로 알린다. 알림 전송 실패가 CI 결과 자체를 바꾸지는 않는다.
+      - name: Notify Discord
+        if: always()
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "DISCORD_WEBHOOK_URL secret이 없어 알림을 건너뜁니다."
+            exit 0
+          fi
+
+          if [ "$JOB_STATUS" = "success" ]; then
+            TITLE="✅ CI 성공"
+            COLOR=3066993
+          else
+            TITLE="❌ CI 실패"
+            COLOR=15158332
+          fi
+
+          SUBJECT="$(git log -1 --pretty=%s)"
+          RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+          PAYLOAD=$(jq -n \
+            --arg title "$TITLE" \
+            --arg desc "$GITHUB_REPOSITORY @ $GITHUB_REF_NAME — $SUBJECT" \
+            --arg url "$RUN_URL" \
+            --argjson color "$COLOR" \
+            '{embeds: [{title: $title, description: $desc, url: $url, color: $color}]}')
+
+          curl -sf -X POST "$DISCORD_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD"
