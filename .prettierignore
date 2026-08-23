@@ -1,0 +1,13 @@
+.next/
+out/
+build/
+coverage/
+node_modules/
+package-lock.json
+next-env.d.ts
+
+# Markdown과 GitHub 설정은 Prettier 대상에서 제외합니다.
+# Prettier는 표를 문자 수로 정렬하는데 한글은 두 칸 폭으로 렌더링되어
+# 정렬이 오히려 어긋납니다.
+*.md
+.github/

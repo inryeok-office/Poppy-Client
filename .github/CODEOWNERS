@@ -1,0 +1,11 @@
+# CODEOWNERS
+#
+# 여기 적힌 사람들에게 Pull Request 리뷰가 자동으로 요청됩니다.
+# PR 작성자 본인은 GitHub이 자동으로 제외하므로 목록에서 빼지 않아도 됩니다.
+#
+# 주의: GitHub은 PR의 Base Branch에 있는 CODEOWNERS를 읽습니다.
+# 이 파일이 default branch에 Merge된 뒤에 열리는 PR부터 자동 요청이 적용됩니다.
+#
+# 팀원이 늘어나면 이 파일에 GitHub 아이디를 추가하세요.
+
+* @jjhhss100906
