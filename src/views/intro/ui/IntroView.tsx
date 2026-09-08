@@ -2,8 +2,8 @@ import Link from 'next/link';
 
 import { PoppyLogo } from './PoppyLogo';
 
-// TODO: 디자인 폰트 'Griun PolFairness' 도입 후 타이포그래피 교체 (팀 협의 필요).
 // Figma "뽀샤" 인트로 화면(node 5:2). 프레임의 브라우저 크롬/작업표시줄은 목업 장식이라 제외.
+// 본문 폰트는 layout.tsx의 그리운 경찰공평체(--font-poppy)를 body에서 상속.
 // 디자인에 hover/press 상태가 없어 브랜드 톤에 맞춰 임의로 정함(명도만 조정 + 화살표 nudge).
 export function IntroView() {
   return (
