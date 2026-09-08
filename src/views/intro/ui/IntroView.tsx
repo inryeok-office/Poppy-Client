@@ -1,8 +1,10 @@
+import Link from 'next/link';
+
 import { PoppyLogo } from './PoppyLogo';
 
-// 퍼블리싱 단계: 마크업/스타일만. 라우팅·hover·상태 변화는 이후 작업에서 붙인다.
 // TODO: 디자인 폰트 'Griun PolFairness' 도입 후 타이포그래피 교체 (팀 협의 필요).
 // Figma "뽀샤" 인트로 화면(node 5:2). 프레임의 브라우저 크롬/작업표시줄은 목업 장식이라 제외.
+// 디자인에 hover/press 상태가 없어 브랜드 톤에 맞춰 임의로 정함(명도만 조정 + 화살표 nudge).
 export function IntroView() {
   return (
     <main className="flex min-h-full flex-1 flex-col items-center justify-center gap-8 bg-[#fbf4ea] px-6 py-12 text-center">
@@ -11,13 +13,13 @@ export function IntroView() {
         <PoppyLogo className="h-auto w-60 max-w-full" />
       </div>
 
-      <button
-        type="button"
-        className="inline-flex items-center gap-12 rounded-[20px] bg-[#3a1710] px-10 py-5 text-xl text-[#fff9f4]"
+      <Link
+        href="/experience"
+        className="group inline-flex items-center gap-12 rounded-[20px] bg-[#3a1710] px-10 py-5 text-xl text-[#fff9f4] transition-colors duration-150 hover:bg-[#4a2016] focus-visible:ring-2 focus-visible:ring-[#3a1710] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf4ea] focus-visible:outline-none active:bg-[#2e120c]"
       >
         체험하러 가기
         <svg
-          className="w-3 shrink-0"
+          className="w-3 shrink-0 transition-transform duration-150 group-hover:translate-x-1"
           viewBox="0 0 12.1327 18"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
@@ -28,7 +30,7 @@ export function IntroView() {
             fill="#FFF9F4"
           />
         </svg>
-      </button>
+      </Link>
     </main>
   );
 }

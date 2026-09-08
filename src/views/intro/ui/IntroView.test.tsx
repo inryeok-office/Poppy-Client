@@ -11,9 +11,13 @@ describe('IntroView', () => {
     expect(screen.getByRole('img', { name: 'Poppy' })).toBeInTheDocument();
   });
 
-  it('CTA 버튼을 노출한다', () => {
+  it('CTA가 체험 화면(/experience)으로 연결된다', () => {
     render(<IntroView />);
 
-    expect(screen.getByRole('button', { name: /체험하러 가기/ })).toBeInTheDocument();
+    // 실제 내비게이션 동작은 e2e에서 검증한다(jsdom은 라우팅을 수행하지 않음).
+    expect(screen.getByRole('link', { name: /체험하러 가기/ })).toHaveAttribute(
+      'href',
+      '/experience',
+    );
   });
 });
