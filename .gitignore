@@ -57,3 +57,7 @@ Thumbs.db
 
 ### Deployment ###
 .vercel
+
+### AI agent rules (Next.js가 자동 생성 — 필요 시 팀에서 커밋 여부 결정) ###
+/AGENTS.md
+/CLAUDE.md
