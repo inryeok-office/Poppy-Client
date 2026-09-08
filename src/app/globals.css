@@ -11,6 +11,10 @@
   /* 그리운 경찰공평체를 기본으로, 없는 글리프는 Geist·시스템 폰트로 폴백 */
   --font-sans: var(--font-poppy), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
+  /* 체험 화면 전용 (Figma 지정). font-gmarket 유틸로 적용 */
+  --font-gmarket:
+    var(--font-gmarket-sans), var(--font-poppy), var(--font-geist-sans), ui-sans-serif, system-ui,
+    sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -18,6 +22,26 @@
     --background: #0a0a0a;
     --foreground: #ededed;
   }
+}
+
+/* 뽀샤 브랜드 팔레트 (Figma "뽀샤" node 21:520 Dev 모드 기준).
+   디자인에 다크 변형이 없어 라이트 값만 둔다. */
+@theme {
+  --color-page: #fff9f4; /* 페이지·영역 패널 배경 */
+  --color-card: #fbf4ea; /* 안쪽 카드(그리드 박스·튜토리얼 패널·캔버스) */
+  --color-line: #e4ddd2; /* 경계선 (1.5px) */
+  --color-ink: #655344; /* 제목·값 텍스트 */
+  --color-muted: #a89d93; /* 보조 텍스트 */
+  --color-block-start: #85a877; /* 시작 */
+  --color-block-flow: #d98e5f; /* 흐름 */
+  --color-block-move: #deb964; /* 이동 */
+  --color-block-action: #5b84b9; /* 동작 */
+}
+
+/* 카드 배경의 점 격자 (Figma Rectangle 5·7, 약 18px 간격). bg-card 와 함께 쓴다. */
+@utility dot-grid {
+  background-image: radial-gradient(var(--color-line) 1px, transparent 1px);
+  background-size: 18px 18px;
 }
 
 body {

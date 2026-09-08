@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { PoppyLogo } from './PoppyLogo';
+import { PoppyLogo } from '@/shared/ui';
 
 // Figma "뽀샤" 인트로 화면(node 5:2). 프레임의 브라우저 크롬/작업표시줄은 목업 장식이라 제외.
 // 본문 폰트는 layout.tsx의 그리운 경찰공평체(--font-poppy)를 body에서 상속.
