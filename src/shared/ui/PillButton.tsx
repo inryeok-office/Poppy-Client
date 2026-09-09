@@ -10,12 +10,12 @@ type PillButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 /**
  * 뽀샤 공통 알약 버튼. Figma "뽀샤"(node 21:520) 헤더·툴바 버튼 스타일.
- * 공통: radius 8 · 좌우 24 패딩 · 14px. default 상하 11, primary 상하 12.
+ * 공통: 높이 40 · radius 8 · 좌우 24 패딩 · 14px. (Figma 버튼 프레임이 전부 h40)
  * UI 퍼블리싱 단계라 hover/focus/disabled 등 상태 스타일은 넣지 않는다(디자인대로만).
  */
 const VARIANT = {
-  default: 'border-line bg-card text-muted border px-6 py-[11px]',
-  primary: 'bg-primary justify-center px-6 py-3 text-white',
+  default: 'border-line bg-card text-muted border',
+  primary: 'bg-primary text-white',
 } as const;
 
 export function PillButton({
@@ -27,7 +27,7 @@ export function PillButton({
   return (
     <button
       type={type}
-      className={`inline-flex items-center gap-1 rounded-lg text-[14px] ${VARIANT[variant]} ${className}`}
+      className={`inline-flex h-10 items-center justify-center gap-1 rounded-lg px-6 text-[14px] ${VARIANT[variant]} ${className}`}
       {...props}
     />
   );
