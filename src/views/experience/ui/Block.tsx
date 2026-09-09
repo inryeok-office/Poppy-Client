@@ -36,9 +36,19 @@ const SHAPE: Record<BlockVariant, { path: string; w: number; h: number }> = {
   cap: { path: CAP_PATH, w: 212, h: 42 },
 };
 
-/** 값 입력 칸 (Rectangle 16/17). 32×22, radius 4. */
-export function BlockInput() {
-  return <span aria-hidden className="bg-page h-[22px] w-8 shrink-0 rounded-[4px]" />;
+/**
+ * 값 입력 칸 (Rectangle 16/17). 32×22, radius 3.
+ * 빈칸이면 자리표시(aria-hidden), 값이 있으면 ink 15px 로 가운데 표시 (Figma 33:914 "2").
+ */
+export function BlockInput({ children }: { children?: ReactNode }) {
+  return (
+    <span
+      aria-hidden={children == null ? true : undefined}
+      className="bg-page text-ink inline-flex h-[22px] w-8 shrink-0 items-center justify-center rounded-[3px] text-[15px]"
+    >
+      {children}
+    </span>
+  );
 }
 
 /** 실행 블록. 텍스트는 좌측 32px, 본체(상단 42px) 세로 중앙. */
