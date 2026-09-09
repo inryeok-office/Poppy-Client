@@ -1,10 +1,11 @@
-// Figma node 21:520 — text 로봇 미리보기(32:420), 블록 N개·예상 실행 N초(33:925),
-// Group 15(2m×2m 그리드, 26px 간격) + 로봇 본체 Rectangle 20(33:468, 40×52)·방향 삼각형 Rectangle 21(33:470),
-// akar-icons:full-screen(33:947, 24×24), Frame 24(스탯 3행, gap 16).
-//
-// 이 영역의 폭(313)·좌측 경계선·패딩(32/18)은 이 파일 루트 <aside>가 소유한다.
-// ExperienceView 는 3분할 flex + 페이지 배경만 잡고 이 폭에 관여하지 않는다.
-// 색은 globals.css @theme 팔레트(page/card/line/ink/muted), 폰트는 상위의 font-gmarket 상속.
+// Figma node 21:520 (Dev 모드 좌표 그대로). 격자 박스(Rectangle 19) 기준 상대 좌표:
+//   격자선  Frame 19 세로줄 x=21..229 / Frame 20 가로줄 y=11..167 (둘 다 26px 간격)
+//   로봇 본체 Rectangle 20  x=105 y=89  40×52   (중심 x=125 = 세로 중앙선, top=89 = 가로 중앙선)
+//   삼각형   Rectangle 21  x=117 y=65  16×16 프레임, 실제 벡터는 13.5×13.5 (좌 7.71% · 상 15.45% 인셋)
+//   전체화면 아이콘 x=213 y=142 24×24 → 우/하 12px
+// 패널: 폭 313(좌측 구분선 1.5 + 좌패딩 30.5 + 콘텐츠 249 + 우패딩 32), 상패딩 18.
+// 제목/격자박스/스탯 세로 배치: 제목 y18(h16) → 격자박스 y46(h178) → 스탯 y256 (행 18 · 피치 34).
+// 색은 globals.css @theme 팔레트, 폰트는 상위 font-gmarket 상속.
 
 const SUMMARY = { blockCount: 5, estimatedSeconds: 7 } as const;
 
@@ -18,33 +19,40 @@ export function RobotPreview() {
   return (
     <aside
       aria-label="로봇 미리보기"
-      className="border-line flex w-[313px] shrink-0 flex-col border-l-[1.5px] px-8 pt-4.5"
+      className="border-line flex w-[313px] shrink-0 flex-col border-l-[1.5px] pt-[18px] pr-8 pl-[30.5px]"
     >
-      <div className="flex items-baseline justify-between">
+      {/* 헤더: 제목 + 요약. Figma 텍스트 높이 16 기준이라 leading-none 으로 여백 슬랙 제거 */}
+      <div className="flex items-baseline justify-between leading-none">
         <h2 className="text-ink text-[14px]">로봇 미리보기</h2>
         <span className="text-muted text-[12px]">
           블록 {SUMMARY.blockCount}개 • 예상 실행 {SUMMARY.estimatedSeconds}초
         </span>
       </div>
 
-      {/* 2m × 2m 안전 구역 미리보기. TODO: 조립된 블록 실행 결과로 로봇 위치/경로 렌더링 */}
+      {/* 격자 박스 (Rectangle 19: 249×178 · radius 12). 제목 텍스트(하단 y32) 아래 14px → y46. */}
       <div
         role="img"
         aria-label="로봇 위치 미리보기 (2m × 2m 안전 구역)"
-        className="border-line bg-card relative mt-4.5 h-[178px] overflow-hidden rounded-xl border"
+        className="border-line bg-card relative mt-[14px] h-[178px] w-full overflow-hidden rounded-[12px] border"
       >
-        {/* 26px 격자 (디자인 Vector 4~15 간격) */}
+        {/* 격자선: Frame 19 세로줄 x=21부터 · Frame 20 가로줄 y=11부터 · 26px 간격 (박스 기준 절대 위치). */}
         <div
           aria-hidden
-          className="absolute inset-0 bg-[linear-gradient(to_right,#e4ddd2_1px,transparent_1px),linear-gradient(to_bottom,#e4ddd2_1px,transparent_1px)] bg-size-[26px_26px] opacity-70"
+          className="absolute inset-0 bg-[linear-gradient(to_right,#e4ddd2_1px,transparent_1px),linear-gradient(to_bottom,#e4ddd2_1px,transparent_1px)] bg-size-[26px_26px] bg-position-[21px_11px] opacity-70"
         />
 
         <span className="text-muted absolute top-3 left-3 text-[12px]">2m x 2m 안전 구역</span>
 
-        {/* 로봇 마커. 본체(Rectangle 20) 상단이 박스 세로 중앙(y=340, 박스 251~429). TODO: 실제 좌표/방향 반영 */}
-        <span className="bg-ink absolute top-1/2 left-1/2 h-13 w-10 -translate-x-1/2 rounded-t-[18px] rounded-b-[7px]" />
-        {/* 방향 삼각형 (33:470, 약 13.5×13.5, fill #e58d55 — 블록 주황과 다른 값). 본체 위 ~10px */}
-        <span className="absolute top-1/2 left-1/2 h-0 w-0 -translate-x-1/2 -translate-y-[calc(100%+10px)] border-x-[7px] border-b-[12px] border-x-transparent border-b-[#e58d55]" />
+        {/* 로봇 본체 (Rectangle 20: x=105 y=89 · 40×52). 중심 x=125 = 격자 세로 중앙선. */}
+        <span className="bg-ink absolute top-[89px] left-[105px] h-13 w-10 rounded-t-[18px] rounded-b-[7px]" />
+        {/* 방향 삼각형 (Rectangle 21 벡터: 프레임 x=117 y=65 16×16, 인셋 좌7.71%·상15.45% → x=118.2 y=67.5). */}
+        <svg
+          aria-hidden
+          viewBox="0 -0.6 13.533 14.13"
+          className="absolute top-[67.5px] left-[118.2px] size-[13.5px] fill-[#e58d55]"
+        >
+          <path d="M2.00258 13.5279H11.5304C13.0172 13.5279 13.9842 11.9632 13.3193 10.6334L8.55537 1.10557C7.81832 -0.368525 5.71471 -0.368523 4.97766 1.10557L0.213726 10.6334C-0.451175 11.9632 0.515817 13.5279 2.00258 13.5279Z" />
+        </svg>
 
         <button
           type="button"
@@ -64,9 +72,10 @@ export function RobotPreview() {
         </button>
       </div>
 
-      <dl className="mt-8 flex flex-col gap-4">
+      {/* 스탯 3행 (Frame 24). 격자 박스 아래 32px, 각 행 18px · 행 간격 16 → 34 피치 (Figma) */}
+      <dl className="mt-8 flex flex-col gap-4 leading-none">
         {STATS.map((stat) => (
-          <div key={stat.label} className="flex items-baseline justify-between">
+          <div key={stat.label} className="flex h-[18px] items-baseline justify-between">
             <dt className="text-muted text-[15px]">{stat.label}</dt>
             <dd className="text-ink text-[16px]">{stat.value}</dd>
           </div>
