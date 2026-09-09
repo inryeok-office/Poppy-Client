@@ -19,7 +19,15 @@ const eslintConfig = defineConfig([
   // 포맷 관련 규칙을 끈다. 포맷은 Prettier가 담당한다. 반드시 마지막에 온다.
   prettier,
 
-  globalIgnores(['.next/**', 'out/**', 'build/**', 'coverage/**', 'next-env.d.ts']),
+  globalIgnores([
+    '.next/**',
+    'out/**',
+    'build/**',
+    'coverage/**',
+    'next-env.d.ts',
+    // MSW가 생성하는 서비스 워커 스크립트 (vendored)
+    'public/mockServiceWorker.js',
+  ]),
 ]);
 
 export default eslintConfig;
