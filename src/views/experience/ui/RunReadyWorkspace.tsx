@@ -1,3 +1,4 @@
+import { Block, BlockInput, CBlock } from './Block';
 import { PillButton } from '@/shared/ui';
 
 // Figma node 33:700 (Slide 16:9 - 4) — 조립 완료 + 시뮬레이션 통과, 로봇 실행 대기 상태.
@@ -22,7 +23,43 @@ export function RunReadyWorkspace() {
         </div>
       </div>
 
-      {/* 조립 캔버스 — 조각 3 */}
+      {/* 조립 캔버스 (Rectangle 7, h763). 완성된 프로그램: 시작 → 반복(2){뒤로 1 m 이동} → 인사하기 → 종료.
+          블록은 캔버스 좌상단 기준 x63 y67 (Figma Group 14 x442 y324, 캔버스 x379 y257). */}
+      <div
+        className="border-line bg-card dot-grid relative min-h-[763px] flex-1 border-t-[1.5px]"
+        role="region"
+        aria-label="블록 조립 캔버스"
+      >
+        <ol className="absolute top-[67px] left-[63px] flex flex-col -space-y-1.5">
+          <li>
+            <Block color="start" variant="hat">
+              시작
+            </Block>
+          </li>
+          <li>
+            <CBlock
+              color="flow"
+              header={
+                <>
+                  <BlockInput>2</BlockInput>번 반복하기
+                </>
+              }
+            >
+              <Block color="move">
+                뒤로 <BlockInput>1</BlockInput> m 이동
+              </Block>
+            </CBlock>
+          </li>
+          <li>
+            <Block color="action">인사하기</Block>
+          </li>
+          <li>
+            <Block color="start" variant="cap">
+              종료
+            </Block>
+          </li>
+        </ol>
+      </div>
     </section>
   );
 }
