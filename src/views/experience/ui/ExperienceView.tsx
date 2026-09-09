@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { AssembledBlockWorkspace } from './AssembledBlockWorkspace';
 import { BlockPalette } from './BlockPalette';
@@ -25,15 +25,34 @@ const MOCK_SIMULATION_MS = 700;
 
 export function ExperienceView() {
   const [simulation, setSimulation] = useState<SimulationStatus>('idle');
+  const simulationTimer = useRef<number | null>(null);
+
+  const cancelPendingSimulation = () => {
+    if (simulationTimer.current !== null) {
+      window.clearTimeout(simulationTimer.current);
+      simulationTimer.current = null;
+    }
+  };
+
+  // 언마운트 시 대기 중인 mock 타이머 정리
+  useEffect(() => cancelPendingSimulation, []);
 
   const runSimulation = () => {
     if (simulation === 'running') return;
     setSimulation('running');
+    cancelPendingSimulation();
     // TODO(조각 3): 서버가 블록 구조·안전 제한을 검증하고 통과 기록을 발급 (명세 Simulation)
-    window.setTimeout(() => setSimulation('passed'), MOCK_SIMULATION_MS);
+    simulationTimer.current = window.setTimeout(() => {
+      simulationTimer.current = null;
+      setSimulation('passed');
+    }, MOCK_SIMULATION_MS);
   };
 
-  const resetSession = () => setSimulation('idle');
+  const resetSession = () => {
+    // 검증 중 초기화하면 대기 중인 타이머가 뒤늦게 'passed' 로 되돌리지 않도록 취소
+    cancelPendingSimulation();
+    setSimulation('idle');
+  };
 
   return (
     <div className="bg-page font-gmarket text-ink flex min-h-full flex-1 flex-col">

@@ -50,4 +50,17 @@ describe('ExperienceView', () => {
 
     expect(screen.getByRole('button', { name: /로봇 실행하기/ })).toHaveTextContent('잠김');
   });
+
+  it('검증 중 처음으로를 누르면 대기 타이머가 취소되어 통과로 넘어가지 않는다', async () => {
+    const user = userEvent.setup();
+    render(<ExperienceView />);
+
+    await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
+    await user.click(screen.getByRole('button', { name: '처음으로' }));
+
+    // 타이머가 살아 있으면 이 사이에 passed 로 바뀐다
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    expect(screen.getByRole('button', { name: /로봇 실행하기/ })).toHaveTextContent('잠김');
+  });
 });
