@@ -2,7 +2,7 @@ import { Block, BlockInput, CBlock } from './Block';
 import { PillButton } from '@/shared/ui';
 
 // Figma node 33:700 (Slide 16:9 - 4) — 조립 완료 + 시뮬레이션 통과, 로봇 실행 대기 상태.
-// AssembledBlockWorkspace(Slide 3)에서:
+// BlockWorkspace(Slide 2·3)에서:
 //   - 튜토리얼 패널이 없어 안내문이 워크스페이스 최상단 (Frame 8, y=223 → 헤더 아래 바로)
 //   - 시뮬레이션 하기 / 로봇 실행하기 둘 다 채워진 primary 버튼, 잠김 없음 (Frame 17)
 //   - 캔버스가 그만큼 커지고 조립 블록 입력칸에 값(2·1)이 채워짐
