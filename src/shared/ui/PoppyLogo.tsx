@@ -2,6 +2,7 @@ import type { SVGProps } from 'react';
 
 /**
  * Poppy 워드마크. 원본: Figma "뽀샤" 인트로 화면 (node 10:496).
+ * 인트로·체험 헤더 등 여러 슬라이스에서 쓰여 shared/ui 로 승격했다.
  * 색상은 브랜드 고정값이라 하드코딩한다.
  */
 export function PoppyLogo(props: SVGProps<SVGSVGElement>) {
