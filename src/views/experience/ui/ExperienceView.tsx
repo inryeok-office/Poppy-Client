@@ -1,27 +1,53 @@
+'use client';
+
+import { useState } from 'react';
+
+import { AssembledBlockWorkspace } from './AssembledBlockWorkspace';
 import { BlockPalette } from './BlockPalette';
-import { BlockWorkspace } from './BlockWorkspace';
 import { ExperienceHeader } from './ExperienceHeader';
 import { RobotPreview } from './RobotPreview';
+import { RunReadyWorkspace } from './RunReadyWorkspace';
 
 /**
- * 블록 코딩 체험 화면 (Figma "뽀샤" node 21:520).
+ * 블록 코딩 체험 화면 (Figma "뽀삐" node 21:520 / Slide 3·4).
  *
- * 영역 구조 + 정적 스타일(피그마 Dev 모드 기준)까지 반영한 상태.
- * - 색은 globals.css @theme 팔레트(page/card/line/ink/muted/block-*)를 쓴다.
- * - 폰트는 디자인 지정대로 Gmarket Sans Medium(font-gmarket). 이 화면만 예외, 앱 기본은 그리운.
- * - 블록 드래그앤드롭, 시뮬레이션, 로봇 실행, 미리보기 렌더링 등 상호작용/상태는 범위 밖.
- *   블록 형태는 Figma 벡터 경로 그대로(Block.tsx), 조립 예시는 자리표시로 절대배치.
- * - 프레임의 브라우저 크롬(Topbar)·작업표시줄(Task bar)은 목업이라 제외.
+ * 명세(Simulation·Execution) 기준 상태 흐름:
+ *   1. 블록 구조가 유효하면 '시뮬레이션 하기' 활성 (지금은 고정 데모 프로그램이라 항상 유효)
+ *   2. 시뮬레이션 통과 기록이 있어야 '로봇 실행하기' 활성 — 없으면 잠김
+ *   3. 통과 후 튜토리얼 패널이 사라지고 캔버스가 커진다 (Slide 3 → Slide 4)
+ * 헤더 '전체 지우기' / '처음으로' 는 통과 기록을 초기화한다 (명세: 블록·모드 변경 시 기록 무효화).
+ *
+ * 백엔드가 없어 시뮬레이션 판정은 mock (setTimeout). 후속 조각에서 MSW mock API 로 교체.
  */
+type SimulationStatus = 'idle' | 'running' | 'passed';
+
+const MOCK_SIMULATION_MS = 700;
+
 export function ExperienceView() {
+  const [simulation, setSimulation] = useState<SimulationStatus>('idle');
+
+  const runSimulation = () => {
+    if (simulation === 'running') return;
+    setSimulation('running');
+    // TODO(조각 3): 서버가 블록 구조·안전 제한을 검증하고 통과 기록을 발급 (명세 Simulation)
+    window.setTimeout(() => setSimulation('passed'), MOCK_SIMULATION_MS);
+  };
+
+  const resetSession = () => setSimulation('idle');
+
   return (
     <div className="bg-page font-gmarket text-ink flex min-h-full flex-1 flex-col">
-      <ExperienceHeader />
-      {/* 본문: 좌 팔레트 · 중앙 워크스페이스 · 우 미리보기 3분할.
-          각 영역의 폭·경계선은 해당 컴포넌트 루트가 소유한다(여긴 3분할 flex만). */}
+      <ExperienceHeader onClearAll={resetSession} onRestart={resetSession} />
       <div className="flex flex-1">
         <BlockPalette />
-        <BlockWorkspace />
+        {simulation === 'passed' ? (
+          <RunReadyWorkspace onSimulate={runSimulation} />
+        ) : (
+          <AssembledBlockWorkspace
+            onSimulate={runSimulation}
+            simulating={simulation === 'running'}
+          />
+        )}
         <RobotPreview />
       </div>
     </div>
