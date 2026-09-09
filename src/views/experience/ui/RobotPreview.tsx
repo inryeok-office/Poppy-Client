@@ -33,10 +33,11 @@ export function RobotPreview() {
         aria-label="로봇 위치 미리보기 (2m × 2m 안전 구역)"
         className="border-line bg-card relative mt-4.5 h-[178px] overflow-hidden rounded-xl border"
       >
-        {/* 26px 격자 (디자인 Vector 4~15 간격) */}
+        {/* 26px 격자 (디자인 Frame 19·20). Figma는 격자를 박스 안에 가운데 맞춰(좌우 ~20·상하 ~11 여백)
+            중앙 교차점에 로봇을 놓는다. 로봇이 top-1/2·left-1/2라서 x 20 · y 11 오프셋이면 중앙선이 로봇을 지난다. */}
         <div
           aria-hidden
-          className="absolute inset-0 bg-[linear-gradient(to_right,#e4ddd2_1px,transparent_1px),linear-gradient(to_bottom,#e4ddd2_1px,transparent_1px)] bg-size-[26px_26px] opacity-70"
+          className="absolute inset-0 bg-[linear-gradient(to_right,#e4ddd2_1px,transparent_1px),linear-gradient(to_bottom,#e4ddd2_1px,transparent_1px)] bg-size-[26px_26px] bg-position-[20px_11px] opacity-70"
         />
 
         <span className="text-muted absolute top-3 left-3 text-[12px]">2m x 2m 안전 구역</span>
