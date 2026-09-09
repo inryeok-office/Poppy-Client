@@ -44,8 +44,14 @@ export function RobotPreview() {
 
         {/* 로봇 마커. 본체(Rectangle 20) 상단이 박스 세로 중앙(y=340, 박스 251~429). TODO: 실제 좌표/방향 반영 */}
         <span className="bg-ink absolute top-1/2 left-1/2 h-13 w-10 -translate-x-1/2 rounded-t-[18px] rounded-b-[7px]" />
-        {/* 방향 삼각형 (33:470, 약 13.5×13.5, fill #e58d55 — 블록 주황과 다른 값). 본체 위 ~10px */}
-        <span className="absolute top-1/2 left-1/2 h-0 w-0 -translate-x-1/2 -translate-y-[calc(100%+10px)] border-x-[7px] border-b-[12px] border-x-transparent border-b-[#e58d55]" />
+        {/* 방향 삼각형 (Rectangle 21 / 33:470, 13.5×13.5 벡터 그대로, 모서리 둥긂). 본체 위 ~9px */}
+        <svg
+          aria-hidden
+          viewBox="0 -0.6 13.533 14.13"
+          className="absolute top-1/2 left-1/2 size-[13.5px] -translate-x-1/2 -translate-y-[calc(100%+8px)] fill-[#e58d55]"
+        >
+          <path d="M2.00258 13.5279H11.5304C13.0172 13.5279 13.9842 11.9632 13.3193 10.6334L8.55537 1.10557C7.81832 -0.368525 5.71471 -0.368523 4.97766 1.10557L0.213726 10.6334C-0.451175 11.9632 0.515817 13.5279 2.00258 13.5279Z" />
+        </svg>
 
         <button
           type="button"
