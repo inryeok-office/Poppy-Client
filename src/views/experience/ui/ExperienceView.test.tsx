@@ -16,9 +16,10 @@ describe('ExperienceView', () => {
     expect(screen.getByRole('heading', { name: '로봇 미리보기' })).toBeInTheDocument();
   });
 
-  it('시뮬레이션 통과 전이라 로봇 실행 버튼은 잠겨 있다', () => {
+  it('시뮬레이션 통과 전이라 로봇 실행 버튼에 잠김 라벨이 붙는다', () => {
     render(<ExperienceView />);
 
-    expect(screen.getByRole('button', { name: /로봇 실행하기/ })).toBeDisabled();
+    // UI 퍼블리싱 단계라 잠김은 disabled 속성이 아니라 디자인대로 라벨로만 표시한다.
+    expect(screen.getByRole('button', { name: /로봇 실행하기/ })).toHaveTextContent('잠김');
   });
 });

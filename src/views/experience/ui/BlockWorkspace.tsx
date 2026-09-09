@@ -48,9 +48,9 @@ export function BlockWorkspace() {
         </p>
         <div className="flex gap-2">
           <PillButton>시뮬레이션 하기</PillButton>
-          {/* 시뮬레이션 통과 전까지 잠김 */}
-          <PillButton disabled>
-            로봇 실행하기 <span className="text-[13px]">· 잠김</span>
+          {/* 시뮬레이션 통과 전까지 잠김 — 상태는 범위 밖, 디자인대로 라벨만 */}
+          <PillButton>
+            로봇 실행하기<span className="text-[13px]">• 잠김</span>
           </PillButton>
         </div>
       </div>

@@ -49,7 +49,7 @@ export function RobotPreview() {
         <button
           type="button"
           aria-label="미리보기 전체화면"
-          className="text-muted hover:text-ink absolute right-3 bottom-3 grid size-6 place-items-center rounded transition-colors"
+          className="text-muted absolute right-3 bottom-3 grid size-6 place-items-center rounded"
         >
           {/* akar-icons:full-screen (node 33:947) */}
           <svg viewBox="0 0 24 24" fill="none" className="size-4.5" aria-hidden>
