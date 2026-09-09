@@ -20,18 +20,19 @@ export function RobotPreview() {
       aria-label="로봇 미리보기"
       className="border-line flex w-[313px] shrink-0 flex-col border-l-[1.5px] px-8 pt-4.5"
     >
-      <div className="flex items-baseline justify-between">
+      {/* 헤더: 제목 + 요약. Figma 텍스트 높이 16 기준이라 leading-none 으로 여백 슬랙 제거 */}
+      <div className="flex items-baseline justify-between leading-none">
         <h2 className="text-ink text-[14px]">로봇 미리보기</h2>
         <span className="text-muted text-[12px]">
           블록 {SUMMARY.blockCount}개 • 예상 실행 {SUMMARY.estimatedSeconds}초
         </span>
       </div>
 
-      {/* 2m × 2m 안전 구역 미리보기. TODO: 조립된 블록 실행 결과로 로봇 위치/경로 렌더링 */}
+      {/* 2m × 2m 안전 구역 미리보기. 헤더 아래 14px (Figma Group 15 y=251, 텍스트 y=223+16). */}
       <div
         role="img"
         aria-label="로봇 위치 미리보기 (2m × 2m 안전 구역)"
-        className="border-line bg-card relative mt-4.5 h-[178px] overflow-hidden rounded-xl border"
+        className="border-line bg-card relative mt-[14px] h-[178px] overflow-hidden rounded-xl border"
       >
         {/* 26px 격자 (디자인 Frame 19·20). Figma는 격자를 박스 안에 가운데 맞춰(좌우 ~20·상하 ~11 여백)
             중앙 교차점에 로봇을 놓는다. 로봇이 top-1/2·left-1/2라서 x 20 · y 11 오프셋이면 중앙선이 로봇을 지난다. */}
@@ -71,9 +72,10 @@ export function RobotPreview() {
         </button>
       </div>
 
-      <dl className="mt-8 flex flex-col gap-4">
+      {/* 스탯 3행 (Frame 24). 격자 박스 아래 32px, 각 행 18px · 행 간격 16 → 34 피치 (Figma) */}
+      <dl className="mt-8 flex flex-col gap-4 leading-none">
         {STATS.map((stat) => (
-          <div key={stat.label} className="flex items-baseline justify-between">
+          <div key={stat.label} className="flex h-[18px] items-baseline justify-between">
             <dt className="text-muted text-[15px]">{stat.label}</dt>
             <dd className="text-ink text-[16px]">{stat.value}</dd>
           </div>
