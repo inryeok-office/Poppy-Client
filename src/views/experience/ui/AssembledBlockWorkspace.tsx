@@ -2,13 +2,21 @@ import { Block, BlockInput, CBlock, GhostBlock } from './Block';
 import { SectionLabel } from './SectionLabel';
 import { PillButton } from '@/shared/ui';
 
-// Figma node 33:483 (Slide 16:9 - 3) — 조립 완료 상태.
-// BlockWorkspace(페이지 2, node 21:520)와 두 가지만 다르다:
-//   1. 종료 블록(Group 11)이 캔버스 우측에서 떨어져 있지 않고 인사하기 아래에 연결됨
-//   2. 시뮬레이션 하기(Frame 17)가 아웃라인 → 채워진 primary 버튼(#ba7448)
-// 튜토리얼 패널·안내문·건너뛰기·로봇 실행 버튼은 페이지 2와 동일.
+// Figma node 33:483 (Slide 16:9 - 3) — 조립 완료, 시뮬레이션 통과 전 상태.
+//   시작~종료가 하나로 연결된 완성 프로그램 → '시뮬레이션 하기' 활성(primary)
+//   '로봇 실행하기' 는 통과 기록이 없어 잠김 (명세 Execution)
+// ExperienceView 가 시뮬레이션 상태를 소유하고 onSimulate 를 넘긴다.
 
-export function AssembledBlockWorkspace() {
+type AssembledBlockWorkspaceProps = {
+  onSimulate?: () => void;
+  /** 시뮬레이션 검증 중 — 버튼 라벨을 바꾸고 재클릭을 막는다. */
+  simulating?: boolean;
+};
+
+export function AssembledBlockWorkspace({
+  onSimulate,
+  simulating = false,
+}: AssembledBlockWorkspaceProps) {
   return (
     <section className="bg-page flex flex-1 flex-col" aria-label="블록 워크스페이스">
       {/* 튜토리얼 */}
@@ -40,9 +48,11 @@ export function AssembledBlockWorkspace() {
         </p>
         {/* primary(상하 12)가 잠김 버튼(상하 11)보다 살짝 커서 center 정렬 (Figma Frame 17). */}
         <div className="flex items-center gap-2">
-          <PillButton variant="primary">시뮬레이션 하기</PillButton>
-          {/* 시뮬레이션 통과 전까지 잠김 — 상태는 범위 밖, 디자인대로 라벨만 */}
-          <PillButton>
+          <PillButton variant="primary" onClick={onSimulate}>
+            {simulating ? '시뮬레이션 중…' : '시뮬레이션 하기'}
+          </PillButton>
+          {/* 시뮬레이션 통과 기록이 없어 잠김 (명세 Execution) */}
+          <PillButton aria-disabled>
             로봇 실행하기<span className="text-[13px]">• 잠김</span>
           </PillButton>
         </div>
