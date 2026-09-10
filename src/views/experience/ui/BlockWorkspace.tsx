@@ -114,7 +114,7 @@ export function BlockWorkspace({
         {dragging?.active && dragging.slot && (
           <div
             aria-hidden
-            className="bg-primary pointer-events-none fixed z-40 h-[6px] -translate-y-1/2 rounded-full"
+            className="bg-primary pointer-events-none fixed z-40 h-[6px] -translate-y-1/2 rounded-full transition-[top,left] duration-100 motion-reduce:transition-none"
             style={{ top: dragging.slot.y, left: dragging.slot.x, width: BLOCK_WIDTH }}
           />
         )}

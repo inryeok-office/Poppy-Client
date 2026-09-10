@@ -13,17 +13,21 @@ import { readLocalDraft, useAutoSaveProject, useSession } from '@/features/sessi
 import { useSimulateProgram } from '@/features/simulation';
 
 import { BlockDragProvider } from '../lib/useBlockDrag';
+import { blockLabel } from '../model/blockCatalog';
 import {
   INITIAL_PROGRAM,
+  blockCommandCount,
   connectDetachedBlocks,
   draftToProgram,
   insertBlock,
   isBlockProgramSnapshot,
   moveBlock,
+  newBlock,
   removeBlock,
   serializeProgram,
   setBlockParam,
   validateBlockProgram,
+  type BlockKind,
   type BlockNode,
   type BlockProgram,
 } from '../model/blockProgram';
@@ -62,6 +66,8 @@ export function ExperienceView() {
   const [{ program: startProgram, restoredDirty }] = useState(initialProgram);
   const [program, setProgram] = useState<BlockProgram>(startProgram);
   const [executionId, setExecutionId] = useState<string | null>(null);
+  // 드래그·키보드 편집 결과를 스크린리더에 알린다 (캔버스 변화는 시각 전용이라).
+  const [announcement, setAnnouncement] = useState('');
   // 초기화 후 늦게 도착한 실행 요청 onSuccess 가 오래된 실행 ID 를 되살리지 않게 한다.
   const runGeneration = useRef(0);
 
@@ -165,16 +171,30 @@ export function ExperienceView() {
   const insertBlockAt = (node: BlockNode, slotIndex: number) => {
     setProgram((current) => insertBlock(current, node, slotIndex));
     invalidate();
+    setAnnouncement(`${blockLabel(node.kind)} 블록을 넣었어요.`);
   };
 
   const moveBlockTo = (nodeId: string, slotIndex: number) => {
     setProgram((current) => moveBlock(current, nodeId, slotIndex));
     invalidate();
+    setAnnouncement('블록 순서를 바꿨어요.');
   };
 
   const removeBlockById = (nodeId: string) => {
     setProgram((current) => removeBlock(current, nodeId));
     invalidate();
+    setAnnouncement('블록을 지웠어요.');
+  };
+
+  // 팔레트에서 키보드(Enter)로 블록을 집으면 스택 끝(종료 앞)에 추가한다.
+  const pickBlock = (kind: BlockKind) => {
+    const node = newBlock(kind);
+    setProgram((current) => {
+      const end = current.stack.at(-1)?.kind === 'end';
+      return insertBlock(current, node, end ? current.stack.length - 1 : current.stack.length);
+    });
+    invalidate();
+    setAnnouncement(`${blockLabel(kind)} 블록을 추가했어요.`);
   };
 
   const connectBlock = () => {
@@ -194,9 +214,12 @@ export function ExperienceView() {
         onRestart={resetSession}
         saveStatus={autoSave.status}
       />
+      <span className="sr-only" role="status" aria-live="polite">
+        {announcement}
+      </span>
       <BlockDragProvider onInsert={insertBlockAt} onMove={moveBlockTo} onRemove={removeBlockById}>
         <div className="flex flex-1">
-          <BlockPalette />
+          <BlockPalette onPickBlock={pickBlock} />
           {simulationPassed ? (
             <RunReadyWorkspace
               program={program}
@@ -218,7 +241,10 @@ export function ExperienceView() {
               simulationMessage={simulationMessage}
             />
           )}
-          <RobotPreview estimatedDistanceM={estimatedDistanceM} />
+          <RobotPreview
+            estimatedDistanceM={estimatedDistanceM}
+            blockCount={blockCommandCount(program)}
+          />
         </div>
       </BlockDragProvider>
     </div>

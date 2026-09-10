@@ -179,6 +179,14 @@ export function BlockDragProvider({
 
   useEffect(() => () => teardownRef.current?.(), []);
 
+  // 드래그 중엔 어디에 있든 grabbing 커서 + 텍스트 선택 방지.
+  const active = dragging?.active ?? false;
+  useEffect(() => {
+    if (!active || typeof document === 'undefined') return;
+    document.body.classList.add('cursor-grabbing', 'select-none');
+    return () => document.body.classList.remove('cursor-grabbing', 'select-none');
+  }, [active]);
+
   const value = useMemo<BlockDragValue>(
     () => ({ dragging, startDrag, registerStack, registerCanvas }),
     [dragging, startDrag, registerStack, registerCanvas],

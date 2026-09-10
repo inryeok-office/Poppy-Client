@@ -106,6 +106,22 @@ describe('블록 팔레트 드래그 삽입', () => {
   });
 });
 
+describe('팔레트 키보드 추가 + 안내', () => {
+  it('팔레트 블록에서 Enter 를 누르면 스택 끝에 추가되고 스크린리더에 알린다', async () => {
+    const user = userEvent.setup();
+    renderView();
+
+    await user.click(screen.getByRole('button', { name: '동작' }));
+    expect(canvasBlocks()).toHaveLength(1);
+
+    screen.getByRole('button', { name: '인사하기 블록 꺼내기' }).focus();
+    await user.keyboard('{Enter}');
+
+    expect(canvasBlocks()).toHaveLength(2);
+    expect(screen.getByRole('status')).toHaveTextContent('인사하기 블록을 추가했어요.');
+  });
+});
+
 describe('캔버스 블록 재정렬·삭제', () => {
   it('스택 블록을 다른 슬롯으로 끌면 순서가 바뀐다', () => {
     stubLayout();

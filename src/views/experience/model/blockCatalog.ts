@@ -33,3 +33,17 @@ export const PALETTE_BLOCKS: PaletteEntry[] = [
 export function blocksInCategory(category: string): PaletteEntry[] {
   return PALETTE_BLOCKS.filter((entry) => entry.category === category);
 }
+
+const LABELS: Record<BlockKind, string> = {
+  start: '시작',
+  end: '종료',
+  greet: '인사하기',
+  move: '이동',
+  wait: '기다리기',
+  repeat: '반복하기',
+};
+
+/** 블록의 짧은 이름 (버튼 라벨·안내 문구용). */
+export function blockLabel(kind: BlockKind): string {
+  return LABELS[kind];
+}
