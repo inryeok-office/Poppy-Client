@@ -22,10 +22,15 @@ if (!window.matchMedia) {
 // 테스트가 정의하지 않은 요청은 명시적으로 실패시켜 놓친 Mock을 바로 드러낸다.
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 
-// 테스트 간 MSW 핸들러와 DOM이 남아 다음 테스트에 영향을 주지 않게 한다.
+// 테스트 간 MSW 핸들러·DOM·localStorage가 남아 다음 테스트에 영향을 주지 않게 한다.
 afterEach(() => {
   server.resetHandlers();
   cleanup();
+  try {
+    window.localStorage.clear();
+  } catch {
+    // 무시
+  }
 });
 
 afterAll(() => server.close());

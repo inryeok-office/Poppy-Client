@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   cancelExecution as cancelExecutionApi,
@@ -9,6 +9,7 @@ import {
   useExecutionState,
   useRequestExecution,
 } from '@/features/execution';
+import { readLocalDraft, useAutoSaveProject, useSession } from '@/features/session';
 import { useSimulateProgram } from '@/features/simulation';
 
 import {
@@ -36,12 +37,26 @@ import { RunReadyWorkspace } from './RunReadyWorkspace';
  *
  * 시뮬레이션·실행은 features/{simulation,execution} 의 mock API(MSW). 실제 백엔드가 생기면 핸들러만 걷어낸다.
  */
+/** 마운트 시 브라우저 초안이 있으면 그 프로그램으로 시작한다 (명세: 새로고침해도 작업 보존). */
+function initialProgram(): { program: BlockProgram; restoredDirty: boolean } {
+  const draft = readLocalDraft();
+  if (draft && Array.isArray(draft.program?.chain)) {
+    return { program: draft.program as BlockProgram, restoredDirty: draft.dirty };
+  }
+  return { program: INITIAL_PROGRAM, restoredDirty: false };
+}
+
+const AUTOSAVE_DEBOUNCE_MS = 600;
+
 export function ExperienceView() {
-  const [program, setProgram] = useState<BlockProgram>(INITIAL_PROGRAM);
+  const [{ program: startProgram, restoredDirty }] = useState(initialProgram);
+  const [program, setProgram] = useState<BlockProgram>(startProgram);
   const [executionId, setExecutionId] = useState<string | null>(null);
   // 초기화 후 늦게 도착한 실행 요청 onSuccess 가 오래된 실행 ID 를 되살리지 않게 한다.
   const runGeneration = useRef(0);
 
+  const session = useSession();
+  const autoSave = useAutoSaveProject(session.data?.sessionId ?? null);
   const simulation = useSimulateProgram();
   const requestExecution = useRequestExecution();
   const cancelExecution = useCancelExecution();
@@ -49,6 +64,29 @@ export function ExperienceView() {
 
   const blockErrors = useMemo(() => validateBlockProgram(program), [program]);
   const blockValid = blockErrors.length === 0;
+
+  // ── 자동 저장 (명세 Session "프로젝트 자동 저장") ─────────────────────────────
+  const { save: saveProgram, setBaseVersion } = autoSave;
+  const savedProgramRef = useRef<BlockProgram>(program);
+
+  // 세션 확보 시 서버 버전을 맞추고, 세션 준비 전 변경분·미저장 초안을 동기화한다.
+  useEffect(() => {
+    if (!session.data) return;
+    setBaseVersion(session.data.projectVersion);
+    if (restoredDirty || program !== startProgram) saveProgram(program);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.data, setBaseVersion]);
+
+  // program 이 실제로 바뀌면 디바운스 후 저장한다.
+  useEffect(() => {
+    if (program === savedProgramRef.current) return;
+    const timer = window.setTimeout(() => {
+      savedProgramRef.current = program;
+      saveProgram(program);
+    }, AUTOSAVE_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [program, saveProgram]);
+  // ────────────────────────────────────────────────────────────────────────
 
   const simulationResult = simulation.data;
   const simulationPassed = simulationResult?.passed === true;
@@ -125,7 +163,11 @@ export function ExperienceView() {
 
   return (
     <div className="bg-page font-gmarket text-ink flex min-h-full flex-1 flex-col">
-      <ExperienceHeader onClearAll={resetSession} onRestart={resetSession} />
+      <ExperienceHeader
+        onClearAll={resetSession}
+        onRestart={resetSession}
+        saveStatus={autoSave.status}
+      />
       <div className="flex flex-1">
         <BlockPalette />
         {simulationPassed ? (
