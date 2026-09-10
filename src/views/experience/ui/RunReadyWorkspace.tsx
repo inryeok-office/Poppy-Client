@@ -1,43 +1,78 @@
+import type { ExecutionStatus } from '@/features/execution';
+
 import type { BlockProgram } from '../model/blockProgram';
 import { Block, BlockInput, CBlock } from './Block';
 import { PillButton } from '@/shared/ui';
 
-// Figma node 33:700 (Slide 16:9 - 4) — 조립 완료 + 시뮬레이션 통과, 로봇 실행 대기 상태.
-// BlockWorkspace(Slide 2·3)에서:
-//   - 튜토리얼 패널이 없어 안내문이 워크스페이스 최상단 (Frame 8, y=223 → 헤더 아래 바로)
-//   - 시뮬레이션 하기 / 로봇 실행하기 둘 다 채워진 primary 버튼, 잠김 없음 (Frame 17)
-//   - 캔버스가 그만큼 커지고 조립 블록 입력칸에 값(2·1)이 채워짐
+// Figma node 33:700 (Slide 16:9 - 4) — 조립 완료 + 시뮬레이션 통과.
+// 로봇 실행을 요청하면 이 상단 행이 실행 상태(대기·배정·진행·완료)를 보여준다 (명세 Execution).
 // 헤더 아래(y205) ~ 캔버스 상단(y257) 사이 52px 가 이 상단 행. 버튼 40 · 상하 6.
+
+const DEFAULT_HINT = '반드시 ‘종료’ 블록으로 끝내주세요.';
+
+const EXECUTION_HINT: Record<ExecutionStatus, string> = {
+  queued: '실행을 기다리고 있어요…',
+  assigned: '로봇에 배정됐어요.',
+  running: '로봇이 움직이고 있어요…',
+  completed: '완료했어요! 🎉',
+  failed: '실행에 실패했어요.',
+  cancelled: '실행을 멈췄어요.',
+};
 
 type RunReadyWorkspaceProps = {
   program: BlockProgram;
-  /** 재검증 (명세: 재시뮬레이션 가능). */
+  /** 실행이 시작됐으면 현재 상태, 아니면 null */
+  executionStatus?: ExecutionStatus | null;
+  /** 완료·실패 시 서버가 준 메시지 */
+  executionMessage?: string | null;
   onSimulate?: () => void;
-  /** 실제 로봇 실행 요청 — 후속 조각(Execution)에서 구현. */
   onRun?: () => void;
+  onStop?: () => void;
 };
 
-export function RunReadyWorkspace({ program, onSimulate, onRun }: RunReadyWorkspaceProps) {
+export function RunReadyWorkspace({
+  program,
+  executionStatus = null,
+  executionMessage,
+  onSimulate,
+  onRun,
+  onStop,
+}: RunReadyWorkspaceProps) {
+  const inProgress =
+    executionStatus === 'queued' || executionStatus === 'assigned' || executionStatus === 'running';
+  const hint = executionStatus
+    ? (executionMessage ?? EXECUTION_HINT[executionStatus])
+    : DEFAULT_HINT;
+
   return (
     <section className="bg-page flex flex-1 flex-col" aria-label="블록 워크스페이스">
-      {/* 안내문 + 실행 버튼 (Frame 8 · Frame 17). 헤더 바로 아래, 버튼 세로 중앙. */}
+      {/* 안내문(실행 상태) + 실행 버튼 (Frame 8 · Frame 17). */}
       <div className="flex items-center justify-between px-8 py-[6px]">
-        <p className="text-ink flex items-center gap-1.5 text-[14px]">
+        <p className="text-ink flex items-center gap-1.5 text-[14px]" aria-live="polite">
           <span aria-hidden className="bg-block-start size-3 rounded-full" />
-          반드시 &lsquo;종료&rsquo; 블록으로 끝내주세요.
+          {hint}
         </p>
         <div className="flex items-center gap-2">
-          <PillButton variant="primary" onClick={onSimulate}>
-            시뮬레이션 하기
-          </PillButton>
-          <PillButton variant="primary" onClick={onRun}>
-            로봇 실행하기
-          </PillButton>
+          {!inProgress && executionStatus !== 'completed' && (
+            <PillButton variant="primary" onClick={onSimulate}>
+              시뮬레이션 하기
+            </PillButton>
+          )}
+          {inProgress ? (
+            <PillButton variant="primary" onClick={onStop}>
+              실행 중지
+            </PillButton>
+          ) : executionStatus === 'completed' ? (
+            <PillButton aria-disabled>완료</PillButton>
+          ) : (
+            <PillButton variant="primary" onClick={onRun}>
+              로봇 실행하기
+            </PillButton>
+          )}
         </div>
       </div>
 
-      {/* 조립 캔버스 (Rectangle 7, h763). 완성된 프로그램: 시작 → 반복(2){뒤로 1 m 이동} → 인사하기 → 종료.
-          블록은 캔버스 좌상단 기준 x63 y67 (Figma Group 14 x442 y324, 캔버스 x379 y257). */}
+      {/* 조립 캔버스 (Rectangle 7, h763). 완성된 프로그램. 블록은 캔버스 좌상단 기준 x63 y67. */}
       <div
         className="border-line bg-card dot-grid relative min-h-[763px] flex-1 border-t-[1.5px]"
         role="region"

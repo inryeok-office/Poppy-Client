@@ -28,6 +28,25 @@ const waitForRunButton = () =>
     { timeout: 3000 },
   );
 
+/** 종료 연결 → 시뮬레이션 통과까지 진행한다. */
+async function passSimulation(user: ReturnType<typeof userEvent.setup>) {
+  await connectEndBlock(user);
+  await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
+  await waitForRunButton();
+}
+
+const executionState = (status: string, extra: Record<string, unknown> = {}) => ({
+  success: true,
+  data: {
+    executionId: 'exec-test',
+    status,
+    missionCleared: status === 'completed' ? true : null,
+    elapsedSec: null,
+    message: status === 'completed' ? '로봇이 프로그램대로 잘 움직였어요.' : null,
+    ...extra,
+  },
+});
+
 describe('ExperienceView', () => {
   it('주요 영역의 앵커 텍스트를 렌더링한다', () => {
     renderView();
@@ -109,6 +128,52 @@ describe('ExperienceView', () => {
       await screen.findByText(/시뮬레이션에 실패/, undefined, { timeout: 3000 }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /로봇 실행하기/ })).toHaveTextContent('잠김');
+  });
+
+  it('로봇 실행하기 → 실행 상태가 완료로 바뀌고 완료 안내가 뜬다', async () => {
+    server.use(
+      http.post('*/api/executions', () =>
+        HttpResponse.json({ success: true, data: { executionId: 'exec-test' } }),
+      ),
+      http.get('*/api/executions/:id', () => HttpResponse.json(executionState('completed'))),
+    );
+    const user = userEvent.setup();
+    renderView();
+    await passSimulation(user);
+
+    await user.click(screen.getByRole('button', { name: '로봇 실행하기' }));
+
+    expect(
+      await screen.findByText(/잘 움직였어요/, undefined, { timeout: 3000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '완료' })).toBeInTheDocument();
+  });
+
+  it('실행 중에는 실행 중지 버튼이 뜨고, 누르면 멈춘다', async () => {
+    let cancelled = false;
+    server.use(
+      http.post('*/api/executions', () =>
+        HttpResponse.json({ success: true, data: { executionId: 'exec-test' } }),
+      ),
+      http.get('*/api/executions/:id', () =>
+        HttpResponse.json(executionState(cancelled ? 'cancelled' : 'running')),
+      ),
+      http.post('*/api/executions/:id/cancel', () => {
+        cancelled = true;
+        return HttpResponse.json(executionState('cancelled'));
+      }),
+    );
+    const user = userEvent.setup();
+    renderView();
+    await passSimulation(user);
+
+    await user.click(screen.getByRole('button', { name: '로봇 실행하기' }));
+    const stop = await screen.findByRole('button', { name: '실행 중지' }, { timeout: 3000 });
+    await user.click(stop);
+
+    expect(
+      await screen.findByText(/실행을 멈췄어요/, undefined, { timeout: 3000 }),
+    ).toBeInTheDocument();
   });
 
   it('처음으로를 누르면 블록·통과 기록이 초기화된다', async () => {
