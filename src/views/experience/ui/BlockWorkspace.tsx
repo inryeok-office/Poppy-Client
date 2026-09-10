@@ -18,6 +18,8 @@ type BlockWorkspaceProps = {
   onSimulate?: () => void;
   /** 시뮬레이션 검증 중 — 버튼 라벨을 바꾸고 재클릭을 막는다. */
   simulating?: boolean;
+  /** 시뮬레이션 요청 자체가 실패했을 때(서버 오류·네트워크) 안내할 메시지. */
+  simulationError?: string;
 };
 
 export function BlockWorkspace({
@@ -26,9 +28,10 @@ export function BlockWorkspace({
   onConnectBlock,
   onSimulate,
   simulating = false,
+  simulationError,
 }: BlockWorkspaceProps) {
   const valid = errors.length === 0;
-  const hint = errors[0]?.message ?? DEFAULT_HINT;
+  const hint = simulationError ?? errors[0]?.message ?? DEFAULT_HINT;
   const endConnected = program.chain.at(-1) === 'end';
   const endDetached = program.detached.includes('end');
 
