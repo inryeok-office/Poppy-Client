@@ -1,16 +1,12 @@
-import {
-  MOVE_RANGE,
-  REPEAT_RANGE,
-  type BlockError,
-  type BlockProgram,
-} from '../model/blockProgram';
-import { Block, BlockInput, CBlock, GhostBlock } from './Block';
+import { type BlockError, type BlockProgram } from '../model/blockProgram';
+import { Block, GhostBlock } from './Block';
+import { BlockStack, type BlockParamPatch } from './BlockStack';
 import { SectionLabel } from './SectionLabel';
 import { PillButton } from '@/shared/ui';
 
 // Figma node 21:520 / 33:483 (Slide 2·3) — 블록 조립 워크스페이스, 시뮬레이션 통과 전.
 //   프로그램에 구조 오류가 있으면(예: '종료' 미연결) '시뮬레이션 하기' 비활성(아웃라인) + 안내문이 오류 메시지.
-//   떨어진 '종료' 블록을 누르면 스택 끝에 연결된다 (임시 편집 — 전체 드래그앤드롭은 후속 조각).
+//   떨어진 '종료' 블록을 누르면 스택 끝에 연결된다 (드래그의 클릭 대체 수단 — 팔레트 드래그는 후속 조각).
 // 시뮬레이션 상태는 ExperienceView 가 소유한다.
 
 const DEFAULT_HINT = '반드시 ‘종료’ 블록으로 끝내주세요.';
@@ -20,8 +16,8 @@ type BlockWorkspaceProps = {
   errors: BlockError[];
   /** 떨어진 블록 클릭 → 스택 끝에 연결 */
   onConnectBlock?: () => void;
-  onRepeatCountChange?: (next: number) => void;
-  onMoveDistanceChange?: (next: number) => void;
+  /** 블록 값(반복 횟수·이동 거리 등) 편집 */
+  onBlockParamChange?: (id: string, patch: BlockParamPatch) => void;
   onSimulate?: () => void;
   /** 시뮬레이션 검증 중 — 버튼 라벨을 바꾸고 재클릭을 막는다. */
   simulating?: boolean;
@@ -33,16 +29,14 @@ export function BlockWorkspace({
   program,
   errors,
   onConnectBlock,
-  onRepeatCountChange,
-  onMoveDistanceChange,
+  onBlockParamChange,
   onSimulate,
   simulating = false,
   simulationMessage,
 }: BlockWorkspaceProps) {
   const valid = errors.length === 0;
   const hint = simulationMessage ?? errors[0]?.message ?? DEFAULT_HINT;
-  const endConnected = program.chain.at(-1) === 'end';
-  const endDetached = program.detached.includes('end');
+  const detachedEnd = program.detached.filter((node) => node.kind === 'end');
 
   return (
     <section className="bg-page flex flex-1 flex-col" aria-label="블록 워크스페이스">
@@ -96,55 +90,12 @@ export function BlockWorkspace({
         role="region"
         aria-label="블록 조립 캔버스"
       >
-        <ol className="absolute top-[88px] left-[52px] flex flex-col -space-y-1.5">
-          <li>
-            <Block color="start" variant="hat">
-              시작
-            </Block>
-          </li>
-          <li>
-            <CBlock
-              color="flow"
-              header={
-                <>
-                  <BlockInput
-                    value={program.repeatCount}
-                    onChange={onRepeatCountChange}
-                    min={REPEAT_RANGE.min}
-                    max={REPEAT_RANGE.max}
-                    aria-label="반복 횟수"
-                  />
-                  번 반복하기
-                </>
-              }
-            >
-              <Block color="move">
-                뒤로{' '}
-                <BlockInput
-                  value={program.moveDistance}
-                  onChange={onMoveDistanceChange}
-                  min={MOVE_RANGE.min}
-                  max={MOVE_RANGE.max}
-                  aria-label="이동 거리 (미터)"
-                />{' '}
-                m 이동
-              </Block>
-            </CBlock>
-          </li>
-          <li>
-            <Block color="action">인사하기</Block>
-          </li>
-          {endConnected && (
-            <li>
-              <Block color="start" variant="cap">
-                종료
-              </Block>
-            </li>
-          )}
-        </ol>
+        <div className="absolute top-[88px] left-[52px]">
+          <BlockStack nodes={program.stack} onParamChange={onBlockParamChange} />
+        </div>
 
         {/* 아직 연결 안 된 '종료' 블록 — 누르면 스택 끝에 붙는다 (Figma Slide 2 Group 11). */}
-        {endDetached && (
+        {detachedEnd.length > 0 && (
           <button
             type="button"
             onClick={onConnectBlock}

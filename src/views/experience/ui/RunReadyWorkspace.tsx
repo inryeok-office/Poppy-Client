@@ -1,7 +1,7 @@
 import type { ExecutionStatus } from '@/features/execution';
 
 import type { BlockProgram } from '../model/blockProgram';
-import { Block, BlockInput, CBlock } from './Block';
+import { BlockStack } from './BlockStack';
 import { PillButton } from '@/shared/ui';
 
 // Figma node 33:700 (Slide 16:9 - 4) — 조립 완료 + 시뮬레이션 통과.
@@ -86,35 +86,9 @@ export function RunReadyWorkspace({
         role="region"
         aria-label="블록 조립 캔버스"
       >
-        <ol className="absolute top-[67px] left-[63px] flex flex-col -space-y-1.5">
-          <li>
-            <Block color="start" variant="hat">
-              시작
-            </Block>
-          </li>
-          <li>
-            <CBlock
-              color="flow"
-              header={
-                <>
-                  <BlockInput value={program.repeatCount} />번 반복하기
-                </>
-              }
-            >
-              <Block color="move">
-                뒤로 <BlockInput value={program.moveDistance} /> m 이동
-              </Block>
-            </CBlock>
-          </li>
-          <li>
-            <Block color="action">인사하기</Block>
-          </li>
-          <li>
-            <Block color="start" variant="cap">
-              종료
-            </Block>
-          </li>
-        </ol>
+        <div className="absolute top-[67px] left-[63px]">
+          <BlockStack nodes={program.stack} />
+        </div>
       </div>
     </section>
   );

@@ -23,6 +23,11 @@ export type SaveProjectResult = {
 export type LocalDraft = {
   sessionId: string;
   program: SerializedBlockProgram;
+  /**
+   * 충실 복원용 도메인 스냅샷 (블록 트리 등). 자동 저장은 이 값을 해석하지 않고 그대로 보관하고,
+   * 복원 시 호출부(views)가 형태를 검증한다.
+   */
+  blocks?: unknown;
   projectVersion: number;
   /** 서버에 아직 반영되지 않은 변경인지 */
   dirty: boolean;

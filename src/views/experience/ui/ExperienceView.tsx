@@ -15,9 +15,14 @@ import { useSimulateProgram } from '@/features/simulation';
 import {
   INITIAL_PROGRAM,
   connectDetachedBlocks,
+  draftToProgram,
+  isBlockProgramSnapshot,
+  serializeProgram,
+  setBlockParam,
   validateBlockProgram,
   type BlockProgram,
 } from '../model/blockProgram';
+import type { BlockParamPatch } from './BlockStack';
 import { BlockPalette } from './BlockPalette';
 import { BlockWorkspace } from './BlockWorkspace';
 import { ExperienceHeader } from './ExperienceHeader';
@@ -40,8 +45,8 @@ import { RunReadyWorkspace } from './RunReadyWorkspace';
 /** 마운트 시 브라우저 초안이 있으면 그 프로그램으로 시작한다 (명세: 새로고침해도 작업 보존). */
 function initialProgram(): { program: BlockProgram; restoredDirty: boolean } {
   const draft = readLocalDraft();
-  if (draft && Array.isArray(draft.program?.chain)) {
-    return { program: draft.program as BlockProgram, restoredDirty: draft.dirty };
+  if (draft && isBlockProgramSnapshot(draft.blocks)) {
+    return { program: draftToProgram(draft.blocks), restoredDirty: draft.dirty };
   }
   return { program: INITIAL_PROGRAM, restoredDirty: false };
 }
@@ -73,7 +78,7 @@ export function ExperienceView() {
   useEffect(() => {
     if (!session.data) return;
     setBaseVersion(session.data.projectVersion);
-    if (restoredDirty || program !== startProgram) saveProgram(program);
+    if (restoredDirty || program !== startProgram) saveProgram(serializeProgram(program), program);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.data, setBaseVersion]);
 
@@ -82,7 +87,7 @@ export function ExperienceView() {
     if (program === savedProgramRef.current) return;
     const timer = window.setTimeout(() => {
       savedProgramRef.current = program;
-      saveProgram(program);
+      saveProgram(serializeProgram(program), program);
     }, AUTOSAVE_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
   }, [program, saveProgram]);
@@ -119,7 +124,7 @@ export function ExperienceView() {
 
   const runSimulation = () => {
     if (simulation.isPending || !blockValid) return;
-    simulation.mutate({ program });
+    simulation.mutate({ program: serializeProgram(program) });
   };
 
   const requestRun = () => {
@@ -131,7 +136,7 @@ export function ExperienceView() {
     requestExecution.reset();
     const generation = (runGeneration.current += 1);
     requestExecution.mutate(
-      { program },
+      { program: serializeProgram(program) },
       {
         onSuccess: (data) => {
           if (generation === runGeneration.current) setExecutionId(data.executionId);
@@ -146,8 +151,8 @@ export function ExperienceView() {
     cancelExecution.mutate(executionId, { onSuccess: () => void execution.refetch() });
   };
 
-  const editProgram = (patch: Partial<BlockProgram>) => {
-    setProgram((current) => ({ ...current, ...patch }));
+  const changeBlockParam = (id: string, patch: BlockParamPatch) => {
+    setProgram((current) => setBlockParam(current, id, patch));
     invalidate();
   };
 
@@ -185,8 +190,7 @@ export function ExperienceView() {
             program={program}
             errors={blockErrors}
             onConnectBlock={connectBlock}
-            onRepeatCountChange={(repeatCount) => editProgram({ repeatCount })}
-            onMoveDistanceChange={(moveDistance) => editProgram({ moveDistance })}
+            onBlockParamChange={changeBlockParam}
             onSimulate={runSimulation}
             simulating={simulation.isPending}
             simulationMessage={simulationMessage}

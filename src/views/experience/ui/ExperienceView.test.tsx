@@ -6,7 +6,12 @@ import { describe, expect, it } from 'vitest';
 
 import { server } from '@/shared/api/msw/server';
 
-import { INITIAL_PROGRAM } from '../model/blockProgram';
+import {
+  INITIAL_PROGRAM,
+  connectDetachedBlocks,
+  serializeProgram,
+  setBlockParam,
+} from '../model/blockProgram';
 import { ExperienceView } from './ExperienceView';
 
 const seedDraft = (draft: Record<string, unknown>) => {
@@ -274,14 +279,13 @@ describe('ExperienceView', () => {
   });
 
   it('브라우저 초안이 있으면 그 상태로 복원한다', () => {
+    const restored = setBlockParam(connectDetachedBlocks(INITIAL_PROGRAM), 'repeat-0', {
+      count: 5,
+    });
     seedDraft({
       sessionId: 'sess-restore',
-      program: {
-        chain: ['start', 'repeat', 'move', 'greet', 'end'],
-        detached: [],
-        repeatCount: 5,
-        moveDistance: 1,
-      },
+      program: serializeProgram(restored),
+      blocks: restored,
       projectVersion: 2,
       dirty: false,
     });
@@ -295,7 +299,8 @@ describe('ExperienceView', () => {
   it('재방문 세션은 초안의 버전을 baseVersion 으로 보낸다', async () => {
     seedDraft({
       sessionId: 'sess-revisit',
-      program: { ...INITIAL_PROGRAM },
+      program: serializeProgram(INITIAL_PROGRAM),
+      blocks: INITIAL_PROGRAM,
       projectVersion: 3,
       dirty: false,
     });
