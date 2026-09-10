@@ -231,6 +231,31 @@ describe('ExperienceView', () => {
     expect(screen.getByRole('button', { name: '종료 블록 연결하기' })).toBeInTheDocument();
   });
 
+  it('블록을 바꾸면 헤더에 자동 저장 상태가 뜬다', async () => {
+    const user = userEvent.setup();
+    renderView();
+    // 세션 생성(POST /api/sessions) 대기
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    await connectEndBlock(user);
+
+    expect(await screen.findByText('저장 중…', undefined, { timeout: 3000 })).toBeInTheDocument();
+    expect(await screen.findByText('저장됨', undefined, { timeout: 3000 })).toBeInTheDocument();
+  });
+
+  it('저장 요청이 실패하면 오프라인 안내를 보여준다', async () => {
+    server.use(
+      http.put('*/api/sessions/:id/project', () => new HttpResponse(null, { status: 503 })),
+    );
+    const user = userEvent.setup();
+    renderView();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    await connectEndBlock(user);
+
+    expect(await screen.findByText(/오프라인/, undefined, { timeout: 3000 })).toBeInTheDocument();
+  });
+
   it('처음으로를 누르면 블록·통과 기록이 초기화된다', async () => {
     const user = userEvent.setup();
     renderView();

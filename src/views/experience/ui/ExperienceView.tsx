@@ -9,6 +9,7 @@ import {
   useExecutionState,
   useRequestExecution,
 } from '@/features/execution';
+import { useAutoSaveProject, useSession } from '@/features/session';
 import { useSimulateProgram } from '@/features/simulation';
 
 import {
@@ -42,6 +43,8 @@ export function ExperienceView() {
   // 초기화 후 늦게 도착한 실행 요청 onSuccess 가 오래된 실행 ID 를 되살리지 않게 한다.
   const runGeneration = useRef(0);
 
+  const session = useSession();
+  const autoSave = useAutoSaveProject(session.data?.sessionId ?? null, program);
   const simulation = useSimulateProgram();
   const requestExecution = useRequestExecution();
   const cancelExecution = useCancelExecution();
@@ -125,7 +128,11 @@ export function ExperienceView() {
 
   return (
     <div className="bg-page font-gmarket text-ink flex min-h-full flex-1 flex-col">
-      <ExperienceHeader onClearAll={resetSession} onRestart={resetSession} />
+      <ExperienceHeader
+        onClearAll={resetSession}
+        onRestart={resetSession}
+        saveStatus={autoSave.status}
+      />
       <div className="flex flex-1">
         <BlockPalette />
         {simulationPassed ? (
