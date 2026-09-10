@@ -1,4 +1,9 @@
-import type { BlockError, BlockProgram } from '../model/blockProgram';
+import {
+  MOVE_RANGE,
+  REPEAT_RANGE,
+  type BlockError,
+  type BlockProgram,
+} from '../model/blockProgram';
 import { Block, BlockInput, CBlock, GhostBlock } from './Block';
 import { SectionLabel } from './SectionLabel';
 import { PillButton } from '@/shared/ui';
@@ -15,23 +20,27 @@ type BlockWorkspaceProps = {
   errors: BlockError[];
   /** 떨어진 블록 클릭 → 스택 끝에 연결 */
   onConnectBlock?: () => void;
+  onRepeatCountChange?: (next: number) => void;
+  onMoveDistanceChange?: (next: number) => void;
   onSimulate?: () => void;
   /** 시뮬레이션 검증 중 — 버튼 라벨을 바꾸고 재클릭을 막는다. */
   simulating?: boolean;
-  /** 시뮬레이션 요청 자체가 실패했을 때(서버 오류·네트워크) 안내할 메시지. */
-  simulationError?: string;
+  /** 시뮬레이션이 통과하지 못한 이유 (안전 제한 위반 / 요청 실패). */
+  simulationMessage?: string;
 };
 
 export function BlockWorkspace({
   program,
   errors,
   onConnectBlock,
+  onRepeatCountChange,
+  onMoveDistanceChange,
   onSimulate,
   simulating = false,
-  simulationError,
+  simulationMessage,
 }: BlockWorkspaceProps) {
   const valid = errors.length === 0;
-  const hint = simulationError ?? errors[0]?.message ?? DEFAULT_HINT;
+  const hint = simulationMessage ?? errors[0]?.message ?? DEFAULT_HINT;
   const endConnected = program.chain.at(-1) === 'end';
   const endDetached = program.detached.includes('end');
 
@@ -98,12 +107,27 @@ export function BlockWorkspace({
               color="flow"
               header={
                 <>
-                  <BlockInput />번 반복하기
+                  <BlockInput
+                    value={program.repeatCount}
+                    onChange={onRepeatCountChange}
+                    min={REPEAT_RANGE.min}
+                    max={REPEAT_RANGE.max}
+                    aria-label="반복 횟수"
+                  />
+                  번 반복하기
                 </>
               }
             >
               <Block color="move">
-                뒤로 <BlockInput /> m 이동
+                뒤로{' '}
+                <BlockInput
+                  value={program.moveDistance}
+                  onChange={onMoveDistanceChange}
+                  min={MOVE_RANGE.min}
+                  max={MOVE_RANGE.max}
+                  aria-label="이동 거리 (미터)"
+                />{' '}
+                m 이동
               </Block>
             </CBlock>
           </li>

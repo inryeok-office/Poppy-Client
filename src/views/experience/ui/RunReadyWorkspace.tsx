@@ -1,3 +1,4 @@
+import type { BlockProgram } from '../model/blockProgram';
 import { Block, BlockInput, CBlock } from './Block';
 import { PillButton } from '@/shared/ui';
 
@@ -9,13 +10,14 @@ import { PillButton } from '@/shared/ui';
 // 헤더 아래(y205) ~ 캔버스 상단(y257) 사이 52px 가 이 상단 행. 버튼 40 · 상하 6.
 
 type RunReadyWorkspaceProps = {
+  program: BlockProgram;
   /** 재검증 (명세: 재시뮬레이션 가능). */
   onSimulate?: () => void;
   /** 실제 로봇 실행 요청 — 후속 조각(Execution)에서 구현. */
   onRun?: () => void;
 };
 
-export function RunReadyWorkspace({ onSimulate, onRun }: RunReadyWorkspaceProps) {
+export function RunReadyWorkspace({ program, onSimulate, onRun }: RunReadyWorkspaceProps) {
   return (
     <section className="bg-page flex flex-1 flex-col" aria-label="블록 워크스페이스">
       {/* 안내문 + 실행 버튼 (Frame 8 · Frame 17). 헤더 바로 아래, 버튼 세로 중앙. */}
@@ -52,12 +54,12 @@ export function RunReadyWorkspace({ onSimulate, onRun }: RunReadyWorkspaceProps)
               color="flow"
               header={
                 <>
-                  <BlockInput>2</BlockInput>번 반복하기
+                  <BlockInput value={program.repeatCount} />번 반복하기
                 </>
               }
             >
               <Block color="move">
-                뒤로 <BlockInput>1</BlockInput> m 이동
+                뒤로 <BlockInput value={program.moveDistance} /> m 이동
               </Block>
             </CBlock>
           </li>

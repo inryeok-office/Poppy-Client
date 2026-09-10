@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
@@ -76,6 +76,25 @@ describe('ExperienceView', () => {
     await waitForRunButton();
     expect(screen.getByRole('button', { name: '로봇 실행하기' })).not.toHaveTextContent('잠김');
     expect(screen.queryByText('튜토리얼')).not.toBeInTheDocument();
+  });
+
+  it('이동 거리를 늘려 안전 구역을 벗어나면 위반 안내가 뜨고 통과하지 못한다', async () => {
+    const user = userEvent.setup();
+    renderView();
+
+    await connectEndBlock(user);
+    // 반복 횟수 2 → 4 (× 이동 1m = 4m > 2m 안전 구역)
+    fireEvent.change(screen.getByRole('spinbutton', { name: '반복 횟수' }), {
+      target: { value: '4' },
+    });
+    await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
+
+    expect(
+      await screen.findByText(/안전 구역을 벗어나요/, undefined, { timeout: 3000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /로봇 실행하기/ })).toHaveTextContent('잠김');
+    // 예상 이동 거리에 계산 결과가 반영된다
+    expect(screen.getByText('4.0 m')).toBeInTheDocument();
   });
 
   it('시뮬레이션 API가 실패하면 오류 안내를 보여주고 로봇 실행은 잠겨 있다', async () => {
