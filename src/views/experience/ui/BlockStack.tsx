@@ -1,11 +1,12 @@
-import type { ReactNode } from 'react';
+import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 
 import { MOVE_RANGE, REPEAT_RANGE, WAIT_RANGE, type BlockNode } from '../model/blockProgram';
 import { Block, BlockInput, CBlock } from './Block';
 
 // 블록 트리(program.stack / program.detached)를 그대로 렌더한다.
 // 두 워크스페이스(조립 중·실행 준비)가 공유한다. 편집(값 입력)은 onParamChange 를 줄 때만 켜진다.
-// 드래그 재정렬 핸들은 후속 조각에서 이 위에 얹는다. 슬롯 측정은 각 블록의 [data-block] 로 한다.
+// onBlockPointerDown 을 주면 start 를 뺀 블록이 드래그 핸들이 된다 (재정렬·삭제).
+// 슬롯 측정은 각 블록의 [data-block] 로 한다.
 
 export type BlockParamPatch = { count?: number; distanceM?: number; seconds?: number };
 
@@ -102,16 +103,44 @@ type BlockStackProps = {
   onParamChange?: RenderOptions['onParamChange'];
   /** 스택 <ol> 요소 등록 (드래그 슬롯 측정용). */
   containerRef?: (el: HTMLOListElement | null) => void;
+  /** 주면 start 를 뺀 블록이 드래그 핸들이 된다. 입력칸 위에서는 시작하지 않는다. */
+  onBlockPointerDown?: (node: BlockNode, event: ReactPointerEvent) => void;
+  /** 지금 드래그 중인 블록 id — 원본을 흐리게 */
+  draggingId?: string | null;
 };
 
-export function BlockStack({ nodes, onParamChange, containerRef }: BlockStackProps) {
+export function BlockStack({
+  nodes,
+  onParamChange,
+  containerRef,
+  onBlockPointerDown,
+  draggingId,
+}: BlockStackProps) {
   return (
     <ol ref={containerRef} className="flex flex-col -space-y-1.5">
-      {nodes.map((node) => (
-        <li key={node.id} data-block={node.id}>
-          {renderNode(node, { onParamChange })}
-        </li>
-      ))}
+      {nodes.map((node) => {
+        const draggable = onBlockPointerDown != null && node.kind !== 'start';
+        return (
+          <li
+            key={node.id}
+            data-block={node.id}
+            onPointerDown={
+              draggable
+                ? (event) => {
+                    // 값 입력칸을 누른 거면 편집이지 드래그가 아니다
+                    if ((event.target as HTMLElement).closest('input')) return;
+                    onBlockPointerDown(node, event);
+                  }
+                : undefined
+            }
+            className={`${draggable ? 'cursor-grab touch-none active:cursor-grabbing' : ''} ${
+              draggingId === node.id ? 'opacity-40' : ''
+            }`}
+          >
+            {renderNode(node, { onParamChange })}
+          </li>
+        );
+      })}
     </ol>
   );
 }

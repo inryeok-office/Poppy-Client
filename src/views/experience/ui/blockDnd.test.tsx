@@ -24,6 +24,9 @@ const makeRect = (left: number, top: number, width: number, height: number): DOM
     toJSON: () => ({}),
   }) as DOMRect;
 
+// 팔레트(x 0..280) 왼쪽, 캔버스(x 280..1200) 오른쪽에 두고 스택 블록을 세로로 쌓는다.
+const CANVAS_LEFT = 280;
+
 function stubLayout() {
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
     this: HTMLElement,
@@ -31,9 +34,11 @@ function stubLayout() {
     if (this.hasAttribute('data-block')) {
       const siblings = this.parentElement ? Array.from(this.parentElement.children) : [];
       const idx = Math.max(0, siblings.indexOf(this));
-      return makeRect(60, BLOCK_TOP + idx * (BLOCK_H + BLOCK_GAP), 212, BLOCK_H);
+      return makeRect(CANVAS_LEFT + 20, BLOCK_TOP + idx * (BLOCK_H + BLOCK_GAP), 212, BLOCK_H);
     }
-    if (this.tagName === 'OL') return makeRect(60, BLOCK_TOP, 212, 400);
+    if (this.hasAttribute('data-block-canvas')) return makeRect(CANVAS_LEFT, 60, 900, 900);
+    if (this.hasAttribute('data-block-palette')) return makeRect(0, 0, CANVAS_LEFT, 900);
+    if (this.tagName === 'OL') return makeRect(CANVAS_LEFT + 20, BLOCK_TOP, 212, 400);
     return makeRect(0, 0, 120, 40);
   });
 }
@@ -58,8 +63,13 @@ function renderView() {
 
 afterEach(() => vi.restoreAllMocks());
 
-const canvasBlocks = () =>
-  within(screen.getByRole('region', { name: '블록 조립 캔버스' })).getAllByText('인사하기');
+const canvas = () => screen.getByRole('region', { name: '블록 조립 캔버스' });
+const canvasBlocks = () => within(canvas()).getAllByText('인사하기');
+const stackOrder = () =>
+  within(canvas())
+    .getAllByRole('listitem')
+    .map((li) => li.getAttribute('data-block'));
+const stackBlockByText = (text: string) => within(canvas()).getByText(text).closest('li')!;
 
 describe('블록 팔레트 드래그 삽입', () => {
   it('팔레트 블록을 스택 슬롯 가까이 끌어 놓으면 그 자리에 삽입된다', async () => {
@@ -93,5 +103,35 @@ describe('블록 팔레트 드래그 삽입', () => {
     fireEvent.pointerUp(window, { clientX: 120, clientY: 4000 });
 
     expect(canvasBlocks()).toHaveLength(1);
+  });
+});
+
+describe('캔버스 블록 재정렬·삭제', () => {
+  it('스택 블록을 다른 슬롯으로 끌면 순서가 바뀐다', () => {
+    stubLayout();
+    renderView();
+    // INITIAL: start-0, repeat-0, greet-0
+    expect(stackOrder()).toEqual(['start-0', 'repeat-0', 'greet-0']);
+
+    const greet = stackBlockByText('인사하기');
+    fireEvent.pointerDown(greet, { clientX: 80, clientY: slotCenterY(3) });
+    fireEvent.pointerMove(window, { clientX: 80, clientY: slotCenterY(1) });
+    fireEvent.pointerUp(window, { clientX: 80, clientY: slotCenterY(1) });
+
+    expect(stackOrder()).toEqual(['start-0', 'greet-0', 'repeat-0']);
+  });
+
+  it('스택 블록을 캔버스 밖(팔레트 쪽)으로 끌면 지워진다', () => {
+    stubLayout();
+    renderView();
+    expect(within(canvas()).getByText('인사하기')).toBeInTheDocument();
+
+    const greet = stackBlockByText('인사하기');
+    fireEvent.pointerDown(greet, { clientX: CANVAS_LEFT + 80, clientY: slotCenterY(3) });
+    fireEvent.pointerMove(window, { clientX: 40, clientY: 300 }); // 팔레트 영역 (x < 280)
+    fireEvent.pointerUp(window, { clientX: 40, clientY: 300 });
+
+    expect(within(canvas()).queryByText('인사하기')).not.toBeInTheDocument();
+    expect(stackOrder()).toEqual(['start-0', 'repeat-0']);
   });
 });

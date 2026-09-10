@@ -19,6 +19,8 @@ import {
   draftToProgram,
   insertBlock,
   isBlockProgramSnapshot,
+  moveBlock,
+  removeBlock,
   serializeProgram,
   setBlockParam,
   validateBlockProgram,
@@ -165,6 +167,16 @@ export function ExperienceView() {
     invalidate();
   };
 
+  const moveBlockTo = (nodeId: string, slotIndex: number) => {
+    setProgram((current) => moveBlock(current, nodeId, slotIndex));
+    invalidate();
+  };
+
+  const removeBlockById = (nodeId: string) => {
+    setProgram((current) => removeBlock(current, nodeId));
+    invalidate();
+  };
+
   const connectBlock = () => {
     setProgram(connectDetachedBlocks);
     invalidate();
@@ -182,7 +194,7 @@ export function ExperienceView() {
         onRestart={resetSession}
         saveStatus={autoSave.status}
       />
-      <BlockDragProvider onInsert={insertBlockAt}>
+      <BlockDragProvider onInsert={insertBlockAt} onMove={moveBlockTo} onRemove={removeBlockById}>
         <div className="flex flex-1">
           <BlockPalette />
           {simulationPassed ? (

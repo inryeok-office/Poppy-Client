@@ -15,14 +15,14 @@ import { createPortal } from 'react-dom';
 
 import { type BlockNode } from '../model/blockProgram';
 import { BlockGlyph } from '../ui/BlockStack';
-import { movedEnough, nearestSlot, slotsFromBlockRects } from './blockDrag';
+import { isWithin, movedEnough, nearestSlot, slotsFromBlockRects } from './blockDrag';
 
 // 팔레트/캔버스 블록 드래그의 상태·포인터 배선. 순수 스냅 판정은 blockDrag.ts.
 //
-//   - 팔레트 블록 pointerdown  → 새 블록을 들고 시작
+//   - 팔레트 블록 pointerdown  → 새 블록을 들고 시작, 슬롯에 놓으면 삽입
 //   - 떨어진 '종료' pointerdown → 그 블록을 들고 시작 (연결은 드래그로만, 클릭 아님)
-//   - 포인터가 스택 슬롯에 가까워지면 스냅 인디케이터, 놓으면 그 자리에 삽입
-//   - 조각 3 에서 스택 안 재정렬('stack' origin)·밖으로 빼서 삭제를 얹는다
+//   - 스택 블록 pointerdown     → 슬롯에 놓으면 재정렬, 캔버스 밖/팔레트에 놓으면 삭제
+//   - 포인터가 스택 슬롯에 가까워지면 스냅 인디케이터
 
 export type DragOrigin = 'palette' | 'detached' | 'stack';
 
@@ -52,6 +52,8 @@ type BlockDragValue = {
   startDrag: (source: DragSource, event: ReactPointerEvent) => void;
   /** 캔버스가 스택 컨테이너(<ol>)를 등록 — 슬롯 측정용 */
   registerStack: (el: HTMLElement | null) => void;
+  /** 캔버스가 자기 영역(<div>)을 등록 — "밖으로 빼서 삭제" 판정용 */
+  registerCanvas: (el: HTMLElement | null) => void;
 };
 
 const BlockDragContext = createContext<BlockDragValue | null>(null);
@@ -64,18 +66,32 @@ export function useBlockDrag(): BlockDragValue {
 
 type BlockDragProviderProps = {
   children: ReactNode;
-  /** 스냅 슬롯에 드롭 — program.stack 의 slotIndex 위치에 삽입 */
+  /** 팔레트/떨어진 블록을 스냅 슬롯에 드롭 — slotIndex 위치에 삽입 */
   onInsert: (node: BlockNode, slotIndex: number) => void;
+  /** 스택 블록을 다른 슬롯에 드롭 — slotIndex 위치로 이동 */
+  onMove?: (nodeId: string, slotIndex: number) => void;
+  /** 스택 블록을 캔버스 밖/팔레트에 드롭 — 삭제 */
+  onRemove?: (nodeId: string) => void;
 };
 
-export function BlockDragProvider({ children, onInsert }: BlockDragProviderProps) {
+export function BlockDragProvider({
+  children,
+  onInsert,
+  onMove,
+  onRemove,
+}: BlockDragProviderProps) {
   const [dragging, setDragging] = useState<DragState | null>(null);
   const stackRef = useRef<HTMLElement | null>(null);
+  const canvasRef = useRef<HTMLElement | null>(null);
   const stateRef = useRef<DragState | null>(null);
   const teardownRef = useRef<(() => void) | null>(null);
 
   const registerStack = useCallback((el: HTMLElement | null) => {
     stackRef.current = el;
+  }, []);
+
+  const registerCanvas = useCallback((el: HTMLElement | null) => {
+    canvasRef.current = el;
   }, []);
 
   const commit = useCallback((next: DragState | null) => {
@@ -129,7 +145,20 @@ export function BlockDragProvider({ children, onInsert }: BlockDragProviderProps
       const finish = () => {
         teardownRef.current?.();
         const cur = stateRef.current;
-        if (cur?.active && cur.slotIndex != null) onInsert(cur.source.node, cur.slotIndex);
+        if (cur?.active) {
+          const { origin, node } = cur.source;
+          if (origin === 'stack') {
+            if (cur.slotIndex != null) {
+              onMove?.(node.id, cur.slotIndex);
+            } else {
+              // 슬롯에 안 붙었고 캔버스 밖(팔레트 포함)에서 놓았으면 삭제
+              const canvas = canvasRef.current?.getBoundingClientRect();
+              if (canvas && !isWithin(canvas, cur.pointer.x, cur.pointer.y)) onRemove?.(node.id);
+            }
+          } else if (cur.slotIndex != null) {
+            onInsert(node, cur.slotIndex);
+          }
+        }
         commit(null);
       };
 
@@ -145,14 +174,14 @@ export function BlockDragProvider({ children, onInsert }: BlockDragProviderProps
       window.addEventListener('pointerup', finish);
       window.addEventListener('pointercancel', finish);
     },
-    [commit, onInsert],
+    [commit, onInsert, onMove, onRemove],
   );
 
   useEffect(() => () => teardownRef.current?.(), []);
 
   const value = useMemo<BlockDragValue>(
-    () => ({ dragging, startDrag, registerStack }),
-    [dragging, startDrag, registerStack],
+    () => ({ dragging, startDrag, registerStack, registerCanvas }),
+    [dragging, startDrag, registerStack, registerCanvas],
   );
 
   return (

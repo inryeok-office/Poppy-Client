@@ -27,7 +27,7 @@ export function BlockPalette() {
   );
 
   return (
-    <aside className="flex shrink-0" aria-label="블록 팔레트">
+    <aside className="flex shrink-0" aria-label="블록 팔레트" data-block-palette>
       <nav
         className="border-line bg-page flex w-[85px] flex-col items-center gap-1 border-r pt-6"
         aria-label="블록 카테고리"

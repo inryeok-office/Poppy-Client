@@ -34,6 +34,15 @@ export function movedEnough(from: { x: number; y: number }, to: { x: number; y: 
   return Math.hypot(to.x - from.x, to.y - from.y) >= DRAG_ACTIVATE_PX;
 }
 
+/** 점이 사각형 안에 있는지 (캔버스 밖 = 삭제 판정). */
+export function isWithin(
+  rect: { top: number; bottom: number; left: number; right: number },
+  x: number,
+  y: number,
+): boolean {
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+
 /**
  * 스택 블록 요소들의 사각형에서 삽입 슬롯 목록을 만든다.
  * 슬롯 i 는 "블록 i-1 다음" — 블록 i-1 하단과 블록 i 상단의 중점.

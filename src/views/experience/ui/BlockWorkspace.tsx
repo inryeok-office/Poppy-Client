@@ -9,8 +9,8 @@ import { PillButton } from '@/shared/ui';
 
 // Figma node 21:520 / 33:483 (Slide 2·3) — 블록 조립 워크스페이스, 시뮬레이션 통과 전.
 //   프로그램에 구조 오류가 있으면(예: '종료' 미연결) '시뮬레이션 하기' 비활성(아웃라인) + 안내문이 오류 메시지.
-//   블록은 팔레트에서 끌어다 놓고, 떨어진 '종료' 도 끌어서 스택에 붙인다 (마우스는 드래그, 키보드는 Enter).
-// 시뮬레이션 상태는 ExperienceView 가 소유한다.
+//   블록은 팔레트에서 끌어다 놓고, 스택 블록은 끌어서 재정렬하거나 캔버스 밖으로 빼서 지운다.
+//   떨어진 '종료' 도 끌어서 붙인다 (마우스는 드래그, 키보드는 Enter). 시뮬레이션 상태는 ExperienceView 가 소유.
 
 const DEFAULT_HINT = '반드시 ‘종료’ 블록으로 끝내주세요.';
 
@@ -40,7 +40,7 @@ export function BlockWorkspace({
   simulating = false,
   simulationMessage,
 }: BlockWorkspaceProps) {
-  const { dragging, startDrag, registerStack } = useBlockDrag();
+  const { dragging, startDrag, registerStack, registerCanvas } = useBlockDrag();
 
   const valid = errors.length === 0;
   const hint = simulationMessage ?? errors[0]?.message ?? DEFAULT_HINT;
@@ -94,6 +94,8 @@ export function BlockWorkspace({
 
       {/* 블록 조립 캔버스 (Rectangle 7). */}
       <div
+        ref={registerCanvas}
+        data-block-canvas
         className="border-line bg-card dot-grid relative min-h-[453px] flex-1 border-t-[1.5px]"
         role="region"
         aria-label="블록 조립 캔버스"
@@ -103,6 +105,8 @@ export function BlockWorkspace({
             nodes={program.stack}
             onParamChange={onBlockParamChange}
             containerRef={registerStack}
+            onBlockPointerDown={(node, event) => startDrag({ origin: 'stack', node }, event)}
+            draggingId={dragging?.source.origin === 'stack' ? dragging.source.node.id : null}
           />
         </div>
 
