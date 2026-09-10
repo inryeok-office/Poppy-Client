@@ -36,18 +36,51 @@ const SHAPE: Record<BlockVariant, { path: string; w: number; h: number }> = {
   cap: { path: CAP_PATH, w: 212, h: 42 },
 };
 
+const BLOCK_INPUT_CLASS =
+  'bg-page text-ink h-[22px] w-8 shrink-0 rounded-[3px] text-center text-[15px]';
+
+type BlockInputProps = {
+  /** 표시/입력 값. 없으면 빈 자리표시. */
+  value?: number;
+  /** 넘기면 숫자 입력 칸이 된다. 없으면 읽기 전용. */
+  onChange?: (next: number) => void;
+  min?: number;
+  max?: number;
+  'aria-label'?: string;
+};
+
 /**
- * 값 입력 칸 (Rectangle 16/17). 32×22, radius 3.
- * 빈칸이면 자리표시(aria-hidden), 값이 있으면 ink 15px 로 가운데 표시 (Figma 33:914 "2").
+ * 값 입력 칸 (Rectangle 16/17). 32×22, radius 3, Figma 33:914 "2".
+ * onChange 를 주면 편집 가능한 숫자 칸, 아니면 값만 표시한다.
  */
-export function BlockInput({ children }: { children?: ReactNode }) {
+export function BlockInput({ value, onChange, min = 1, max = 99, ...rest }: BlockInputProps) {
+  if (!onChange) {
+    return (
+      <span
+        aria-hidden={value == null ? true : undefined}
+        className={`${BLOCK_INPUT_CLASS} inline-flex items-center justify-center`}
+        {...rest}
+      >
+        {value}
+      </span>
+    );
+  }
+
   return (
-    <span
-      aria-hidden={children == null ? true : undefined}
-      className="bg-page text-ink inline-flex h-[22px] w-8 shrink-0 items-center justify-center rounded-[3px] text-[15px]"
-    >
-      {children}
-    </span>
+    <input
+      type="number"
+      inputMode="numeric"
+      value={value ?? min}
+      min={min}
+      max={max}
+      onChange={(event) => {
+        const next = Number(event.target.value);
+        if (!Number.isFinite(next)) return;
+        onChange(Math.min(max, Math.max(min, Math.trunc(next))));
+      }}
+      className={`${BLOCK_INPUT_CLASS} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+      {...rest}
+    />
   );
 }
 

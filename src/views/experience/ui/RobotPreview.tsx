@@ -9,13 +9,18 @@
 
 const SUMMARY = { blockCount: 5, estimatedSeconds: 7 } as const;
 
-const STATS = [
-  { label: '자세', value: '서있기' },
-  { label: '바라보는 방향', value: '정면' },
-  { label: '예상 이동 거리', value: '0.0 m' },
-] as const;
+type RobotPreviewProps = {
+  /** 시뮬레이션이 계산한 총 이동 거리 (m). 실행 전에는 0. */
+  estimatedDistanceM?: number;
+};
 
-export function RobotPreview() {
+export function RobotPreview({ estimatedDistanceM = 0 }: RobotPreviewProps) {
+  const stats = [
+    { label: '자세', value: '서있기' },
+    { label: '바라보는 방향', value: '정면' },
+    { label: '예상 이동 거리', value: `${estimatedDistanceM.toFixed(1)} m` },
+  ];
+
   return (
     <aside
       aria-label="로봇 미리보기"
@@ -74,7 +79,7 @@ export function RobotPreview() {
 
       {/* 스탯 3행 (Frame 24). 격자 박스 아래 32px, 각 행 18px · 행 간격 16 → 34 피치 (Figma) */}
       <dl className="mt-8 flex flex-col gap-4 leading-none">
-        {STATS.map((stat) => (
+        {stats.map((stat) => (
           <div key={stat.label} className="flex h-[18px] items-baseline justify-between">
             <dt className="text-muted text-[15px]">{stat.label}</dt>
             <dd className="text-ink text-[16px]">{stat.value}</dd>
