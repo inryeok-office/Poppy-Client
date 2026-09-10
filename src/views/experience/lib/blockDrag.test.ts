@@ -23,6 +23,8 @@ describe('slotsFromBlockRects', () => {
     expect(slots[0].centerY).toBe(147);
     // 마지막 슬롯 = 마지막 블록 하단
     expect(slots[2].centerY).toBe(244);
+    // 가로 범위는 블록에서 가져온다
+    expect(slots[0]).toMatchObject({ left: 60, right: 272 });
   });
 
   it('블록이 없으면 슬롯도 없다', () => {
@@ -31,17 +33,20 @@ describe('slotsFromBlockRects', () => {
 });
 
 describe('nearestSlot', () => {
-  const slots = slotsFromBlockRects([rect(100), rect(150), rect(200)]);
+  const slots = slotsFromBlockRects([rect(100), rect(150), rect(200)]); // left 60, right 272
 
-  it('임계 안이면 가장 가까운 슬롯을 고른다', () => {
-    expect(nearestSlot(146, slots)?.index).toBe(1);
-    expect(nearestSlot(210, slots)?.index).toBe(2);
+  it('세로·가로 모두 임계 안이면 가장 가까운 슬롯을 고른다', () => {
+    expect(nearestSlot(150, 146, slots)?.index).toBe(1);
+    expect(nearestSlot(150, 210, slots)?.index).toBe(2);
   });
 
-  it('모든 슬롯이 임계 밖이면 null', () => {
-    // 마지막 슬롯(244) 아래로 임계 + 여유만큼 벗어난 지점
-    expect(nearestSlot(244 + SNAP_THRESHOLD_PX + 10, slots)).toBeNull();
-    expect(nearestSlot(-500, slots)).toBeNull();
+  it('세로는 맞아도 가로로 스택에서 멀면 스냅하지 않는다 (그 자리에 둔다)', () => {
+    expect(nearestSlot(600, 147, slots)).toBeNull();
+  });
+
+  it('세로가 임계 밖이면 null', () => {
+    expect(nearestSlot(150, 244 + SNAP_THRESHOLD_PX + 10, slots)).toBeNull();
+    expect(nearestSlot(150, -500, slots)).toBeNull();
   });
 });
 

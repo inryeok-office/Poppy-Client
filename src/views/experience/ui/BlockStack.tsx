@@ -3,9 +3,9 @@ import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { MOVE_RANGE, REPEAT_RANGE, WAIT_RANGE, type BlockNode } from '../model/blockProgram';
 import { Block, BlockInput, CBlock } from './Block';
 
-// 블록 트리(program.stack / program.detached)를 그대로 렌더한다.
+// 블록 체인(program.stack / floating 그룹)을 그대로 렌더한다.
 // 두 워크스페이스(조립 중·실행 준비)가 공유한다. 편집(값 입력)은 onParamChange 를 줄 때만 켜진다.
-// onBlockPointerDown 을 주면 start 를 뺀 블록이 드래그 핸들이 된다 (재정렬·삭제).
+// onBlockPointerDown 을 주면 start 를 뺀 블록이 드래그 핸들이 된다 (잡으면 아래 블록이 함께 딸려온다).
 // 슬롯 측정은 각 블록의 [data-block] 로 한다.
 
 export type BlockParamPatch = { count?: number; distanceM?: number; seconds?: number };
@@ -105,8 +105,8 @@ type BlockStackProps = {
   containerRef?: (el: HTMLOListElement | null) => void;
   /** 주면 start 를 뺀 블록이 드래그 핸들이 된다. 입력칸 위에서는 시작하지 않는다. */
   onBlockPointerDown?: (node: BlockNode, event: ReactPointerEvent) => void;
-  /** 지금 드래그 중인 블록 id — 원본을 흐리게 */
-  draggingId?: string | null;
+  /** 지금 드래그로 딸려간 블록 id 들 — 원본을 흐리게 */
+  dimIds?: Set<string>;
 };
 
 export function BlockStack({
@@ -114,7 +114,7 @@ export function BlockStack({
   onParamChange,
   containerRef,
   onBlockPointerDown,
-  draggingId,
+  dimIds,
 }: BlockStackProps) {
   return (
     <ol ref={containerRef} className="flex flex-col -space-y-1.5">
@@ -134,7 +134,7 @@ export function BlockStack({
                 : undefined
             }
             className={`${draggable ? 'cursor-grab touch-none active:cursor-grabbing' : ''} ${
-              draggingId === node.id ? 'opacity-40' : ''
+              dimIds?.has(node.id) ? 'opacity-40' : ''
             }`}
           >
             {renderNode(node, { onParamChange })}

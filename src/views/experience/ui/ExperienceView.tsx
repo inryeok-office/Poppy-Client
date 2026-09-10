@@ -19,16 +19,13 @@ import {
   blockCommandCount,
   connectDetachedBlocks,
   draftToProgram,
-  insertBlock,
+  dropOnSlot,
   isBlockProgramSnapshot,
-  moveBlock,
   newBlock,
-  removeBlock,
   serializeProgram,
   setBlockParam,
   validateBlockProgram,
   type BlockKind,
-  type BlockNode,
   type BlockProgram,
 } from '../model/blockProgram';
 import type { BlockParamPatch } from './BlockStack';
@@ -167,31 +164,19 @@ export function ExperienceView() {
     invalidate();
   };
 
-  // 팔레트/떨어진 블록을 스택 슬롯에 드롭 (드래그 스냅).
-  const insertBlockAt = (node: BlockNode, slotIndex: number) => {
-    setProgram((current) => insertBlock(current, node, slotIndex));
+  // 드래그 드롭 결과 프로그램 (스냅 연결 / 놓은 자리에 두기 — blockProgram.ts).
+  const applyDrop = (next: BlockProgram, kind: 'connect' | 'place') => {
+    setProgram(next);
     invalidate();
-    setAnnouncement(`${blockLabel(node.kind)} 블록을 넣었어요.`);
+    setAnnouncement(kind === 'connect' ? '블록을 연결했어요.' : '블록을 옮겼어요.');
   };
 
-  const moveBlockTo = (nodeId: string, slotIndex: number) => {
-    setProgram((current) => moveBlock(current, nodeId, slotIndex));
-    invalidate();
-    setAnnouncement('블록 순서를 바꿨어요.');
-  };
-
-  const removeBlockById = (nodeId: string) => {
-    setProgram((current) => removeBlock(current, nodeId));
-    invalidate();
-    setAnnouncement('블록을 지웠어요.');
-  };
-
-  // 팔레트에서 키보드(Enter)로 블록을 집으면 스택 끝(종료 앞)에 추가한다.
+  // 팔레트에서 키보드(Enter)로 블록을 집으면 스택 끝(종료 앞)에 연결한다.
   const pickBlock = (kind: BlockKind) => {
-    const node = newBlock(kind);
     setProgram((current) => {
       const end = current.stack.at(-1)?.kind === 'end';
-      return insertBlock(current, node, end ? current.stack.length - 1 : current.stack.length);
+      const slot = end ? current.stack.length - 1 : current.stack.length;
+      return dropOnSlot(current, { origin: 'palette', node: newBlock(kind) }, slot);
     });
     invalidate();
     setAnnouncement(`${blockLabel(kind)} 블록을 추가했어요.`);
@@ -217,7 +202,7 @@ export function ExperienceView() {
       <span className="sr-only" role="status" aria-live="polite">
         {announcement}
       </span>
-      <BlockDragProvider onInsert={insertBlockAt} onMove={moveBlockTo} onRemove={removeBlockById}>
+      <BlockDragProvider program={program} onChange={applyDrop}>
         <div className="flex flex-1">
           <BlockPalette onPickBlock={pickBlock} />
           {simulationPassed ? (

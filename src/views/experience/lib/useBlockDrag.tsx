@@ -13,46 +13,46 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
-import { type BlockNode } from '../model/blockProgram';
-import { BlockGlyph } from '../ui/BlockStack';
-import { isWithin, movedEnough, nearestSlot, slotsFromBlockRects } from './blockDrag';
+import {
+  carriedBlocks,
+  dropOnCanvas,
+  dropOnSlot,
+  type BlockNode,
+  type BlockProgram,
+  type DragPick,
+} from '../model/blockProgram';
+import { BlockStack } from '../ui/BlockStack';
+import { movedEnough, nearestSlot, slotsFromBlockRects } from './blockDrag';
 
-// 팔레트/캔버스 블록 드래그의 상태·포인터 배선. 순수 스냅 판정은 blockDrag.ts.
+// 블록 드래그의 상태·포인터 배선. 순수 스냅 판정은 blockDrag.ts, 프로그램 변형은 blockProgram.ts.
 //
-//   - 팔레트 블록 pointerdown  → 새 블록을 들고 시작, 슬롯에 놓으면 삽입
-//   - 떨어진 '종료' pointerdown → 그 블록을 들고 시작 (연결은 드래그로만, 클릭 아님)
-//   - 스택 블록 pointerdown     → 슬롯에 놓으면 재정렬, 캔버스 밖/팔레트에 놓으면 삭제
-//   - 포인터가 스택 슬롯에 가까워지면 스냅 인디케이터
+// 기명서 "블록 드래그 이동·스냅 연결":
+//   · 블록을 잡으면 아래에 연결된 블록이 함께 딸려온다 (carriedBlocks)
+//   · 스택 슬롯에 가까우면 스냅 미리보기 → 스냅 안에서 놓으면 연결 (dropOnSlot)
+//   · 스냅 밖에서 놓으면 연결 없이 놓은 자리에 둔다 (dropOnCanvas)
 
-export type DragOrigin = 'palette' | 'detached' | 'stack';
-
-export type DragSource = {
-  origin: DragOrigin;
-  /** 드래그되는 블록. palette 는 새 인스턴스, 나머지는 기존 노드. */
-  node: BlockNode;
-};
+const CLONE_W = 220;
+const CLONE_H = 44;
 
 type DragState = {
-  source: DragSource;
+  pick: DragPick;
+  /** 함께 움직이는 블록들 (클론 렌더용) */
+  carried: BlockNode[];
   /** 현재 포인터 위치 (viewport) */
   pointer: { x: number; y: number };
-  /** 블록을 잡은 지점의 오프셋 — 클론이 손끝을 따라오게 */
+  /** 블록을 잡은 지점의 오프셋 */
   grab: { x: number; y: number };
-  /** 실제로 움직여서 드래그로 인정됐는지 */
   active: boolean;
-  /** 스냅될 삽입 인덱스 (program.stack 기준) */
+  /** 스냅될 삽입 인덱스 */
   slotIndex: number | null;
-  /** 스냅 인디케이터 위치 (viewport) — 스택 왼쪽 x, 슬롯 중심 y */
+  /** 스냅 인디케이터 위치 (viewport) */
   slot: { x: number; y: number } | null;
 };
 
 type BlockDragValue = {
   dragging: DragState | null;
-  /** 소스 블록에서 드래그 시작 */
-  startDrag: (source: DragSource, event: ReactPointerEvent) => void;
-  /** 캔버스가 스택 컨테이너(<ol>)를 등록 — 슬롯 측정용 */
+  startDrag: (pick: DragPick, event: ReactPointerEvent) => void;
   registerStack: (el: HTMLElement | null) => void;
-  /** 캔버스가 자기 영역(<div>)을 등록 — "밖으로 빼서 삭제" 판정용 */
   registerCanvas: (el: HTMLElement | null) => void;
 };
 
@@ -66,20 +66,12 @@ export function useBlockDrag(): BlockDragValue {
 
 type BlockDragProviderProps = {
   children: ReactNode;
-  /** 팔레트/떨어진 블록을 스냅 슬롯에 드롭 — slotIndex 위치에 삽입 */
-  onInsert: (node: BlockNode, slotIndex: number) => void;
-  /** 스택 블록을 다른 슬롯에 드롭 — slotIndex 위치로 이동 */
-  onMove?: (nodeId: string, slotIndex: number) => void;
-  /** 스택 블록을 캔버스 밖/팔레트에 드롭 — 삭제 */
-  onRemove?: (nodeId: string) => void;
+  program: BlockProgram;
+  /** 드롭 결과 프로그램. kind 는 안내 문구용. */
+  onChange: (next: BlockProgram, kind: 'connect' | 'place') => void;
 };
 
-export function BlockDragProvider({
-  children,
-  onInsert,
-  onMove,
-  onRemove,
-}: BlockDragProviderProps) {
+export function BlockDragProvider({ children, program, onChange }: BlockDragProviderProps) {
   const [dragging, setDragging] = useState<DragState | null>(null);
   const stackRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLElement | null>(null);
@@ -89,7 +81,6 @@ export function BlockDragProvider({
   const registerStack = useCallback((el: HTMLElement | null) => {
     stackRef.current = el;
   }, []);
-
   const registerCanvas = useCallback((el: HTMLElement | null) => {
     canvasRef.current = el;
   }, []);
@@ -99,14 +90,19 @@ export function BlockDragProvider({
     setDragging(next);
   }, []);
 
+  // 드래그는 시작 시점의 프로그램 스냅샷을 기준으로 계산한다 (드래그 중엔 바뀌지 않는다).
   const startDrag = useCallback(
-    (source: DragSource, event: ReactPointerEvent) => {
+    (pick: DragPick, event: ReactPointerEvent) => {
       teardownRef.current?.();
+
+      const carried = carriedBlocks(program, pick);
+      if (carried.length === 0) return;
 
       const rect = event.currentTarget.getBoundingClientRect();
       const start = { x: event.clientX, y: event.clientY };
       commit({
-        source,
+        pick,
+        carried,
         pointer: start,
         grab: { x: start.x - rect.left, y: start.y - rect.top },
         active: false,
@@ -118,7 +114,6 @@ export function BlockDragProvider({
         const cur = stateRef.current;
         if (!cur) return;
         const pointer = { x: e.clientX, y: e.clientY };
-
         if (!cur.active && !movedEnough(start, pointer)) {
           commit({ ...cur, pointer });
           return;
@@ -130,7 +125,7 @@ export function BlockDragProvider({
               b.getBoundingClientRect(),
             )
           : [];
-        const hit = nearestSlot(e.clientY, slotsFromBlockRects(rects));
+        const hit = nearestSlot(e.clientX, e.clientY, slotsFromBlockRects(rects));
 
         commit({
           ...cur,
@@ -145,21 +140,28 @@ export function BlockDragProvider({
       const finish = () => {
         teardownRef.current?.();
         const cur = stateRef.current;
-        if (cur?.active) {
-          const { origin, node } = cur.source;
-          if (origin === 'stack') {
-            if (cur.slotIndex != null) {
-              onMove?.(node.id, cur.slotIndex);
-            } else {
-              // 슬롯에 안 붙었고 캔버스 밖(팔레트 포함)에서 놓았으면 삭제
-              const canvas = canvasRef.current?.getBoundingClientRect();
-              if (canvas && !isWithin(canvas, cur.pointer.x, cur.pointer.y)) onRemove?.(node.id);
-            }
-          } else if (cur.slotIndex != null) {
-            onInsert(node, cur.slotIndex);
-          }
-        }
         commit(null);
+        if (!cur?.active) return;
+
+        if (cur.slotIndex != null) {
+          onChange(dropOnSlot(program, cur.pick, cur.slotIndex), 'connect');
+          return;
+        }
+
+        // 스냅 안 됨 — 놓은 자리(캔버스 좌표)에 둔다.
+        const canvas = canvasRef.current?.getBoundingClientRect();
+        if (!canvas) return;
+        const onCanvas =
+          cur.pointer.x >= canvas.left &&
+          cur.pointer.x <= canvas.right &&
+          cur.pointer.y >= canvas.top &&
+          cur.pointer.y <= canvas.bottom;
+        // 팔레트 블록을 캔버스 밖에 놓으면 버린다 (놓을 자리가 없음)
+        if (cur.pick.origin === 'palette' && !onCanvas) return;
+
+        const x = clamp(cur.pointer.x - canvas.left - cur.grab.x, 0, canvas.width - CLONE_W);
+        const y = clamp(cur.pointer.y - canvas.top - cur.grab.y, 0, canvas.height - CLONE_H);
+        onChange(dropOnCanvas(program, cur.pick, x, y), 'place');
       };
 
       const teardown = () => {
@@ -169,17 +171,15 @@ export function BlockDragProvider({
         teardownRef.current = null;
       };
       teardownRef.current = teardown;
-
       window.addEventListener('pointermove', handleMove);
       window.addEventListener('pointerup', finish);
       window.addEventListener('pointercancel', finish);
     },
-    [commit, onInsert, onMove, onRemove],
+    [commit, program, onChange],
   );
 
   useEffect(() => () => teardownRef.current?.(), []);
 
-  // 드래그 중엔 어디에 있든 grabbing 커서 + 텍스트 선택 방지.
   const active = dragging?.active ?? false;
   useEffect(() => {
     if (!active || typeof document === 'undefined') return;
@@ -205,11 +205,15 @@ export function BlockDragProvider({
                 top: dragging.pointer.y - dragging.grab.y,
               }}
             >
-              <BlockGlyph node={dragging.source.node} />
+              <BlockStack nodes={dragging.carried} />
             </div>,
             document.body,
           )
         : null}
     </BlockDragContext.Provider>
   );
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
 }

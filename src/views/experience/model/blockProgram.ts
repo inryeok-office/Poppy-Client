@@ -1,9 +1,13 @@
 // 블록 프로그램 모델 (기능명세서 Mission & Block · Simulation).
 //
-//   stack     — 시작 블록에서 이어진 블록 트리. start 는 항상 맨 앞이고 드래그·삭제할 수 없다.
-//   detached  — 캔버스에 떨어져 아직 연결되지 않은 블록 (Figma Slide 2 의 '종료').
-// '번 반복하기'(repeat) 는 body 를 갖는 C블록 — v1 은 body 를 '뒤로 m 이동' 하나로 프리필한
-// 상태로 고정한다(중첩 드롭 편집은 후속 조각). 재정렬·삭제는 repeat 블록을 통째로 움직인다.
+//   stack     — 시작 블록에 이어진 하나의 체인 (stack[0] 은 항상 start). 서버로 보내는 프로그램.
+//   floating  — 캔버스에 자유 배치된, 아직 연결되지 않은 블록 체인들 (Figma Slide 2 의 '종료').
+//
+// 드래그 동작 (기명서 "블록 드래그 이동·스냅 연결"):
+//   · 블록을 잡으면 그 아래에 연결된 블록이 함께 딸려온다 (carriedBlocks).
+//   · 연결 가능한 지점(스택 슬롯)에 가까우면 스냅 미리보기 → 스냅 거리 안에서 놓으면 연결 (dropOnSlot).
+//   · 스냅 거리 밖에서 놓으면 연결하지 않고 놓은 자리에 둔다 (dropOnCanvas — floating 그룹).
+//   · '번 반복하기'(repeat) body 는 '뒤로 m 이동' 하나로 프리필 고정 (중첩 편집은 후속).
 //
 // 서버·시뮬레이션·자동 저장은 여전히 flat 한 SerializedBlockProgram 을 받는다 → serializeProgram.
 
@@ -23,18 +27,27 @@ export type BlockNode =
   | { id: string; kind: 'wait'; seconds: number }
   | { id: string; kind: 'repeat'; count: number; body: BlockNode[] };
 
+/** 캔버스에 자유 배치된, 연결 안 된 블록 체인 */
+export type FloatingGroup = {
+  id: string;
+  /** 캔버스 좌상단 기준 좌표 (px) */
+  x: number;
+  y: number;
+  /** 위→아래로 이어진 블록들 */
+  blocks: BlockNode[];
+};
+
 export type BlockProgram = {
-  /** 시작 블록에서 이어진 블록 순서 (stack[0] 은 항상 start) */
+  /** 시작 블록에 이어진 하나의 체인 (stack[0] = start) */
   stack: BlockNode[];
-  /** 아직 연결되지 않고 캔버스에 떨어져 있는 블록 */
-  detached: BlockNode[];
+  /** 아직 연결되지 않고 캔버스에 놓여 있는 블록 그룹들 */
+  floating: FloatingGroup[];
 };
 
 // ── 블록 생성 ──────────────────────────────────────────────────────────────────
 
 let idSeq = 0;
-/** 팔레트에서 새로 꺼낸 블록의 안정적인 id. 트리 어디서든 유일하면 된다. */
-function nextId(prefix: BlockKind): string {
+function nextId(prefix: string): string {
   idSeq += 1;
   return `${prefix}-${idSeq}`;
 }
@@ -58,7 +71,7 @@ export function newBlock(kind: BlockKind): BlockNode {
   }
 }
 
-/** Figma Slide 2 상태 — '종료' 블록이 스택 밖에 떨어져 있다. */
+/** Figma Slide 2 상태 — '종료' 블록이 스택 밖(캔버스 x325 y174)에 놓여 있다. */
 export const INITIAL_PROGRAM: BlockProgram = {
   stack: [
     { id: 'start-0', kind: 'start' },
@@ -70,44 +83,101 @@ export const INITIAL_PROGRAM: BlockProgram = {
     },
     { id: 'greet-0', kind: 'greet' },
   ],
-  detached: [{ id: 'end-0', kind: 'end' }],
+  floating: [{ id: 'float-end-0', x: 325, y: 174, blocks: [{ id: 'end-0', kind: 'end' }] }],
 };
 
-// ── 순수 편집 연산 (드래그 삽입·재정렬·삭제 · 클릭 연결 · 값 편집) ────────────────
+// ── 드래그로 집은 블록 체인 ────────────────────────────────────────────────────
 
-/** 스택의 atIndex 위치에 블록을 끼운다. start(0) 앞에는 못 넣는다. 같은 id 의 떨어진 블록은 정리. */
-export function insertBlock(program: BlockProgram, node: BlockNode, atIndex: number): BlockProgram {
-  const at = Math.max(1, Math.min(program.stack.length, atIndex));
-  const stack = [...program.stack];
-  stack.splice(at, 0, node);
-  return { stack, detached: program.detached.filter((d) => d.id !== node.id) };
+/** 드래그를 시작한 블록 (팔레트는 새 노드, 나머지는 캔버스에 있는 노드). */
+export type DragPick =
+  | { origin: 'palette'; node: BlockNode }
+  | { origin: 'stack'; nodeId: string }
+  | { origin: 'floating'; nodeId: string };
+
+function stackIndexOf(stack: BlockNode[], id: string): number {
+  return stack.findIndex((n) => n.id === id);
 }
 
-/** 스택 안에서 블록을 toIndex 위치로 옮긴다. start 는 못 옮긴다. */
-export function moveBlock(program: BlockProgram, id: string, toIndex: number): BlockProgram {
-  const from = program.stack.findIndex((n) => n.id === id);
-  if (from <= 0) return program;
-
-  const rest = program.stack.filter((_, i) => i !== from);
-  // toIndex 는 "이동 전" 스택 기준 슬롯이므로, 뒤로 가는 경우 제거분만큼 당긴다.
-  const to = Math.max(1, Math.min(rest.length, from < toIndex ? toIndex - 1 : toIndex));
-  rest.splice(to, 0, program.stack[from]);
-  return { ...program, stack: rest };
+function groupOf(floating: FloatingGroup[], id: string): FloatingGroup | undefined {
+  return floating.find((g) => g.blocks.some((b) => b.id === id));
 }
 
-/** 블록을 프로그램에서 완전히 제거한다 (스택·떨어진 목록 모두). start 는 못 지운다. */
-export function removeBlock(program: BlockProgram, id: string): BlockProgram {
-  if (program.stack[0]?.id === id) return program;
+/** 잡은 블록 + 그 아래 연결된 블록들 (기명서: "아래에 연결된 블록은 함께 이동한다"). */
+export function carriedBlocks(program: BlockProgram, pick: DragPick): BlockNode[] {
+  if (pick.origin === 'palette') return [pick.node];
+  if (pick.origin === 'stack') {
+    const i = stackIndexOf(program.stack, pick.nodeId);
+    return i <= 0 ? [] : program.stack.slice(i); // start(0) 는 못 집는다
+  }
+  const group = groupOf(program.floating, pick.nodeId);
+  if (!group) return [];
+  const j = group.blocks.findIndex((b) => b.id === pick.nodeId);
+  return group.blocks.slice(j);
+}
+
+/** 집은 블록들을 원래 자리에서 떼어낸다. (스택은 잘라내고, 그룹은 나머지만 남긴다.) */
+function detachCarried(program: BlockProgram, pick: DragPick): BlockProgram {
+  if (pick.origin === 'palette') return program;
+  if (pick.origin === 'stack') {
+    const i = stackIndexOf(program.stack, pick.nodeId);
+    if (i <= 0) return program;
+    return { ...program, stack: program.stack.slice(0, i) };
+  }
+  const group = groupOf(program.floating, pick.nodeId);
+  if (!group) return program;
+  const j = group.blocks.findIndex((b) => b.id === pick.nodeId);
+  const remaining = group.blocks.slice(0, j);
+  const floating =
+    remaining.length > 0
+      ? program.floating.map((g) => (g.id === group.id ? { ...g, blocks: remaining } : g))
+      : program.floating.filter((g) => g.id !== group.id);
+  return { ...program, floating };
+}
+
+/** 스냅 거리 안에서 놓았다 — 집은 체인을 스택 slotIndex 위치에 연결한다. */
+export function dropOnSlot(program: BlockProgram, pick: DragPick, slotIndex: number): BlockProgram {
+  const carried = carriedBlocks(program, pick);
+  if (carried.length === 0) return program;
+
+  const base = detachCarried(program, pick);
+  const at = Math.max(1, Math.min(base.stack.length, slotIndex));
+  const stack = [...base.stack.slice(0, at), ...carried, ...base.stack.slice(at)];
+  return { ...base, stack };
+}
+
+/** 스냅 거리 밖에서 놓았다 — 집은 체인을 연결 없이 캔버스 (x, y) 에 둔다. */
+export function dropOnCanvas(
+  program: BlockProgram,
+  pick: DragPick,
+  x: number,
+  y: number,
+): BlockProgram {
+  const carried = carriedBlocks(program, pick);
+  if (carried.length === 0) return program;
+
+  // 이미 자유 그룹의 맨 앞 블록을 통째로 옮기는 경우엔 그룹 좌표만 갱신
+  if (pick.origin === 'floating') {
+    const group = groupOf(program.floating, pick.nodeId);
+    if (group && group.blocks[0]?.id === pick.nodeId) {
+      return {
+        ...program,
+        floating: program.floating.map((g) => (g.id === group.id ? { ...g, x, y } : g)),
+      };
+    }
+  }
+
+  const base = detachCarried(program, pick);
   return {
-    stack: program.stack.filter((n) => n.id !== id),
-    detached: program.detached.filter((n) => n.id !== id),
+    ...base,
+    floating: [...base.floating, { id: nextId('float'), x, y, blocks: carried }],
   };
 }
 
-/** 떨어진 블록을 스택 끝으로 연결한다 (드래그의 키보드/클릭 대체 수단). */
+/** 자유 블록을 모두 스택 끝에 연결한다 (드래그의 키보드/대체 수단). */
 export function connectDetachedBlocks(program: BlockProgram): BlockProgram {
-  if (program.detached.length === 0) return program;
-  return { stack: [...program.stack, ...program.detached], detached: [] };
+  if (program.floating.length === 0) return program;
+  const extra = program.floating.flatMap((g) => g.blocks);
+  return { stack: [...program.stack, ...extra], floating: [] };
 }
 
 type BlockParamPatch = { count?: number; distanceM?: number; seconds?: number };
@@ -123,7 +193,10 @@ export function setBlockParam(
       const next = node.id === id ? ({ ...node, ...patch } as BlockNode) : node;
       return next.kind === 'repeat' ? { ...next, body: map(next.body) } : next;
     });
-  return { stack: map(program.stack), detached: map(program.detached) };
+  return {
+    stack: map(program.stack),
+    floating: program.floating.map((g) => ({ ...g, blocks: map(g.blocks) })),
+  };
 }
 
 // ── 직렬화 (서버·시뮬레이션·자동 저장 계약은 flat 형태 유지) ────────────────────
@@ -159,7 +232,7 @@ function firstMoveDistance(nodes: BlockNode[]): number | undefined {
 export function serializeProgram(program: BlockProgram): SerializedBlockProgram {
   return {
     chain: flattenKinds(program.stack),
-    detached: flattenKinds(program.detached),
+    detached: flattenKinds(program.floating.flatMap((g) => g.blocks)),
     repeatCount: firstRepeatCount(program.stack) ?? REPEAT_RANGE.min,
     moveDistance: firstMoveDistance(program.stack) ?? MOVE_RANGE.min,
   };
@@ -173,26 +246,38 @@ function isBlockNode(value: unknown): value is BlockNode {
   return typeof node.id === 'string' && typeof node.kind === 'string';
 }
 
-/** 자동 저장이 남긴 트리 스냅샷인지 확인한다. */
+function isFloatingGroup(value: unknown): value is FloatingGroup {
+  if (typeof value !== 'object' || value === null) return false;
+  const g = value as Record<string, unknown>;
+  return (
+    typeof g.id === 'string' &&
+    typeof g.x === 'number' &&
+    typeof g.y === 'number' &&
+    Array.isArray(g.blocks) &&
+    g.blocks.every(isBlockNode)
+  );
+}
+
+/** 자동 저장이 남긴 프로그램 스냅샷인지 확인한다. */
 export function isBlockProgramSnapshot(value: unknown): value is BlockProgram {
   if (typeof value !== 'object' || value === null) return false;
   const snap = value as Record<string, unknown>;
   return (
     Array.isArray(snap.stack) &&
-    Array.isArray(snap.detached) &&
+    Array.isArray(snap.floating) &&
     snap.stack.every(isBlockNode) &&
-    snap.detached.every(isBlockNode) &&
+    snap.floating.every(isFloatingGroup) &&
     (snap.stack[0] as BlockNode | undefined)?.kind === 'start'
   );
 }
 
 /**
  * 저장된 스냅샷을 프로그램으로 되돌린다.
- * 트리 스냅샷이면 그대로, 아니면(구버전 flat 초안 등) 초기 프로그램으로 시작한다.
+ * 프로그램 스냅샷이면 그대로, 아니면(구버전 초안 등) 초기 프로그램으로 시작한다.
  */
 export function draftToProgram(snapshot: unknown): BlockProgram {
   return isBlockProgramSnapshot(snapshot)
-    ? { stack: snapshot.stack, detached: snapshot.detached }
+    ? { stack: snapshot.stack, floating: snapshot.floating }
     : INITIAL_PROGRAM;
 }
 
@@ -213,8 +298,9 @@ export type BlockError = {
  */
 export function validateBlockProgram(program: BlockProgram): BlockError[] {
   const errors: BlockError[] = [];
+  const floatingKinds = program.floating.flatMap((g) => g.blocks.map((b) => b.kind));
 
-  if (program.detached.some((node) => node.kind !== 'end')) {
+  if (floatingKinds.some((kind) => kind !== 'end')) {
     errors.push({
       code: 'disconnected-block',
       message: '연결되지 않은 블록이 있어요. 모든 블록을 시작 블록에 이어 주세요.',

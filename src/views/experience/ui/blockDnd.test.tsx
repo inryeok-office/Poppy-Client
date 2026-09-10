@@ -24,8 +24,10 @@ const makeRect = (left: number, top: number, width: number, height: number): DOM
     toJSON: () => ({}),
   }) as DOMRect;
 
-// 팔레트(x 0..280) 왼쪽, 캔버스(x 280..1200) 오른쪽에 두고 스택 블록을 세로로 쌓는다.
+// 팔레트(x 0..280) 왼쪽, 캔버스(x 280..1180) 오른쪽. 스택 블록 x 300..512.
 const CANVAS_LEFT = 280;
+const STACK_X = CANVAS_LEFT + 20 + 100; // 스택 블록 가로 중앙 근처 (스냅 범위 안)
+const FAR_X = 800; // 스택에서 가로로 멀리 (스냅 안 됨)
 
 function stubLayout() {
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
@@ -65,10 +67,9 @@ afterEach(() => vi.restoreAllMocks());
 
 const canvas = () => screen.getByRole('region', { name: '블록 조립 캔버스' });
 const canvasBlocks = () => within(canvas()).getAllByText('인사하기');
+// 캔버스 첫 <ol> = 시작에 연결된 스택 (자유 그룹 <ol> 은 그 뒤에 온다)
 const stackOrder = () =>
-  within(canvas())
-    .getAllByRole('listitem')
-    .map((li) => li.getAttribute('data-block'));
+  Array.from(canvas().querySelector('ol')!.children).map((li) => li.getAttribute('data-block'));
 const stackBlockByText = (text: string) => within(canvas()).getByText(text).closest('li')!;
 
 describe('블록 팔레트 드래그 삽입', () => {
@@ -83,14 +84,14 @@ describe('블록 팔레트 드래그 삽입', () => {
     expect(canvasBlocks()).toHaveLength(1); // 스택에 이미 1개
 
     fireEvent.pointerDown(source, { clientX: 20, clientY: 500 });
-    fireEvent.pointerMove(window, { clientX: 120, clientY: slotCenterY(1) });
-    fireEvent.pointerUp(window, { clientX: 120, clientY: slotCenterY(1) });
+    fireEvent.pointerMove(window, { clientX: STACK_X, clientY: slotCenterY(1) });
+    fireEvent.pointerUp(window, { clientX: STACK_X, clientY: slotCenterY(1) });
 
     // 슬롯 1(시작 다음)에 인사하기가 하나 더 들어간다
     expect(canvasBlocks()).toHaveLength(2);
   });
 
-  it('어느 슬롯과도 멀면 아무것도 삽입되지 않는다', async () => {
+  it('팔레트 밖(캔버스 아님)에 다시 놓으면 아무것도 안 생긴다', async () => {
     stubLayout();
     const user = userEvent.setup();
     renderView();
@@ -99,10 +100,27 @@ describe('블록 팔레트 드래그 삽입', () => {
     const source = screen.getByRole('button', { name: '인사하기 블록 꺼내기' });
 
     fireEvent.pointerDown(source, { clientX: 20, clientY: 500 });
-    fireEvent.pointerMove(window, { clientX: 120, clientY: 4000 });
-    fireEvent.pointerUp(window, { clientX: 120, clientY: 4000 });
+    fireEvent.pointerMove(window, { clientX: 120, clientY: 400 }); // 팔레트 영역 (x < 280)
+    fireEvent.pointerUp(window, { clientX: 120, clientY: 400 });
 
     expect(canvasBlocks()).toHaveLength(1);
+  });
+
+  it('스냅 거리 밖 캔버스에 놓으면 연결 없이 자유 블록으로 남는다 (기명서)', async () => {
+    stubLayout();
+    const user = userEvent.setup();
+    renderView();
+
+    await user.click(screen.getByRole('button', { name: '동작' }));
+    const source = screen.getByRole('button', { name: '인사하기 블록 꺼내기' });
+
+    fireEvent.pointerDown(source, { clientX: 20, clientY: 500 });
+    fireEvent.pointerMove(window, { clientX: FAR_X, clientY: 600 }); // 캔버스 안, 스택과 멀리
+    fireEvent.pointerUp(window, { clientX: FAR_X, clientY: 600 });
+
+    // 스택은 그대로(3), 자유 블록으로 인사하기 1개 추가 → 캔버스에 총 2
+    expect(stackOrder()).toEqual(['start-0', 'repeat-0', 'greet-0']);
+    expect(canvasBlocks()).toHaveLength(2);
   });
 });
 
@@ -122,32 +140,51 @@ describe('팔레트 키보드 추가 + 안내', () => {
   });
 });
 
-describe('캔버스 블록 재정렬·삭제', () => {
+describe('캔버스 블록 재정렬·자유 배치', () => {
   it('스택 블록을 다른 슬롯으로 끌면 순서가 바뀐다', () => {
     stubLayout();
     renderView();
-    // INITIAL: start-0, repeat-0, greet-0
     expect(stackOrder()).toEqual(['start-0', 'repeat-0', 'greet-0']);
 
     const greet = stackBlockByText('인사하기');
-    fireEvent.pointerDown(greet, { clientX: 80, clientY: slotCenterY(3) });
-    fireEvent.pointerMove(window, { clientX: 80, clientY: slotCenterY(1) });
-    fireEvent.pointerUp(window, { clientX: 80, clientY: slotCenterY(1) });
+    fireEvent.pointerDown(greet, { clientX: STACK_X, clientY: slotCenterY(3) });
+    fireEvent.pointerMove(window, { clientX: STACK_X, clientY: slotCenterY(1) });
+    fireEvent.pointerUp(window, { clientX: STACK_X, clientY: slotCenterY(1) });
 
     expect(stackOrder()).toEqual(['start-0', 'greet-0', 'repeat-0']);
   });
 
-  it('스택 블록을 캔버스 밖(팔레트 쪽)으로 끌면 지워진다', () => {
+  it('스택 블록을 스냅 밖 캔버스에 놓으면 스택에서 빠지고 그 자리에 남는다', () => {
     stubLayout();
     renderView();
-    expect(within(canvas()).getByText('인사하기')).toBeInTheDocument();
 
     const greet = stackBlockByText('인사하기');
-    fireEvent.pointerDown(greet, { clientX: CANVAS_LEFT + 80, clientY: slotCenterY(3) });
-    fireEvent.pointerMove(window, { clientX: 40, clientY: 300 }); // 팔레트 영역 (x < 280)
-    fireEvent.pointerUp(window, { clientX: 40, clientY: 300 });
+    fireEvent.pointerDown(greet, { clientX: STACK_X, clientY: slotCenterY(3) });
+    fireEvent.pointerMove(window, { clientX: FAR_X, clientY: 700 }); // 캔버스 안, 스택과 멀리
+    fireEvent.pointerUp(window, { clientX: FAR_X, clientY: 700 });
 
-    expect(within(canvas()).queryByText('인사하기')).not.toBeInTheDocument();
+    // 스택에서는 빠졌지만 캔버스엔 여전히 존재 (자유 블록)
     expect(stackOrder()).toEqual(['start-0', 'repeat-0']);
+    expect(within(canvas()).getByText('인사하기')).toBeInTheDocument();
+  });
+
+  it('블록을 잡으면 아래에 연결된 블록이 함께 이동한다 (기명서)', () => {
+    stubLayout();
+    renderView();
+    // 먼저 종료를 연결해 [start, repeat, greet, end] 로 만든다
+    screen.getByRole('button', { name: '종료 블록 연결하기' }).focus();
+    fireEvent.keyDown(screen.getByRole('button', { name: '종료 블록 연결하기' }), { key: 'Enter' });
+    expect(stackOrder()).toEqual(['start-0', 'repeat-0', 'greet-0', 'end-0']);
+
+    // repeat 을 잡아 캔버스로 빼면 greet·end 도 함께 빠진다
+    const repeat = stackBlockByText('번 반복하기');
+    fireEvent.pointerDown(repeat, { clientX: STACK_X, clientY: slotCenterY(1) });
+    fireEvent.pointerMove(window, { clientX: FAR_X, clientY: 750 });
+    fireEvent.pointerUp(window, { clientX: FAR_X, clientY: 750 });
+
+    expect(stackOrder()).toEqual(['start-0']);
+    // repeat·greet·end 는 자유 그룹으로 캔버스에 그대로
+    expect(within(canvas()).getByText('인사하기')).toBeInTheDocument();
+    expect(within(canvas()).getByText('종료')).toBeInTheDocument();
   });
 });

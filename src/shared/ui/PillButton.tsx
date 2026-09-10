@@ -15,7 +15,7 @@ type PillButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
  * 스타일을 끄고 onClick 도 실행되지 않게 가드한다.
  */
 const BASE =
-  'inline-flex h-10 items-center justify-center gap-1 rounded-lg px-6 text-[14px] transition-colors';
+  'inline-flex h-10 shrink-0 items-center justify-center gap-1 rounded-lg px-6 text-[14px] whitespace-nowrap transition-colors';
 
 const VARIANT = {
   default: 'border-line bg-card text-muted border',
