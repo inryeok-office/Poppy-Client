@@ -30,8 +30,11 @@ function renderView() {
   );
 }
 
-const connectEndBlock = (user: ReturnType<typeof userEvent.setup>) =>
-  user.click(screen.getByRole('button', { name: '종료 블록 연결하기' }));
+// 마우스는 드래그로 연결하지만(jsdom 은 레이아웃이 없어 측정 불가), 키보드(Enter) 연결 경로로 확인한다.
+const connectEndBlock = async (user: ReturnType<typeof userEvent.setup>) => {
+  screen.getByRole('button', { name: '종료 블록 연결하기' }).focus();
+  await user.keyboard('{Enter}');
+};
 
 const waitForRunButton = () =>
   waitFor(

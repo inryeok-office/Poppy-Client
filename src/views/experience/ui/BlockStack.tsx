@@ -5,17 +5,16 @@ import { Block, BlockInput, CBlock } from './Block';
 
 // 블록 트리(program.stack / program.detached)를 그대로 렌더한다.
 // 두 워크스페이스(조립 중·실행 준비)가 공유한다. 편집(값 입력)은 onParamChange 를 줄 때만 켜진다.
-// 드래그 핸들·슬롯 마커는 후속 조각에서 이 위에 얹는다.
+// 드래그 재정렬 핸들은 후속 조각에서 이 위에 얹는다. 슬롯 측정은 각 블록의 [data-block] 로 한다.
 
 export type BlockParamPatch = { count?: number; distanceM?: number; seconds?: number };
 
-type BlockStackProps = {
-  nodes: BlockNode[];
-  /** 주면 값 입력 칸이 편집 가능해진다. */
+type RenderOptions = {
   onParamChange?: (id: string, patch: BlockParamPatch) => void;
 };
 
-function renderNode(node: BlockNode, onParamChange: BlockStackProps['onParamChange']): ReactNode {
+function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
+  const { onParamChange } = options;
   const bind = (patch: (value: number) => BlockParamPatch) =>
     onParamChange ? (value: number) => onParamChange(node.id, patch(value)) : undefined;
 
@@ -79,18 +78,39 @@ function renderNode(node: BlockNode, onParamChange: BlockStackProps['onParamChan
           }
         >
           {node.body.map((child) => (
-            <div key={child.id}>{renderNode(child, onParamChange)}</div>
+            <div key={child.id}>{renderNode(child, options)}</div>
           ))}
         </CBlock>
       );
   }
 }
 
-export function BlockStack({ nodes, onParamChange }: BlockStackProps) {
+/** 블록 하나의 시각 표현 (li·편집 없이). 드래그 클론·팔레트가 재사용한다. */
+export function BlockGlyph({
+  node,
+  onParamChange,
+}: {
+  node: BlockNode;
+  onParamChange?: RenderOptions['onParamChange'];
+}) {
+  return <>{renderNode(node, { onParamChange })}</>;
+}
+
+type BlockStackProps = {
+  nodes: BlockNode[];
+  /** 주면 값 입력 칸이 편집 가능해진다. */
+  onParamChange?: RenderOptions['onParamChange'];
+  /** 스택 <ol> 요소 등록 (드래그 슬롯 측정용). */
+  containerRef?: (el: HTMLOListElement | null) => void;
+};
+
+export function BlockStack({ nodes, onParamChange, containerRef }: BlockStackProps) {
   return (
-    <ol className="flex flex-col -space-y-1.5">
+    <ol ref={containerRef} className="flex flex-col -space-y-1.5">
       {nodes.map((node) => (
-        <li key={node.id}>{renderNode(node, onParamChange)}</li>
+        <li key={node.id} data-block={node.id}>
+          {renderNode(node, { onParamChange })}
+        </li>
       ))}
     </ol>
   );

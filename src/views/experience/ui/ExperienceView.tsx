@@ -12,14 +12,17 @@ import {
 import { readLocalDraft, useAutoSaveProject, useSession } from '@/features/session';
 import { useSimulateProgram } from '@/features/simulation';
 
+import { BlockDragProvider } from '../lib/useBlockDrag';
 import {
   INITIAL_PROGRAM,
   connectDetachedBlocks,
   draftToProgram,
+  insertBlock,
   isBlockProgramSnapshot,
   serializeProgram,
   setBlockParam,
   validateBlockProgram,
+  type BlockNode,
   type BlockProgram,
 } from '../model/blockProgram';
 import type { BlockParamPatch } from './BlockStack';
@@ -156,6 +159,12 @@ export function ExperienceView() {
     invalidate();
   };
 
+  // 팔레트/떨어진 블록을 스택 슬롯에 드롭 (드래그 스냅).
+  const insertBlockAt = (node: BlockNode, slotIndex: number) => {
+    setProgram((current) => insertBlock(current, node, slotIndex));
+    invalidate();
+  };
+
   const connectBlock = () => {
     setProgram(connectDetachedBlocks);
     invalidate();
@@ -173,31 +182,33 @@ export function ExperienceView() {
         onRestart={resetSession}
         saveStatus={autoSave.status}
       />
-      <div className="flex flex-1">
-        <BlockPalette />
-        {simulationPassed ? (
-          <RunReadyWorkspace
-            program={program}
-            requesting={requestExecution.isPending}
-            executionStatus={executionStatus}
-            executionMessage={executionMessage}
-            onSimulate={runSimulation}
-            onRun={requestRun}
-            onStop={stopRun}
-          />
-        ) : (
-          <BlockWorkspace
-            program={program}
-            errors={blockErrors}
-            onConnectBlock={connectBlock}
-            onBlockParamChange={changeBlockParam}
-            onSimulate={runSimulation}
-            simulating={simulation.isPending}
-            simulationMessage={simulationMessage}
-          />
-        )}
-        <RobotPreview estimatedDistanceM={estimatedDistanceM} />
-      </div>
+      <BlockDragProvider onInsert={insertBlockAt}>
+        <div className="flex flex-1">
+          <BlockPalette />
+          {simulationPassed ? (
+            <RunReadyWorkspace
+              program={program}
+              requesting={requestExecution.isPending}
+              executionStatus={executionStatus}
+              executionMessage={executionMessage}
+              onSimulate={runSimulation}
+              onRun={requestRun}
+              onStop={stopRun}
+            />
+          ) : (
+            <BlockWorkspace
+              program={program}
+              errors={blockErrors}
+              onConnectBlock={connectBlock}
+              onBlockParamChange={changeBlockParam}
+              onSimulate={runSimulation}
+              simulating={simulation.isPending}
+              simulationMessage={simulationMessage}
+            />
+          )}
+          <RobotPreview estimatedDistanceM={estimatedDistanceM} />
+        </div>
+      </BlockDragProvider>
     </div>
   );
 }

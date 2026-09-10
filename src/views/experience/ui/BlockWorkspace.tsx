@@ -1,20 +1,26 @@
+'use client';
+
+import { useBlockDrag } from '../lib/useBlockDrag';
 import { type BlockError, type BlockProgram } from '../model/blockProgram';
 import { Block, GhostBlock } from './Block';
-import { BlockStack, type BlockParamPatch } from './BlockStack';
+import { BlockGlyph, BlockStack, type BlockParamPatch } from './BlockStack';
 import { SectionLabel } from './SectionLabel';
 import { PillButton } from '@/shared/ui';
 
 // Figma node 21:520 / 33:483 (Slide 2·3) — 블록 조립 워크스페이스, 시뮬레이션 통과 전.
 //   프로그램에 구조 오류가 있으면(예: '종료' 미연결) '시뮬레이션 하기' 비활성(아웃라인) + 안내문이 오류 메시지.
-//   떨어진 '종료' 블록을 누르면 스택 끝에 연결된다 (드래그의 클릭 대체 수단 — 팔레트 드래그는 후속 조각).
+//   블록은 팔레트에서 끌어다 놓고, 떨어진 '종료' 도 끌어서 스택에 붙인다 (마우스는 드래그, 키보드는 Enter).
 // 시뮬레이션 상태는 ExperienceView 가 소유한다.
 
 const DEFAULT_HINT = '반드시 ‘종료’ 블록으로 끝내주세요.';
 
+// Figma 블록 폭 212 — 스냅 인디케이터 길이.
+const BLOCK_WIDTH = 212;
+
 type BlockWorkspaceProps = {
   program: BlockProgram;
   errors: BlockError[];
-  /** 떨어진 블록 클릭 → 스택 끝에 연결 */
+  /** 떨어진 '종료' 블록의 키보드(Enter) 연결 — 마우스는 드래그로 붙인다 */
   onConnectBlock?: () => void;
   /** 블록 값(반복 횟수·이동 거리 등) 편집 */
   onBlockParamChange?: (id: string, patch: BlockParamPatch) => void;
@@ -34,6 +40,8 @@ export function BlockWorkspace({
   simulating = false,
   simulationMessage,
 }: BlockWorkspaceProps) {
+  const { dragging, startDrag, registerStack } = useBlockDrag();
+
   const valid = errors.length === 0;
   const hint = simulationMessage ?? errors[0]?.message ?? DEFAULT_HINT;
   const detachedEnd = program.detached.filter((node) => node.kind === 'end');
@@ -91,22 +99,40 @@ export function BlockWorkspace({
         aria-label="블록 조립 캔버스"
       >
         <div className="absolute top-[88px] left-[52px]">
-          <BlockStack nodes={program.stack} onParamChange={onBlockParamChange} />
+          <BlockStack
+            nodes={program.stack}
+            onParamChange={onBlockParamChange}
+            containerRef={registerStack}
+          />
         </div>
 
-        {/* 아직 연결 안 된 '종료' 블록 — 누르면 스택 끝에 붙는다 (Figma Slide 2 Group 11). */}
-        {detachedEnd.length > 0 && (
-          <button
-            type="button"
-            onClick={onConnectBlock}
-            aria-label="종료 블록 연결하기"
-            className="absolute top-[174px] left-[325px] cursor-pointer transition hover:brightness-95 active:brightness-90"
-          >
-            <Block color="start" variant="cap">
-              종료
-            </Block>
-          </button>
+        {/* 스냅 인디케이터 — 드래그 중 블록이 붙을 자리 (Figma 블록 폭 212). */}
+        {dragging?.active && dragging.slot && (
+          <div
+            aria-hidden
+            className="bg-primary pointer-events-none fixed z-40 h-[6px] -translate-y-1/2 rounded-full"
+            style={{ top: dragging.slot.y, left: dragging.slot.x, width: BLOCK_WIDTH }}
+          />
         )}
+
+        {/* 아직 연결 안 된 '종료' 블록 — 끌어서 스택에 붙인다 (Figma Slide 2 Group 11). */}
+        {detachedEnd.map((node) => (
+          <button
+            key={node.id}
+            type="button"
+            aria-label="종료 블록 연결하기"
+            onPointerDown={(event) => startDrag({ origin: 'detached', node }, event)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onConnectBlock?.();
+              }
+            }}
+            className="absolute top-[174px] left-[325px] cursor-grab touch-none transition active:cursor-grabbing"
+          >
+            <BlockGlyph node={node} />
+          </button>
+        ))}
       </div>
     </section>
   );
