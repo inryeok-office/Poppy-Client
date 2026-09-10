@@ -37,6 +37,8 @@
   --color-block-move: #deb964; /* 이동 */
   --color-block-action: #5b84b9; /* 동작 */
   --color-primary: #ba7448; /* 채워진 강조 버튼 (활성 '시뮬레이션 하기' 등) */
+  --color-primary-hover: #a8663d; /* primary 버튼 hover */
+  --color-primary-active: #965a35; /* primary 버튼 눌림 */
 }
 
 /* 카드 배경의 점 격자 (Figma Rectangle 5·7, 약 18px 간격). bg-card 와 함께 쓴다. */
