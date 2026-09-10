@@ -6,7 +6,13 @@ import { describe, expect, it } from 'vitest';
 
 import { server } from '@/shared/api/msw/server';
 
+import { INITIAL_PROGRAM } from '../model/blockProgram';
 import { ExperienceView } from './ExperienceView';
+
+const seedDraft = (draft: Record<string, unknown>) => {
+  localStorage.setItem('poppy.experience.sessionId', String(draft.sessionId));
+  localStorage.setItem('poppy.experience.draft', JSON.stringify(draft));
+};
 
 function renderView() {
   const queryClient = new QueryClient({
@@ -254,6 +260,84 @@ describe('ExperienceView', () => {
     await connectEndBlock(user);
 
     expect(await screen.findByText(/오프라인/, undefined, { timeout: 3000 })).toBeInTheDocument();
+  });
+
+  it('세션 생성이 실패해도 로컬 초안에 저장하고 오프라인 안내를 보여준다', async () => {
+    server.use(http.post('*/api/sessions', () => new HttpResponse(null, { status: 503 })));
+    const user = userEvent.setup();
+    renderView();
+
+    await connectEndBlock(user);
+
+    expect(await screen.findByText(/오프라인/, undefined, { timeout: 3000 })).toBeInTheDocument();
+    expect(localStorage.getItem('poppy.experience.draft')).toBeTruthy();
+  });
+
+  it('브라우저 초안이 있으면 그 상태로 복원한다', () => {
+    seedDraft({
+      sessionId: 'sess-restore',
+      program: {
+        chain: ['start', 'repeat', 'move', 'greet', 'end'],
+        detached: [],
+        repeatCount: 5,
+        moveDistance: 1,
+      },
+      projectVersion: 2,
+      dirty: false,
+    });
+    renderView();
+
+    expect(screen.queryByRole('button', { name: '종료 블록 연결하기' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '시뮬레이션 하기' })).toHaveClass('bg-primary');
+    expect(screen.getByRole('spinbutton', { name: '반복 횟수' })).toHaveValue(5);
+  });
+
+  it('재방문 세션은 초안의 버전을 baseVersion 으로 보낸다', async () => {
+    seedDraft({
+      sessionId: 'sess-revisit',
+      program: { ...INITIAL_PROGRAM },
+      projectVersion: 3,
+      dirty: false,
+    });
+    let sentBaseVersion = -1;
+    server.use(
+      http.put('*/api/sessions/:id/project', async ({ request }) => {
+        sentBaseVersion = ((await request.json()) as { baseVersion: number }).baseVersion;
+        return HttpResponse.json({ success: true, data: { projectVersion: sentBaseVersion + 1 } });
+      }),
+    );
+    const user = userEvent.setup();
+    renderView();
+
+    await connectEndBlock(user);
+
+    await waitFor(() => expect(sentBaseVersion).toBe(3), { timeout: 3000 });
+  });
+
+  it('디바운스 동안 여러 번 편집하면 최신 값만 저장한다', async () => {
+    const savedRepeatCounts: number[] = [];
+    server.use(
+      http.put('*/api/sessions/:id/project', async ({ request }) => {
+        const body = (await request.json()) as { program: { repeatCount: number } };
+        savedRepeatCounts.push(body.program.repeatCount);
+        return HttpResponse.json({
+          success: true,
+          data: { projectVersion: savedRepeatCounts.length },
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderView();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await connectEndBlock(user);
+    await screen.findByText('저장됨', undefined, { timeout: 3000 });
+
+    const repeat = screen.getByRole('spinbutton', { name: '반복 횟수' });
+    fireEvent.change(repeat, { target: { value: '3' } });
+    fireEvent.change(repeat, { target: { value: '7' } });
+
+    await waitFor(() => expect(savedRepeatCounts.at(-1)).toBe(7), { timeout: 3000 });
+    expect(savedRepeatCounts).not.toContain(3);
   });
 
   it('처음으로를 누르면 블록·통과 기록이 초기화된다', async () => {
