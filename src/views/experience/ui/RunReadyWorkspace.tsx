@@ -21,6 +21,8 @@ const EXECUTION_HINT: Record<ExecutionStatus, string> = {
 
 type RunReadyWorkspaceProps = {
   program: BlockProgram;
+  /** 실행 요청(POST) 중 — 아직 실행 ID 를 못 받은 상태 */
+  requesting?: boolean;
   /** 실행이 시작됐으면 현재 상태, 아니면 null */
   executionStatus?: ExecutionStatus | null;
   /** 완료·실패 시 서버가 준 메시지 */
@@ -32,6 +34,7 @@ type RunReadyWorkspaceProps = {
 
 export function RunReadyWorkspace({
   program,
+  requesting = false,
   executionStatus = null,
   executionMessage,
   onSimulate,
@@ -40,9 +43,12 @@ export function RunReadyWorkspace({
 }: RunReadyWorkspaceProps) {
   const inProgress =
     executionStatus === 'queued' || executionStatus === 'assigned' || executionStatus === 'running';
-  const hint = executionStatus
-    ? (executionMessage ?? EXECUTION_HINT[executionStatus])
-    : DEFAULT_HINT;
+  const busy = requesting || inProgress;
+  const hint = requesting
+    ? '실행을 요청하고 있어요…'
+    : executionStatus
+      ? (executionMessage ?? EXECUTION_HINT[executionStatus])
+      : DEFAULT_HINT;
 
   return (
     <section className="bg-page flex flex-1 flex-col" aria-label="블록 워크스페이스">
@@ -53,12 +59,14 @@ export function RunReadyWorkspace({
           {hint}
         </p>
         <div className="flex items-center gap-2">
-          {!inProgress && executionStatus !== 'completed' && (
+          {!busy && executionStatus !== 'completed' && (
             <PillButton variant="primary" onClick={onSimulate}>
               시뮬레이션 하기
             </PillButton>
           )}
-          {inProgress ? (
+          {requesting ? (
+            <PillButton aria-disabled>요청 중…</PillButton>
+          ) : inProgress ? (
             <PillButton variant="primary" onClick={onStop}>
               실행 중지
             </PillButton>

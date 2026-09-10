@@ -1,8 +1,14 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
-import { useCancelExecution, useExecutionState, useRequestExecution } from '@/features/execution';
+import {
+  cancelExecution as cancelExecutionApi,
+  isTerminalStatus,
+  useCancelExecution,
+  useExecutionState,
+  useRequestExecution,
+} from '@/features/execution';
 import { useSimulateProgram } from '@/features/simulation';
 
 import {
@@ -25,14 +31,16 @@ import { RunReadyWorkspace } from './RunReadyWorkspace';
  *   2. 구조·값·안전 제한(이동 거리)을 모두 통과해야 시뮬레이션 통과 기록 발급
  *   3. 통과 기록이 있어야 '로봇 실행하기' 활성 — 없으면 잠김
  *   4. '로봇 실행하기' → 실행 요청 → 대기·배정·진행·완료 상태를 안내문에 표시 (실행 중지 가능)
- * 블록 값을 바꾸거나 '전체 지우기'/'처음으로' 를 누르면 통과 기록·실행을 초기화한다
- * (명세: "블록·모드·미션·안전 정책 변경 시 기록을 무효화").
+ * 블록 값을 바꾸거나 '전체 지우기'/'처음으로' 를 누르면 통과 기록·실행을 무효화한다
+ * (명세: "블록·모드·미션·안전 정책 변경 시 기록을 무효화"). 진행 중인 실행은 서버에도 취소를 보낸다.
  *
  * 시뮬레이션·실행은 features/{simulation,execution} 의 mock API(MSW). 실제 백엔드가 생기면 핸들러만 걷어낸다.
  */
 export function ExperienceView() {
   const [program, setProgram] = useState<BlockProgram>(INITIAL_PROGRAM);
   const [executionId, setExecutionId] = useState<string | null>(null);
+  // 초기화 후 늦게 도착한 실행 요청 onSuccess 가 오래된 실행 ID 를 되살리지 않게 한다.
+  const runGeneration = useRef(0);
 
   const simulation = useSimulateProgram();
   const requestExecution = useRequestExecution();
@@ -51,10 +59,16 @@ export function ExperienceView() {
       : undefined;
   const estimatedDistanceM = simulationResult?.totalDistanceM ?? 0;
 
-  const executionStatus = execution.data?.status ?? (requestExecution.isPending ? 'queued' : null);
+  const executionStatus = executionId !== null ? (execution.data?.status ?? 'queued') : null;
+  const executionSettled = isTerminalStatus(executionStatus ?? undefined);
   const executionMessage = execution.data?.message ?? null;
 
   const clearExecution = () => {
+    // 진행 중인 실행이면 서버에도 취소를 보낸다.
+    if (executionId !== null && !executionSettled) {
+      void cancelExecutionApi(executionId).catch(() => {});
+    }
+    runGeneration.current += 1;
     setExecutionId(null);
     requestExecution.reset();
     cancelExecution.reset();
@@ -71,8 +85,22 @@ export function ExperienceView() {
   };
 
   const requestRun = () => {
-    if (!simulationPassed || executionId !== null || requestExecution.isPending) return;
-    requestExecution.mutate({ program }, { onSuccess: (data) => setExecutionId(data.executionId) });
+    if (!simulationPassed || requestExecution.isPending) return;
+    // 진행 중인 실행이 있으면 무시, 끝난 실행이면 새로 요청한다.
+    if (executionId !== null && !executionSettled) return;
+
+    setExecutionId(null);
+    requestExecution.reset();
+    const generation = (runGeneration.current += 1);
+    requestExecution.mutate(
+      { program },
+      {
+        onSuccess: (data) => {
+          if (generation === runGeneration.current) setExecutionId(data.executionId);
+          else void cancelExecutionApi(data.executionId).catch(() => {});
+        },
+      },
+    );
   };
 
   const stopRun = () => {
@@ -103,6 +131,7 @@ export function ExperienceView() {
         {simulationPassed ? (
           <RunReadyWorkspace
             program={program}
+            requesting={requestExecution.isPending}
             executionStatus={executionStatus}
             executionMessage={executionMessage}
             onSimulate={runSimulation}
