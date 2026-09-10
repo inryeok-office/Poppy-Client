@@ -9,13 +9,21 @@ type PillButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 /**
- * 뽀샤 공통 알약 버튼. Figma "뽀샤"(node 21:520) 헤더·툴바 버튼 스타일.
+ * 뽀삐 공통 알약 버튼. Figma "뽀삐"(node 21:520) 헤더·툴바 버튼 스타일.
  * 공통: 높이 40 · radius 8 · 좌우 24 패딩 · 14px. (Figma 버튼 프레임이 전부 h40)
- * UI 퍼블리싱 단계라 hover/focus/disabled 등 상태 스타일은 넣지 않는다(디자인대로만).
+ * aria-disabled / disabled 면 상호작용 스타일을 끈다.
  */
+const BASE =
+  'inline-flex h-10 items-center justify-center gap-1 rounded-lg px-6 text-[14px] transition-colors';
+
 const VARIANT = {
   default: 'border-line bg-card text-muted border',
   primary: 'bg-primary text-white',
+} as const;
+
+const INTERACTION = {
+  default: 'cursor-pointer hover:bg-line/40 hover:text-ink active:bg-line/60',
+  primary: 'cursor-pointer hover:bg-primary-hover active:bg-primary-active',
 } as const;
 
 export function PillButton({
@@ -24,10 +32,14 @@ export function PillButton({
   type = 'button',
   ...props
 }: PillButtonProps) {
+  const inert =
+    props.disabled || props['aria-disabled'] === true || props['aria-disabled'] === 'true';
+  const state = inert ? 'cursor-not-allowed opacity-60' : INTERACTION[variant];
+
   return (
     <button
       type={type}
-      className={`inline-flex h-10 items-center justify-center gap-1 rounded-lg px-6 text-[14px] ${VARIANT[variant]} ${className}`}
+      className={`${BASE} ${VARIANT[variant]} ${state} ${className}`}
       {...props}
     />
   );

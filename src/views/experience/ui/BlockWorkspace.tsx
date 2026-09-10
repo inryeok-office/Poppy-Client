@@ -149,7 +149,7 @@ export function BlockWorkspace({
             type="button"
             onClick={onConnectBlock}
             aria-label="종료 블록 연결하기"
-            className="absolute top-[174px] left-[325px]"
+            className="absolute top-[174px] left-[325px] cursor-pointer transition hover:brightness-95 active:brightness-90"
           >
             <Block color="start" variant="cap">
               종료

@@ -27,7 +27,7 @@ export function BlockPalette() {
             key={category.label}
             type="button"
             aria-pressed={category.label === SELECTED_CATEGORY}
-            className={`text-ink flex w-[54px] flex-col items-center gap-1 rounded-lg p-3 text-[14px] ${
+            className={`text-ink hover:bg-card flex w-[54px] cursor-pointer flex-col items-center gap-1 rounded-lg p-3 text-[14px] transition-colors ${
               category.label === SELECTED_CATEGORY
                 ? 'border-line border'
                 : 'border border-transparent'
