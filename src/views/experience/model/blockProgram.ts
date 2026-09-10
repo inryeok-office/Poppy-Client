@@ -60,12 +60,8 @@ export function newBlock(kind: BlockKind): BlockNode {
     case 'wait':
       return { id: nextId('wait'), kind, seconds: WAIT_RANGE.min };
     case 'repeat':
-      return {
-        id: nextId('repeat'),
-        kind,
-        count: 2,
-        body: [{ id: nextId('move'), kind: 'move', distanceM: MOVE_RANGE.min }],
-      };
+      // 팔레트에서 갓 꺼낸 반복 블록은 body 가 비어 있다 (팔레트에 보이는 모습 그대로).
+      return { id: nextId('repeat'), kind, count: 2, body: [] };
     default:
       return { id: nextId(kind), kind } as BlockNode;
   }

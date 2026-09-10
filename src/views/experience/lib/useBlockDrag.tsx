@@ -43,9 +43,9 @@ type DragState = {
   /** 블록을 잡은 지점의 오프셋 */
   grab: { x: number; y: number };
   active: boolean;
-  /** 스냅될 삽입 인덱스 */
+  /** 스냅될 삽입 인덱스 (없으면 null — 놓은 자리에 그대로 둔다) */
   slotIndex: number | null;
-  /** 스냅 인디케이터 위치 (viewport) */
+  /** 스냅 미리보기 위치 (viewport) — 슬롯 왼쪽 x, 중심 y */
   slot: { x: number; y: number } | null;
 };
 
@@ -125,15 +125,16 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
               b.getBoundingClientRect(),
             )
           : [];
-        const hit = nearestSlot(e.clientX, e.clientY, slotsFromBlockRects(rects));
+        const slots = slotsFromBlockRects(rects);
+        const hit = nearestSlot(e.clientX, e.clientY, slots);
+        const slot = slots.find((s) => s.index === hit?.index);
 
         commit({
           ...cur,
           pointer,
           active: true,
           slotIndex: hit?.index ?? null,
-          slot:
-            hit && container ? { x: container.getBoundingClientRect().left, y: hit.centerY } : null,
+          slot: hit && slot ? { x: slot.left, y: slot.centerY } : null,
         });
       };
 
@@ -199,7 +200,7 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
         ? createPortal(
             <div
               aria-hidden
-              className="pointer-events-none fixed z-50 opacity-90 drop-shadow-lg"
+              className="pointer-events-none fixed z-50 rotate-2 drop-shadow-xl select-none"
               style={{
                 left: dragging.pointer.x - dragging.grab.x,
                 top: dragging.pointer.y - dragging.grab.y,

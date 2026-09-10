@@ -14,9 +14,6 @@ import { PillButton } from '@/shared/ui';
 
 const DEFAULT_HINT = '반드시 ‘종료’ 블록으로 끝내주세요.';
 
-// Figma 블록 폭 212 — 스냅 인디케이터 길이.
-const BLOCK_WIDTH = 212;
-
 type BlockWorkspaceProps = {
   program: BlockProgram;
   errors: BlockError[];
@@ -109,12 +106,12 @@ export function BlockWorkspace({
           />
         </div>
 
-        {/* 스냅 인디케이터 — 드래그 중 블록이 붙을 자리 (Figma 블록 폭 212). */}
+        {/* 스냅 미리보기 — 연결될 자리에 점선 윤곽 (기명서 "연결 위치를 미리 표시"). */}
         {dragging?.active && dragging.slot && (
           <div
             aria-hidden
-            className="bg-primary pointer-events-none fixed z-40 h-[6px] -translate-y-1/2 rounded-full transition-[top,left] duration-100 motion-reduce:transition-none"
-            style={{ top: dragging.slot.y, left: dragging.slot.x, width: BLOCK_WIDTH }}
+            className="border-primary/50 pointer-events-none fixed z-40 h-9 w-[212px] -translate-y-1/2 rounded-lg border-2 border-dashed"
+            style={{ top: dragging.slot.y, left: dragging.slot.x }}
           />
         )}
 
