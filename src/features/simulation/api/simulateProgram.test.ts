@@ -42,6 +42,16 @@ describe('simulateProgram (mock API)', () => {
     expect(result.violations[0]?.message).toMatch(/안전 구역/);
   });
 
+  it('음수·범위 밖 값은 서버가 거부한다 (클라이언트 우회 방지)', async () => {
+    const result = await simulateProgram({
+      program: program({ repeatCount: -3, moveDistance: 10 }),
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.totalDistanceM).toBe(0);
+    expect(result.violations[0]?.code).toBe('invalid-values');
+  });
+
   it('서버 오류는 ApiError 로 변환된다', async () => {
     server.use(http.post('*/api/simulations', () => new HttpResponse(null, { status: 500 })));
 

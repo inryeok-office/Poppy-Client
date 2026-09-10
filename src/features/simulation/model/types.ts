@@ -13,7 +13,7 @@ export type SimulationRequest = {
   program: SerializedBlockProgram;
 };
 
-export type SafetyViolationCode = 'exceeds-safe-zone';
+export type SafetyViolationCode = 'exceeds-safe-zone' | 'invalid-values';
 
 export type SafetyViolation = {
   code: SafetyViolationCode;
