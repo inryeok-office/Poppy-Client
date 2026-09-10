@@ -1,7 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
+
+import { server } from '@/shared/api/msw/server';
 
 import { ExperienceView } from './ExperienceView';
 
@@ -73,6 +76,20 @@ describe('ExperienceView', () => {
     await waitForRunButton();
     expect(screen.getByRole('button', { name: '로봇 실행하기' })).not.toHaveTextContent('잠김');
     expect(screen.queryByText('튜토리얼')).not.toBeInTheDocument();
+  });
+
+  it('시뮬레이션 API가 실패하면 오류 안내를 보여주고 로봇 실행은 잠겨 있다', async () => {
+    server.use(http.post('*/api/simulations', () => new HttpResponse(null, { status: 500 })));
+    const user = userEvent.setup();
+    renderView();
+
+    await connectEndBlock(user);
+    await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
+
+    expect(
+      await screen.findByText(/시뮬레이션에 실패/, undefined, { timeout: 3000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /로봇 실행하기/ })).toHaveTextContent('잠김');
   });
 
   it('처음으로를 누르면 블록·통과 기록이 초기화된다', async () => {

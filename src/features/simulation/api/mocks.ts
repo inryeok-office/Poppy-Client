@@ -9,8 +9,9 @@ import type { SimulationRequest, SimulationResult } from '../model/types';
 // 안전 제한 검증(속도·거리·회전각·반복 횟수·총 시간)은 조각 4.
 const MOCK_LATENCY_MS = 500;
 
+// `*/` prefix — axios baseURL(상대 '' / 프록시 절대 URL)이 무엇이든 매칭되게 한다.
 export const simulationHandlers = [
-  http.post('/api/simulations', async ({ request }) => {
+  http.post('*/api/simulations', async ({ request }) => {
     const { program } = (await request.json()) as SimulationRequest;
     await delay(MOCK_LATENCY_MS);
 

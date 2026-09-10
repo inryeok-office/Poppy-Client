@@ -10,14 +10,14 @@ import { ApiError } from '@/shared/api';
 const API_MOCK_ENABLED =
   process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_ENABLE_API_MOCK !== 'false';
 
-let mockStarted = false;
+let mockStartPromise: Promise<unknown> | null = null;
 
-async function startApiMock() {
-  // StrictMode 이중 실행에도 worker.start() 는 한 번만 (두 번째 호출은 MSW 가 예외를 던진다).
-  if (mockStarted) return;
-  mockStarted = true;
-  const { worker } = await import('@/shared/api/msw/browser');
-  await worker.start({ onUnhandledRequest: 'bypass' });
+/** 워커를 딱 한 번 시작한다 (StrictMode 이중 실행에도 같은 promise 를 재사용). */
+function startApiMock() {
+  mockStartPromise ??= import('@/shared/api/msw/browser').then(({ worker }) =>
+    worker.start({ onUnhandledRequest: 'bypass' }),
+  );
+  return mockStartPromise;
 }
 
 function createQueryClient() {
@@ -39,10 +39,21 @@ function createQueryClient() {
 export function Providers({ children }: { children: ReactNode }) {
   // 요청마다 새 QueryClient를 만들어 서버에서 사용자 간 캐시가 섞이지 않게 한다.
   const [queryClient] = useState(createQueryClient);
+  // mock 을 켰다면 워커가 준비될 때까지 렌더를 미룬다 (초기 요청이 실제 백엔드로 새는 걸 방지).
+  const [mockReady, setMockReady] = useState(!API_MOCK_ENABLED);
 
   useEffect(() => {
-    if (API_MOCK_ENABLED) void startApiMock();
+    if (!API_MOCK_ENABLED) return;
+    let cancelled = false;
+    void startApiMock().then(() => {
+      if (!cancelled) setMockReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  if (!mockReady) return null;
 
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }

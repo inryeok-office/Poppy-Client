@@ -35,6 +35,9 @@ export function ExperienceView() {
   const blockErrors = useMemo(() => validateBlockProgram(program), [program]);
   const blockValid = blockErrors.length === 0;
   const simulationPassed = simulation.data?.passed === true;
+  const simulationError = simulation.isError
+    ? '시뮬레이션에 실패했어요. 잠시 후 다시 시도해 주세요.'
+    : undefined;
 
   const runSimulation = () => {
     if (simulation.isPending || !blockValid) return;
@@ -66,6 +69,7 @@ export function ExperienceView() {
             onConnectBlock={connectBlock}
             onSimulate={runSimulation}
             simulating={simulation.isPending}
+            simulationError={simulationError}
           />
         )}
         <RobotPreview />
