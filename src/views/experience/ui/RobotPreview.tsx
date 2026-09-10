@@ -7,18 +7,14 @@
 // 제목/격자박스/스탯 세로 배치: 제목 y18(h16) → 격자박스 y46(h178) → 스탯 y256 (행 18 · 피치 34).
 // 색은 globals.css @theme 팔레트, 폰트는 상위 font-gmarket 상속.
 
+const SUMMARY = { blockCount: 5, estimatedSeconds: 7 } as const;
+
 type RobotPreviewProps = {
   /** 시뮬레이션이 계산한 총 이동 거리 (m). 실행 전에는 0. */
   estimatedDistanceM?: number;
-  /** 현재 프로그램의 블록(명령) 수 — 편집하면 실시간으로 바뀐다. */
-  blockCount?: number;
 };
 
-// Figma: 5블록 프로그램 = "예상 실행 7초". 블록당 대략 1.4초로 잡는다.
-const SECONDS_PER_BLOCK = 1.4;
-
-export function RobotPreview({ estimatedDistanceM = 0, blockCount = 0 }: RobotPreviewProps) {
-  const estimatedSeconds = Math.max(1, Math.round(blockCount * SECONDS_PER_BLOCK));
+export function RobotPreview({ estimatedDistanceM = 0 }: RobotPreviewProps) {
   const stats = [
     { label: '자세', value: '서있기' },
     { label: '바라보는 방향', value: '정면' },
@@ -34,7 +30,7 @@ export function RobotPreview({ estimatedDistanceM = 0, blockCount = 0 }: RobotPr
       <div className="flex items-baseline justify-between leading-none">
         <h2 className="text-ink text-[14px]">로봇 미리보기</h2>
         <span className="text-muted text-[12px]">
-          블록 {blockCount}개 • 예상 실행 {estimatedSeconds}초
+          블록 {SUMMARY.blockCount}개 • 예상 실행 {SUMMARY.estimatedSeconds}초
         </span>
       </div>
 

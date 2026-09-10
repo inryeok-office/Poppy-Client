@@ -67,8 +67,8 @@ export function useBlockDrag(): BlockDragValue {
 type BlockDragProviderProps = {
   children: ReactNode;
   program: BlockProgram;
-  /** 드롭 결과 프로그램. kind 는 안내 문구용. */
-  onChange: (next: BlockProgram, kind: 'connect' | 'place') => void;
+  /** 드롭 결과 프로그램 (스냅 연결 또는 자유 배치). */
+  onChange: (next: BlockProgram) => void;
 };
 
 export function BlockDragProvider({ children, program, onChange }: BlockDragProviderProps) {
@@ -144,7 +144,7 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
         if (!cur?.active) return;
 
         if (cur.slotIndex != null) {
-          onChange(dropOnSlot(program, cur.pick, cur.slotIndex), 'connect');
+          onChange(dropOnSlot(program, cur.pick, cur.slotIndex));
           return;
         }
 
@@ -161,7 +161,7 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
 
         const x = clamp(cur.pointer.x - canvas.left - cur.grab.x, 0, canvas.width - CLONE_W);
         const y = clamp(cur.pointer.y - canvas.top - cur.grab.y, 0, canvas.height - CLONE_H);
-        onChange(dropOnCanvas(program, cur.pick, x, y), 'place');
+        onChange(dropOnCanvas(program, cur.pick, x, y));
       };
 
       const teardown = () => {

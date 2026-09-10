@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   INITIAL_PROGRAM,
-  blockCommandCount,
   carriedBlocks,
-  connectDetachedBlocks,
   draftToProgram,
   dropOnCanvas,
   dropOnSlot,
@@ -45,19 +43,6 @@ describe('validateBlockProgram', () => {
       floating: [{ id: 'f1', x: 10, y: 10, blocks: [node('greet', 'greet-1')] }],
     };
     expect(validateBlockProgram(program).map((e) => e.code)).toContain('disconnected-block');
-  });
-});
-
-describe('connectDetachedBlocks', () => {
-  it('자유 블록을 스택 끝으로 옮기고 값은 유지한다', () => {
-    const result = connectDetachedBlocks(INITIAL_PROGRAM);
-    expect(result.floating).toEqual([]);
-    expect(result.stack.at(-1)?.kind).toBe('end');
-    expect(validateBlockProgram(result)).toEqual([]);
-  });
-
-  it('자유 블록이 없으면 그대로 반환한다', () => {
-    expect(connectDetachedBlocks(connected)).toBe(connected);
   });
 });
 
@@ -169,12 +154,8 @@ describe('draftToProgram / isBlockProgramSnapshot', () => {
   });
 });
 
-describe('totalTravelDistance / blockCommandCount', () => {
+describe('totalTravelDistance', () => {
   it('반복 횟수 × 중첩 이동 거리', () => {
     expect(totalTravelDistance(INITIAL_PROGRAM)).toBe(2);
-  });
-
-  it('명령 수는 스택 평탄화 길이', () => {
-    expect(blockCommandCount(connected)).toBe(5);
   });
 });

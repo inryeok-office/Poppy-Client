@@ -173,13 +173,6 @@ export function dropOnCanvas(
   };
 }
 
-/** 자유 블록을 모두 스택 끝에 연결한다 (드래그의 키보드/대체 수단). */
-export function connectDetachedBlocks(program: BlockProgram): BlockProgram {
-  if (program.floating.length === 0) return program;
-  const extra = program.floating.flatMap((g) => g.blocks);
-  return { stack: [...program.stack, ...extra], floating: [] };
-}
-
 type BlockParamPatch = { count?: number; distanceM?: number; seconds?: number };
 
 /** 특정 블록의 파라미터(반복 횟수·이동 거리 등)만 바꾼다. 트리 어디에 있든 찾는다. */
@@ -327,9 +320,4 @@ export function totalTravelDistance(program: BlockProgram): number {
     return sum;
   };
   return walk(program.stack, 1);
-}
-
-/** 직렬화된 명령 수 (로봇 미리보기 "블록 N개"). */
-export function blockCommandCount(program: BlockProgram): number {
-  return flattenKinds(program.stack).length;
 }

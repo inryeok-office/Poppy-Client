@@ -1,14 +1,7 @@
 'use client';
 
-import type { PointerEvent as ReactPointerEvent } from 'react';
-
 import { useBlockDrag } from '../lib/useBlockDrag';
-import {
-  type BlockError,
-  type BlockNode,
-  type BlockProgram,
-  type FloatingGroup,
-} from '../model/blockProgram';
+import { type BlockError, type BlockProgram } from '../model/blockProgram';
 import { Block, GhostBlock } from './Block';
 import { BlockStack, type BlockParamPatch } from './BlockStack';
 import { SectionLabel } from './SectionLabel';
@@ -17,7 +10,7 @@ import { PillButton } from '@/shared/ui';
 // Figma node 21:520 / 33:483 (Slide 2·3) — 블록 조립 워크스페이스, 시뮬레이션 통과 전.
 //   프로그램에 구조 오류가 있으면(예: '종료' 미연결) '시뮬레이션 하기' 비활성(아웃라인) + 안내문이 오류 메시지.
 //   블록은 팔레트/캔버스에서 끌어 옮긴다. 스택 슬롯에 가까우면 스냅 연결, 아니면 놓은 자리에 그대로 둔다.
-//   잡은 블록 아래에 연결된 블록은 함께 딸려온다. 키보드(Enter)로도 떨어진 블록을 연결할 수 있다.
+//   잡은 블록 아래에 연결된 블록은 함께 딸려온다 (기명서 "블록 드래그 이동·스냅 연결").
 
 const DEFAULT_HINT = '반드시 ‘종료’ 블록으로 끝내주세요.';
 
@@ -27,8 +20,6 @@ const BLOCK_WIDTH = 212;
 type BlockWorkspaceProps = {
   program: BlockProgram;
   errors: BlockError[];
-  /** 떨어진 '종료' 블록의 키보드(Enter) 연결 — 마우스는 드래그로 붙인다 */
-  onConnectBlock?: () => void;
   /** 블록 값(반복 횟수·이동 거리 등) 편집 */
   onBlockParamChange?: (id: string, patch: BlockParamPatch) => void;
   onSimulate?: () => void;
@@ -41,7 +32,6 @@ type BlockWorkspaceProps = {
 export function BlockWorkspace({
   program,
   errors,
-  onConnectBlock,
   onBlockParamChange,
   onSimulate,
   simulating = false,
@@ -128,48 +118,28 @@ export function BlockWorkspace({
           />
         )}
 
-        {/* 아직 연결 안 된 자유 블록 그룹 — 놓인 자리에 그대로. 끌어서 스택에 붙이거나 Enter 로 연결. */}
+        {/* 아직 연결 안 된 자유 블록 그룹 — 놓인 자리에 그대로. 끌어서 스택에 붙인다. */}
         {program.floating.map((group) => (
-          <FloatingBlocks
+          <div
             key={group.id}
-            group={group}
-            hidden={dragging?.active === true && dimIds?.has(group.blocks[0]?.id ?? '')}
-            onConnect={onConnectBlock}
-            onGrab={(node, event) => startDrag({ origin: 'floating', nodeId: node.id }, event)}
-          />
+            data-floating-group
+            style={{
+              left: group.x,
+              top: group.y,
+              visibility:
+                dragging?.active && dimIds?.has(group.blocks[0]?.id ?? '') ? 'hidden' : undefined,
+            }}
+            className="absolute"
+          >
+            <BlockStack
+              nodes={group.blocks}
+              onBlockPointerDown={(node, event) =>
+                startDrag({ origin: 'floating', nodeId: node.id }, event)
+              }
+            />
+          </div>
         ))}
       </div>
     </section>
-  );
-}
-
-function FloatingBlocks({
-  group,
-  hidden,
-  onConnect,
-  onGrab,
-}: {
-  group: FloatingGroup;
-  hidden?: boolean;
-  onConnect?: () => void;
-  onGrab: (node: BlockNode, event: ReactPointerEvent) => void;
-}) {
-  const onlyEnd = group.blocks.length === 1 && group.blocks[0]?.kind === 'end';
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={onlyEnd ? '종료 블록 연결하기' : '떨어진 블록 연결하기'}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onConnect?.();
-        }
-      }}
-      style={{ left: group.x, top: group.y, visibility: hidden ? 'hidden' : undefined }}
-      className="absolute cursor-grab touch-none active:cursor-grabbing"
-    >
-      <BlockStack nodes={group.blocks} onBlockPointerDown={onGrab} />
-    </div>
   );
 }

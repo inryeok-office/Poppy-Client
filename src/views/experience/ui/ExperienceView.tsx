@@ -13,19 +13,13 @@ import { readLocalDraft, useAutoSaveProject, useSession } from '@/features/sessi
 import { useSimulateProgram } from '@/features/simulation';
 
 import { BlockDragProvider } from '../lib/useBlockDrag';
-import { blockLabel } from '../model/blockCatalog';
 import {
   INITIAL_PROGRAM,
-  blockCommandCount,
-  connectDetachedBlocks,
   draftToProgram,
-  dropOnSlot,
   isBlockProgramSnapshot,
-  newBlock,
   serializeProgram,
   setBlockParam,
   validateBlockProgram,
-  type BlockKind,
   type BlockProgram,
 } from '../model/blockProgram';
 import type { BlockParamPatch } from './BlockStack';
@@ -63,8 +57,6 @@ export function ExperienceView() {
   const [{ program: startProgram, restoredDirty }] = useState(initialProgram);
   const [program, setProgram] = useState<BlockProgram>(startProgram);
   const [executionId, setExecutionId] = useState<string | null>(null);
-  // 드래그·키보드 편집 결과를 스크린리더에 알린다 (캔버스 변화는 시각 전용이라).
-  const [announcement, setAnnouncement] = useState('');
   // 초기화 후 늦게 도착한 실행 요청 onSuccess 가 오래된 실행 ID 를 되살리지 않게 한다.
   const runGeneration = useRef(0);
 
@@ -165,25 +157,8 @@ export function ExperienceView() {
   };
 
   // 드래그 드롭 결과 프로그램 (스냅 연결 / 놓은 자리에 두기 — blockProgram.ts).
-  const applyDrop = (next: BlockProgram, kind: 'connect' | 'place') => {
+  const applyDrop = (next: BlockProgram) => {
     setProgram(next);
-    invalidate();
-    setAnnouncement(kind === 'connect' ? '블록을 연결했어요.' : '블록을 옮겼어요.');
-  };
-
-  // 팔레트에서 키보드(Enter)로 블록을 집으면 스택 끝(종료 앞)에 연결한다.
-  const pickBlock = (kind: BlockKind) => {
-    setProgram((current) => {
-      const end = current.stack.at(-1)?.kind === 'end';
-      const slot = end ? current.stack.length - 1 : current.stack.length;
-      return dropOnSlot(current, { origin: 'palette', node: newBlock(kind) }, slot);
-    });
-    invalidate();
-    setAnnouncement(`${blockLabel(kind)} 블록을 추가했어요.`);
-  };
-
-  const connectBlock = () => {
-    setProgram(connectDetachedBlocks);
     invalidate();
   };
 
@@ -199,12 +174,9 @@ export function ExperienceView() {
         onRestart={resetSession}
         saveStatus={autoSave.status}
       />
-      <span className="sr-only" role="status" aria-live="polite">
-        {announcement}
-      </span>
       <BlockDragProvider program={program} onChange={applyDrop}>
         <div className="flex flex-1">
-          <BlockPalette onPickBlock={pickBlock} />
+          <BlockPalette />
           {simulationPassed ? (
             <RunReadyWorkspace
               program={program}
@@ -219,17 +191,13 @@ export function ExperienceView() {
             <BlockWorkspace
               program={program}
               errors={blockErrors}
-              onConnectBlock={connectBlock}
               onBlockParamChange={changeBlockParam}
               onSimulate={runSimulation}
               simulating={simulation.isPending}
               simulationMessage={simulationMessage}
             />
           )}
-          <RobotPreview
-            estimatedDistanceM={estimatedDistanceM}
-            blockCount={blockCommandCount(program)}
-          />
+          <RobotPreview estimatedDistanceM={estimatedDistanceM} />
         </div>
       </BlockDragProvider>
     </div>
