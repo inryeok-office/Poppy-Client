@@ -9,9 +9,10 @@
 //   · 스냅 거리 밖에서 놓으면 연결하지 않고 놓은 자리에 둔다 (dropOnCanvas — floating 그룹).
 //   · '번 반복하기'(repeat) body 는 '뒤로 m 이동' 하나로 프리필 고정 (중첩 편집은 후속).
 //
-// 서버·시뮬레이션·자동 저장은 여전히 flat 한 SerializedBlockProgram 을 받는다 → serializeProgram.
+// 서버·시뮬레이션·자동 저장은 블록별 파라미터를 그대로 보존한 SerializedBlockProgram 을 받는다
+// (블록마다 다른 반복 횟수·이동 거리·대기 시간을 가질 수 있어 첫 값만 뽑아 보내면 안 된다) → serializeProgram.
 
-import type { SerializedBlockProgram } from '@/features/simulation';
+import type { SerializedBlockNode, SerializedBlockProgram } from '@/features/simulation';
 
 export type BlockKind = 'start' | 'repeat' | 'move' | 'greet' | 'wait' | 'end';
 
@@ -46,10 +47,13 @@ export type BlockProgram = {
 
 // ── 블록 생성 ──────────────────────────────────────────────────────────────────
 
+// 세션마다 다른 접두어(로드 시각)를 붙여, 초안을 복원한 뒤 새로 만드는 블록이 복원된
+// 블록과 같은 id 를 받지 않게 한다(카운터는 0부터 다시 시작하지만 접두어가 세션마다 다르다).
+const SESSION_ID_PREFIX = Date.now().toString(36);
 let idSeq = 0;
 function nextId(prefix: string): string {
   idSeq += 1;
-  return `${prefix}-${idSeq}`;
+  return `${prefix}-${SESSION_ID_PREFIX}-${idSeq}`;
 }
 
 /** 팔레트 → 캔버스로 새 블록을 만든다. 파라미터는 허용 범위 최소값으로 시작. */
@@ -188,51 +192,50 @@ export function setBlockParam(
   };
 }
 
-// ── 직렬화 (서버·시뮬레이션·자동 저장 계약은 flat 형태 유지) ────────────────────
+// ── 직렬화 (서버·시뮬레이션·자동 저장 계약 — 블록별 파라미터를 그대로 보존한다) ──
 
-function flattenKinds(nodes: BlockNode[]): BlockKind[] {
-  const out: BlockKind[] = [];
-  for (const node of nodes) {
-    out.push(node.kind);
-    if (node.kind === 'repeat') out.push(...flattenKinds(node.body));
+function serializeNode(node: BlockNode): SerializedBlockNode {
+  if (node.kind === 'repeat') {
+    return { id: node.id, kind: 'repeat', count: node.count, body: node.body.map(serializeNode) };
   }
-  return out;
+  return node;
 }
 
-function firstRepeatCount(nodes: BlockNode[]): number | undefined {
-  for (const node of nodes) {
-    if (node.kind === 'repeat') return node.count;
-  }
-  return undefined;
-}
-
-function firstMoveDistance(nodes: BlockNode[]): number | undefined {
-  for (const node of nodes) {
-    if (node.kind === 'move') return node.distanceM;
-    if (node.kind === 'repeat') {
-      const nested = firstMoveDistance(node.body);
-      if (nested !== undefined) return nested;
-    }
-  }
-  return undefined;
-}
-
-/** 블록 트리를 서버가 받는 flat 프로그램으로 변환한다 (features/simulation 계약). */
+/**
+ * 블록 트리를 서버가 받는 프로그램으로 변환한다 (features/simulation 계약).
+ * 블록마다 다른 반복 횟수·이동 거리·대기 시간을 가질 수 있어, 첫 값만 뽑지 않고
+ * 노드 하나하나를 그대로 옮긴다 — 그래야 화면에서 만든 프로그램과 실제 시뮬레이션이 같다.
+ */
 export function serializeProgram(program: BlockProgram): SerializedBlockProgram {
   return {
-    chain: flattenKinds(program.stack),
-    detached: flattenKinds(program.floating.flatMap((g) => g.blocks)),
-    repeatCount: firstRepeatCount(program.stack) ?? REPEAT_RANGE.min,
-    moveDistance: firstMoveDistance(program.stack) ?? MOVE_RANGE.min,
+    chain: program.stack.map(serializeNode),
+    detached: program.floating.flatMap((g) => g.blocks).map(serializeNode),
   };
 }
 
 // ── 초안(localStorage) 복원 ───────────────────────────────────────────────────
 
+const BLOCK_KINDS: readonly BlockKind[] = ['start', 'repeat', 'move', 'greet', 'wait', 'end'];
+
+/** 블록 종류별 필수 필드까지 확인한다 — 손상된 스냅샷을 그대로 렌더하면 화면이 죽는다. */
 function isBlockNode(value: unknown): value is BlockNode {
   if (typeof value !== 'object' || value === null) return false;
   const node = value as Record<string, unknown>;
-  return typeof node.id === 'string' && typeof node.kind === 'string';
+  if (typeof node.id !== 'string' || typeof node.kind !== 'string') return false;
+  if (!BLOCK_KINDS.includes(node.kind as BlockKind)) return false;
+
+  switch (node.kind as BlockKind) {
+    case 'move':
+      return typeof node.distanceM === 'number';
+    case 'wait':
+      return typeof node.seconds === 'number';
+    case 'repeat':
+      return (
+        typeof node.count === 'number' && Array.isArray(node.body) && node.body.every(isBlockNode)
+      );
+    default:
+      return true; // start · greet · end 는 추가 필드가 없다
+  }
 }
 
 function isFloatingGroup(value: unknown): value is FloatingGroup {
@@ -247,17 +250,37 @@ function isFloatingGroup(value: unknown): value is FloatingGroup {
   );
 }
 
-/** 자동 저장이 남긴 프로그램 스냅샷인지 확인한다. */
+/** stack·floating 을 통틀어(반복 body 안까지) 특정 종류가 몇 번 나오는지. */
+function countKind(nodes: BlockNode[], kind: BlockKind): number {
+  return nodes.reduce(
+    (sum, node) =>
+      sum +
+      (node.kind === kind ? 1 : 0) +
+      (node.kind === 'repeat' ? countKind(node.body, kind) : 0),
+    0,
+  );
+}
+
+/**
+ * 자동 저장이 남긴 프로그램 스냅샷인지 확인한다.
+ * 노드 모양뿐 아니라 구조 불변식도 지킨다 — start 는 정확히 하나이고 스택 맨 앞에만,
+ * end 는 많아야 하나(스택 끝이거나 자유 블록으로) — 그래야 복원 직후 화면이 깨지지 않는다.
+ */
 export function isBlockProgramSnapshot(value: unknown): value is BlockProgram {
   if (typeof value !== 'object' || value === null) return false;
   const snap = value as Record<string, unknown>;
-  return (
-    Array.isArray(snap.stack) &&
-    Array.isArray(snap.floating) &&
-    snap.stack.every(isBlockNode) &&
-    snap.floating.every(isFloatingGroup) &&
-    (snap.stack[0] as BlockNode | undefined)?.kind === 'start'
-  );
+  if (!Array.isArray(snap.stack) || !Array.isArray(snap.floating)) return false;
+  if (!snap.stack.every(isBlockNode) || !snap.floating.every(isFloatingGroup)) return false;
+
+  const stack = snap.stack as BlockNode[];
+  const floating = snap.floating as FloatingGroup[];
+  const allNodes = [...stack, ...floating.flatMap((g) => g.blocks)];
+
+  if (stack[0]?.kind !== 'start') return false;
+  if (countKind(allNodes, 'start') !== 1) return false;
+  if (countKind(allNodes, 'end') > 1) return false;
+
+  return true;
 }
 
 /**

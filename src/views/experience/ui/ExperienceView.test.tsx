@@ -328,8 +328,11 @@ describe('ExperienceView', () => {
     const savedRepeatCounts: number[] = [];
     server.use(
       http.put('*/api/sessions/:id/project', async ({ request }) => {
-        const body = (await request.json()) as { program: { repeatCount: number } };
-        savedRepeatCounts.push(body.program.repeatCount);
+        const body = (await request.json()) as {
+          program: { chain: Array<{ kind: string; count?: number }> };
+        };
+        const repeatNode = body.program.chain.find((n) => n.kind === 'repeat');
+        savedRepeatCounts.push(repeatNode?.count ?? -1);
         return HttpResponse.json({
           success: true,
           data: { projectVersion: savedRepeatCounts.length },

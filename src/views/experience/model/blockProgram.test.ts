@@ -116,27 +116,38 @@ describe('dropOnCanvas — 스냅 밖: 놓은 자리에 둔다', () => {
 describe('setBlockParam', () => {
   it('반복 횟수를 트리 깊이와 상관없이 바꾼다', () => {
     const result = setBlockParam(INITIAL_PROGRAM, 'repeat-0', { count: 5 });
-    expect(serializeProgram(result).repeatCount).toBe(5);
+    expect(serializeProgram(result).chain[1]).toMatchObject({ kind: 'repeat', count: 5 });
   });
 
   it('중첩된 이동 블록 거리도 바꾼다', () => {
     const result = setBlockParam(INITIAL_PROGRAM, 'move-0', { distanceM: 3 });
-    expect(serializeProgram(result).moveDistance).toBe(3);
+    expect(serializeProgram(result).chain[1]).toMatchObject({
+      kind: 'repeat',
+      body: [{ kind: 'move', distanceM: 3 }],
+    });
   });
 });
 
 describe('serializeProgram', () => {
-  it('스택을 flat 형태로 평탄화한다', () => {
+  it('스택을 순서·중첩 그대로 직렬화한다 (블록별 값을 잃지 않는다)', () => {
     expect(serializeProgram(connected)).toEqual({
-      chain: ['start', 'repeat', 'move', 'greet', 'end'],
+      chain: [
+        { id: 'start-0', kind: 'start' },
+        {
+          id: 'repeat-0',
+          kind: 'repeat',
+          count: 2,
+          body: [{ id: 'move-0', kind: 'move', distanceM: 1 }],
+        },
+        { id: 'greet-0', kind: 'greet' },
+        { id: 'end-0', kind: 'end' },
+      ],
       detached: [],
-      repeatCount: 2,
-      moveDistance: 1,
     });
   });
 
   it('자유 블록도 직렬화 detached 에 담긴다', () => {
-    expect(serializeProgram(INITIAL_PROGRAM).detached).toEqual(['end']);
+    expect(serializeProgram(INITIAL_PROGRAM).detached).toEqual([{ id: 'end-0', kind: 'end' }]);
   });
 });
 
@@ -151,6 +162,30 @@ describe('draftToProgram / isBlockProgramSnapshot', () => {
     expect(isBlockProgramSnapshot({ chain: ['start', 'end'] })).toBe(false);
     expect(draftToProgram({ stack: [], detached: [] })).toBe(INITIAL_PROGRAM);
     expect(draftToProgram(null)).toBe(INITIAL_PROGRAM);
+  });
+
+  it('반복 블록에 count·body 가 없는 손상된 스냅샷은 거부한다 (복원 직후 화면 중단 방지)', () => {
+    const broken = {
+      stack: [node('start', 'start-0'), node('repeat', 'repeat-0'), node('end', 'end-0')],
+      floating: [],
+    };
+    expect(isBlockProgramSnapshot(broken)).toBe(false);
+  });
+
+  it("'start' 가 두 개면 거부한다", () => {
+    const broken = {
+      stack: [node('start', 'start-0'), node('start', 'start-1'), node('end', 'end-0')],
+      floating: [],
+    };
+    expect(isBlockProgramSnapshot(broken)).toBe(false);
+  });
+
+  it("'end' 가 스택 끝과 자유 블록에 중복으로 있으면 거부한다", () => {
+    const broken: BlockProgram = {
+      stack: [node('start', 'start-0'), node('end', 'end-0')],
+      floating: [{ id: 'f1', x: 0, y: 0, blocks: [node('end', 'end-1')] }],
+    };
+    expect(isBlockProgramSnapshot(broken)).toBe(false);
   });
 });
 
