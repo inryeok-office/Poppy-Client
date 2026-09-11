@@ -45,7 +45,7 @@ type DragState = {
   active: boolean;
   /** 스냅될 삽입 인덱스 (없으면 null — 놓은 자리에 그대로 둔다) */
   slotIndex: number | null;
-  /** 스냅 미리보기 위치 (viewport) — 슬롯 왼쪽 x, 중심 y */
+  /** 스냅 미리보기 위치 (viewport) — 새 블록이 실제로 놓일 좌상단 */
   slot: { x: number; y: number } | null;
 };
 
@@ -134,7 +134,7 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
           pointer,
           active: true,
           slotIndex: hit?.index ?? null,
-          slot: hit && slot ? { x: slot.left, y: slot.centerY } : null,
+          slot: hit && slot ? { x: slot.left, y: slot.top } : null,
         });
       };
 

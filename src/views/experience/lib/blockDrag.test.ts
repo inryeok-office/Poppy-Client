@@ -19,10 +19,13 @@ describe('slotsFromBlockRects', () => {
   it('블록 사이·마지막 뒤로 슬롯을 만든다 (인덱스 1..n)', () => {
     const slots = slotsFromBlockRects([rect(100), rect(150), rect(200)]);
     expect(slots.map((s) => s.index)).toEqual([1, 2, 3]);
-    // 슬롯 1 = 블록0 하단(144)과 블록1 상단(150)의 중점
+    // 슬롯 1 = 블록0 하단(144)과 블록1 상단(150)의 중점 (가까운 슬롯 판정 기준)
     expect(slots[0].centerY).toBe(147);
     // 마지막 슬롯 = 마지막 블록 하단
     expect(slots[2].centerY).toBe(244);
+    // 미리보기 표시 위치(top)는 -6px 노치만큼 겹쳐 물리는 실제 자리 — 중점이 아니다
+    expect(slots[0].top).toBe(138);
+    expect(slots[2].top).toBe(238);
     // 가로 범위는 블록에서 가져온다
     expect(slots[0]).toMatchObject({ left: 60, right: 272 });
   });

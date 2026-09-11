@@ -107,11 +107,11 @@ export function BlockWorkspace({
         </div>
 
         {/* 스냅 미리보기 — 연결될 자리에 점선 윤곽 (기명서 "연결 위치를 미리 표시").
-            잡은 블록과 같은 모양(시작=모자형·종료=캡형·반복=C블록)으로 그린다. */}
+            잡은 블록과 같은 모양(시작=모자형·종료=캡형·반복=C블록)으로, 실제 물릴 위치에 그린다. */}
         {dragging?.active && dragging.slot && dragging.carried[0] && (
           <div
             aria-hidden
-            className="pointer-events-none fixed z-40 -translate-y-1/2"
+            className="pointer-events-none fixed z-40"
             style={{ top: dragging.slot.y, left: dragging.slot.x }}
           >
             <BlockOutline kind={dragging.carried[0].kind} />

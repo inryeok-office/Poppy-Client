@@ -7,11 +7,16 @@ export const SNAP_THRESHOLD_PX = 52;
 /** 포인터가 이만큼 움직여야 드래그로 인정한다 (그 전엔 탭/클릭). */
 export const DRAG_ACTIVATE_PX = 4;
 
+/** 스택 블록끼리 겹치는 노치 폭 — BlockStack 의 `-space-y-1.5`(-6px)와 맞춘 값. */
+const BLOCK_JOINT_OVERLAP_PX = 6;
+
 export type SlotRect = {
   /** 삽입 인덱스 — program.stack 기준 1..length (start 앞 0 은 없음) */
   index: number;
-  /** 슬롯의 세로 중심 (viewport 좌표) */
+  /** 가장 가까운 슬롯을 고르기 위한 판정 기준점 (viewport 좌표) */
   centerY: number;
+  /** 이 슬롯에 끼우면 새 블록의 상단이 실제로 놓일 위치 (viewport 좌표) — 미리보기 표시용 */
+  top: number;
   /** 슬롯이 놓인 스택 블록의 가로 범위 (viewport 좌표) */
   left: number;
   right: number;
@@ -58,7 +63,9 @@ export function slotsFromBlockRects(rects: DOMRect[]): SlotRect[] {
     const prev = rects[i - 1];
     const next = rects[i];
     const centerY = next ? (prev.bottom + next.top) / 2 : prev.bottom;
-    slots.push({ index: i, centerY, left: prev.left, right: prev.right });
+    // 새 블록이 붙으면 그 위치의 형제들과 똑같이 -6px 겹쳐 물린다 — 그 자리를 그대로 미리 보여준다.
+    const top = prev.bottom - BLOCK_JOINT_OVERLAP_PX;
+    slots.push({ index: i, centerY, top, left: prev.left, right: prev.right });
   }
   return slots;
 }
