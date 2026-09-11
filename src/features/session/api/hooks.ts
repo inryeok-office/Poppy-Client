@@ -40,11 +40,13 @@ export function useSession() {
  *   - 세션이 아직 없어도 로컬 초안에는 기록한다.
  * 디바운스·변경 감지·초안 복원은 호출부(ExperienceView)가 담당한다.
  */
+type QueuedSave = { program: SerializedBlockProgram; snapshot?: unknown };
+
 export function useAutoSaveProject(sessionId: string | null) {
   const [status, setStatus] = useState<AutoSaveStatus>('idle');
   const versionRef = useRef(0);
   const savingRef = useRef(false);
-  const queuedRef = useRef<SerializedBlockProgram | null>(null);
+  const queuedRef = useRef<QueuedSave | null>(null);
 
   const setBaseVersion = useCallback((version: number) => {
     versionRef.current = version;
@@ -56,7 +58,7 @@ export function useAutoSaveProject(sessionId: string | null) {
 
     let outcome: AutoSaveStatus = 'saved';
     while (queuedRef.current !== null) {
-      const target = queuedRef.current;
+      const { program: target, snapshot } = queuedRef.current;
       queuedRef.current = null;
       setStatus('saving');
 
@@ -64,6 +66,7 @@ export function useAutoSaveProject(sessionId: string | null) {
         writeLocalDraft({
           sessionId: '',
           program: target,
+          blocks: snapshot,
           projectVersion: versionRef.current,
           dirty: true,
         });
@@ -80,6 +83,7 @@ export function useAutoSaveProject(sessionId: string | null) {
         writeLocalDraft({
           sessionId,
           program: target,
+          blocks: snapshot,
           projectVersion: result.projectVersion,
           dirty: false,
         });
@@ -88,6 +92,7 @@ export function useAutoSaveProject(sessionId: string | null) {
         writeLocalDraft({
           sessionId,
           program: target,
+          blocks: snapshot,
           projectVersion: versionRef.current,
           dirty: true,
         });
@@ -101,8 +106,8 @@ export function useAutoSaveProject(sessionId: string | null) {
   }, [sessionId]);
 
   const save = useCallback(
-    (program: SerializedBlockProgram) => {
-      queuedRef.current = program;
+    (program: SerializedBlockProgram, snapshot?: unknown) => {
+      queuedRef.current = { program, snapshot };
       void drain();
     },
     [drain],

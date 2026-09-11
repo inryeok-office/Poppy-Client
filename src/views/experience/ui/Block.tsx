@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import type { BlockKind } from '../model/blockProgram';
+
 // Figma node 21:520 — 블록 배경은 Figma에서 export 한 정확한 벡터 경로를 그대로 인라인한다.
 // (자산 URL은 7일 후 만료돼서 경로 문자열만 커밋. 색은 @theme block-* 와 동일한 값)
 //
@@ -164,5 +166,35 @@ export function GhostBlock({ children }: { children: ReactNode }) {
         {children}
       </div>
     </div>
+  );
+}
+
+// 블록 종류별 윤곽 (드래그 스냅 미리보기용). start=모자형·end=캡형·repeat=C블록,
+// 나머지(실행 블록)는 STATEMENT_PATH.
+const OUTLINE_SHAPE: Record<BlockKind, { path: string; w: number; h: number }> = {
+  start: { path: HAT_PATH, w: 212, h: 48 },
+  end: { path: CAP_PATH, w: 212, h: 42 },
+  move: { path: STATEMENT_PATH, w: 212, h: 48 },
+  wait: { path: STATEMENT_PATH, w: 212, h: 48 },
+  greet: { path: STATEMENT_PATH, w: 212, h: 48 },
+  repeat: { path: CBLOCK_PATH, w: 238, h: 106 },
+};
+
+/**
+ * 스냅 미리보기 윤곽 — GhostBlock과 같은 점선 스타일을, 잡은 블록의 실제 모양(직사각형이 아니라
+ * 시작=모자형·종료=캡형·반복=C블록 노치)으로 그린다.
+ */
+export function BlockOutline({ kind }: { kind: BlockKind }) {
+  const s = OUTLINE_SHAPE[kind];
+  return (
+    <svg
+      viewBox={`0 0 ${s.w} ${s.h}`}
+      width={s.w}
+      height={s.h}
+      preserveAspectRatio="none"
+      aria-hidden
+    >
+      <path d={s.path} fill="none" stroke="#c9bdae" strokeWidth="1.5" strokeDasharray="4 3" />
+    </svg>
   );
 }

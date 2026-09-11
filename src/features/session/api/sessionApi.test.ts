@@ -1,13 +1,23 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
+import type { SerializedBlockProgram } from '@/features/simulation';
+
 import { __resetSessionMocks } from './mocks';
 import { createSession, saveProject } from './sessionApi';
 
-const demoProgram = {
-  chain: ['start', 'repeat', 'move', 'greet', 'end'],
+const demoProgram: SerializedBlockProgram = {
+  chain: [
+    { id: 'start-0', kind: 'start' },
+    {
+      id: 'repeat-0',
+      kind: 'repeat',
+      count: 2,
+      body: [{ id: 'move-0', kind: 'move', distanceM: 1 }],
+    },
+    { id: 'greet-0', kind: 'greet' },
+    { id: 'end-0', kind: 'end' },
+  ],
   detached: [],
-  repeatCount: 2,
-  moveDistance: 1,
 };
 
 afterEach(() => __resetSessionMocks());

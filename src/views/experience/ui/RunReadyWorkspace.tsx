@@ -1,12 +1,18 @@
 import type { ExecutionStatus } from '@/features/execution';
 
+import { useBlockDrag } from '../lib/useBlockDrag';
 import type { BlockProgram } from '../model/blockProgram';
-import { Block, BlockInput, CBlock } from './Block';
+import { BlockStack } from './BlockStack';
 import { PillButton } from '@/shared/ui';
 
 // Figma node 33:700 (Slide 16:9 - 4) — 조립 완료 + 시뮬레이션 통과.
 // 로봇 실행을 요청하면 이 상단 행이 실행 상태(대기·배정·진행·완료)를 보여준다 (명세 Execution).
 // 헤더 아래(y205) ~ 캔버스 상단(y257) 사이 52px 가 이 상단 행. 버튼 40 · 상하 6.
+//
+// 이 화면에서는 블록을 편집하지 않지만(program 은 읽기 전용으로만 그린다), 캔버스 ref 는
+// 그대로 등록해둔다 — BlockWorkspace 에서 시작한 드래그가 시뮬레이션 통과로 이 화면으로
+// 바뀌는 순간에도 걸쳐 있을 수 있는데, 그때 registerCanvas 가 없으면 드롭 좌표를 잴 곳이
+// 없어 드래그하던 블록이 아무 데도 못 붙고 조용히 사라진다.
 
 const DEFAULT_HINT = '반드시 ‘종료’ 블록으로 끝내주세요.';
 
@@ -41,6 +47,7 @@ export function RunReadyWorkspace({
   onRun,
   onStop,
 }: RunReadyWorkspaceProps) {
+  const { registerCanvas, registerStack } = useBlockDrag();
   const inProgress =
     executionStatus === 'queued' || executionStatus === 'assigned' || executionStatus === 'running';
   const busy = requesting || inProgress;
@@ -82,39 +89,14 @@ export function RunReadyWorkspace({
 
       {/* 조립 캔버스 (Rectangle 7, h763). 완성된 프로그램. 블록은 캔버스 좌상단 기준 x63 y67. */}
       <div
+        ref={registerCanvas}
         className="border-line bg-card dot-grid relative min-h-[763px] flex-1 border-t-[1.5px]"
         role="region"
         aria-label="블록 조립 캔버스"
       >
-        <ol className="absolute top-[67px] left-[63px] flex flex-col -space-y-1.5">
-          <li>
-            <Block color="start" variant="hat">
-              시작
-            </Block>
-          </li>
-          <li>
-            <CBlock
-              color="flow"
-              header={
-                <>
-                  <BlockInput value={program.repeatCount} />번 반복하기
-                </>
-              }
-            >
-              <Block color="move">
-                뒤로 <BlockInput value={program.moveDistance} /> m 이동
-              </Block>
-            </CBlock>
-          </li>
-          <li>
-            <Block color="action">인사하기</Block>
-          </li>
-          <li>
-            <Block color="start" variant="cap">
-              종료
-            </Block>
-          </li>
-        </ol>
+        <div className="absolute top-[67px] left-[63px]">
+          <BlockStack nodes={program.stack} containerRef={registerStack} />
+        </div>
       </div>
     </section>
   );

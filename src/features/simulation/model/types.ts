@@ -1,12 +1,25 @@
 // 시뮬레이션 실행 계약 (기능명세서 Simulation "시뮬레이션 실행" · "안전 제한 검증").
 // 백엔드(Poppy-Server)가 확정되면 실제 응답 형태에 맞춰 조정한다.
 
-/** 블록 프로그램의 직렬화 형태. 도메인 타입은 views/experience/model 이 소유한다. */
+/**
+ * 블록 하나의 직렬화 형태 — 블록별 파라미터(반복 횟수·이동 거리·대기 시간)를 그대로 담는다.
+ * 도메인 타입(BlockNode)은 views/experience/model 이 소유하고, 이 타입은 그와 구조만 맞춘
+ * 독립된 wire 타입이다(features 는 views 를 참조하지 않는다) — views 쪽 serializeProgram 이 변환한다.
+ */
+export type SerializedBlockNode =
+  | { id: string; kind: 'start' }
+  | { id: string; kind: 'greet' }
+  | { id: string; kind: 'end' }
+  | { id: string; kind: 'move'; distanceM: number }
+  | { id: string; kind: 'wait'; seconds: number }
+  | { id: string; kind: 'repeat'; count: number; body: SerializedBlockNode[] };
+
+/** 블록 프로그램의 직렬화 형태. */
 export type SerializedBlockProgram = {
-  chain: string[];
-  detached: string[];
-  repeatCount: number;
-  moveDistance: number;
+  /** 시작 블록에 이어진 하나의 체인 */
+  chain: SerializedBlockNode[];
+  /** 아직 연결되지 않은 자유 블록들 */
+  detached: SerializedBlockNode[];
 };
 
 export type SimulationRequest = {

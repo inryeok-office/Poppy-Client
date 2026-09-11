@@ -1,13 +1,23 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
+import type { SerializedBlockProgram } from '@/features/simulation';
+
 import { __resetExecutionMocks } from './mocks';
 import { cancelExecution, getExecutionState, requestExecution } from './executionApi';
 
-const runnableProgram = {
-  chain: ['start', 'repeat', 'move', 'greet', 'end'],
+const runnableProgram: SerializedBlockProgram = {
+  chain: [
+    { id: 'start-0', kind: 'start' },
+    {
+      id: 'repeat-0',
+      kind: 'repeat',
+      count: 2,
+      body: [{ id: 'move-0', kind: 'move', distanceM: 1 }],
+    },
+    { id: 'greet-0', kind: 'greet' },
+    { id: 'end-0', kind: 'end' },
+  ],
   detached: [],
-  repeatCount: 2,
-  moveDistance: 1,
 };
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -32,9 +42,25 @@ describe('execution mock API', () => {
   });
 
   it('안전하지 않은 프로그램은 실행 요청을 거부한다', async () => {
-    await expect(
-      requestExecution({ program: { ...runnableProgram, repeatCount: 10 } }),
-    ).rejects.toMatchObject({ name: 'ApiError', status: 422 });
+    const unsafeProgram: SerializedBlockProgram = {
+      chain: [
+        { id: 'start-0', kind: 'start' },
+        // 반복 10회 × 이동 1m = 10m > 2m 안전 구역
+        {
+          id: 'repeat-0',
+          kind: 'repeat',
+          count: 10,
+          body: [{ id: 'move-0', kind: 'move', distanceM: 1 }],
+        },
+        { id: 'greet-0', kind: 'greet' },
+        { id: 'end-0', kind: 'end' },
+      ],
+      detached: [],
+    };
+    await expect(requestExecution({ program: unsafeProgram })).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 422,
+    });
   });
 
   it('진행 중 취소하면 cancelled 가 된다', async () => {

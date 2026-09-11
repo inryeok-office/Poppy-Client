@@ -1,23 +1,32 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { server } from '@/shared/api/msw/server';
 
-import { INITIAL_PROGRAM } from '../model/blockProgram';
+import { INITIAL_PROGRAM, serializeProgram, setBlockParam } from '../model/blockProgram';
 import { ExperienceView } from './ExperienceView';
+import { STACK_X, drag, rectFor, slotCenterY } from './dragTestKit';
+
+const CONNECTED_PROGRAM = {
+  stack: [...INITIAL_PROGRAM.stack, { id: 'end-0', kind: 'end' as const }],
+  floating: [],
+};
 
 const seedDraft = (draft: Record<string, unknown>) => {
   localStorage.setItem('poppy.experience.sessionId', String(draft.sessionId));
   localStorage.setItem('poppy.experience.draft', JSON.stringify(draft));
 };
 
+afterEach(() => vi.restoreAllMocks());
+
 function renderView() {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(rectFor);
   return render(
     <QueryClientProvider client={queryClient}>
       <ExperienceView />
@@ -25,8 +34,16 @@ function renderView() {
   );
 }
 
-const connectEndBlock = (user: ReturnType<typeof userEvent.setup>) =>
-  user.click(screen.getByRole('button', { name: '종료 블록 연결하기' }));
+// 떨어진 '종료' 블록을 스택 끝 슬롯으로 끌어 연결한다 (jsdom 레이아웃은 dragTestKit 이 스텁).
+const connectEndBlock = () => {
+  const region = screen.getByRole('region', { name: '블록 조립 캔버스' });
+  drag(within(region).getByText('종료').closest('li')!, STACK_X, slotCenterY(3));
+};
+
+/** 캔버스에 아직 연결 안 된 자유 블록 그룹이 있는지. */
+const hasFloatingBlock = () =>
+  screen.getByRole('region', { name: '블록 조립 캔버스' }).querySelector('[data-floating-group]') !=
+  null;
 
 const waitForRunButton = () =>
   waitFor(
@@ -36,7 +53,7 @@ const waitForRunButton = () =>
 
 /** 종료 연결 → 시뮬레이션 통과까지 진행한다. */
 async function passSimulation(user: ReturnType<typeof userEvent.setup>) {
-  await connectEndBlock(user);
+  connectEndBlock();
   await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
   await waitForRunButton();
 }
@@ -71,16 +88,15 @@ describe('ExperienceView', () => {
     expect(simulate).not.toHaveClass('bg-primary');
   });
 
-  it('떨어진 종료 블록을 연결하면 시뮬레이션이 활성화된다', async () => {
-    const user = userEvent.setup();
+  it('떨어진 종료 블록을 연결하면 시뮬레이션이 활성화된다', () => {
     renderView();
 
-    await connectEndBlock(user);
+    connectEndBlock();
 
     const simulate = screen.getByRole('button', { name: '시뮬레이션 하기' });
     expect(simulate).toHaveClass('bg-primary');
     expect(simulate).not.toHaveAttribute('aria-disabled');
-    expect(screen.queryByRole('button', { name: '종료 블록 연결하기' })).not.toBeInTheDocument();
+    expect(hasFloatingBlock()).toBe(false);
   });
 
   it('시뮬레이션 통과 전에는 로봇 실행하기가 잠겨 있다', () => {
@@ -95,7 +111,7 @@ describe('ExperienceView', () => {
     const user = userEvent.setup();
     renderView();
 
-    await connectEndBlock(user);
+    connectEndBlock();
     await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
 
     await waitForRunButton();
@@ -107,7 +123,7 @@ describe('ExperienceView', () => {
     const user = userEvent.setup();
     renderView();
 
-    await connectEndBlock(user);
+    connectEndBlock();
     // 반복 횟수 2 → 4 (× 이동 1m = 4m > 2m 안전 구역)
     fireEvent.change(screen.getByRole('spinbutton', { name: '반복 횟수' }), {
       target: { value: '4' },
@@ -127,7 +143,7 @@ describe('ExperienceView', () => {
     const user = userEvent.setup();
     renderView();
 
-    await connectEndBlock(user);
+    connectEndBlock();
     await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
 
     expect(
@@ -234,16 +250,15 @@ describe('ExperienceView', () => {
     await user.click(screen.getByRole('button', { name: '처음으로' }));
 
     await waitFor(() => expect(cancelled).toBe(true), { timeout: 3000 });
-    expect(screen.getByRole('button', { name: '종료 블록 연결하기' })).toBeInTheDocument();
+    expect(hasFloatingBlock()).toBe(true);
   });
 
   it('블록을 바꾸면 헤더에 자동 저장 상태가 뜬다', async () => {
-    const user = userEvent.setup();
     renderView();
     // 세션 생성(POST /api/sessions) 대기
     await new Promise((resolve) => setTimeout(resolve, 300));
 
-    await connectEndBlock(user);
+    connectEndBlock();
 
     expect(await screen.findByText('저장 중…', undefined, { timeout: 3000 })).toBeInTheDocument();
     expect(await screen.findByText('저장됨', undefined, { timeout: 3000 })).toBeInTheDocument();
@@ -253,41 +268,36 @@ describe('ExperienceView', () => {
     server.use(
       http.put('*/api/sessions/:id/project', () => new HttpResponse(null, { status: 503 })),
     );
-    const user = userEvent.setup();
     renderView();
     await new Promise((resolve) => setTimeout(resolve, 300));
 
-    await connectEndBlock(user);
+    connectEndBlock();
 
     expect(await screen.findByText(/오프라인/, undefined, { timeout: 3000 })).toBeInTheDocument();
   });
 
   it('세션 생성이 실패해도 로컬 초안에 저장하고 오프라인 안내를 보여준다', async () => {
     server.use(http.post('*/api/sessions', () => new HttpResponse(null, { status: 503 })));
-    const user = userEvent.setup();
     renderView();
 
-    await connectEndBlock(user);
+    connectEndBlock();
 
     expect(await screen.findByText(/오프라인/, undefined, { timeout: 3000 })).toBeInTheDocument();
     expect(localStorage.getItem('poppy.experience.draft')).toBeTruthy();
   });
 
   it('브라우저 초안이 있으면 그 상태로 복원한다', () => {
+    const restored = setBlockParam(CONNECTED_PROGRAM, 'repeat-0', { count: 5 });
     seedDraft({
       sessionId: 'sess-restore',
-      program: {
-        chain: ['start', 'repeat', 'move', 'greet', 'end'],
-        detached: [],
-        repeatCount: 5,
-        moveDistance: 1,
-      },
+      program: serializeProgram(restored),
+      blocks: restored,
       projectVersion: 2,
       dirty: false,
     });
     renderView();
 
-    expect(screen.queryByRole('button', { name: '종료 블록 연결하기' })).not.toBeInTheDocument();
+    expect(hasFloatingBlock()).toBe(false);
     expect(screen.getByRole('button', { name: '시뮬레이션 하기' })).toHaveClass('bg-primary');
     expect(screen.getByRole('spinbutton', { name: '반복 횟수' })).toHaveValue(5);
   });
@@ -295,7 +305,8 @@ describe('ExperienceView', () => {
   it('재방문 세션은 초안의 버전을 baseVersion 으로 보낸다', async () => {
     seedDraft({
       sessionId: 'sess-revisit',
-      program: { ...INITIAL_PROGRAM },
+      program: serializeProgram(INITIAL_PROGRAM),
+      blocks: INITIAL_PROGRAM,
       projectVersion: 3,
       dirty: false,
     });
@@ -306,10 +317,9 @@ describe('ExperienceView', () => {
         return HttpResponse.json({ success: true, data: { projectVersion: sentBaseVersion + 1 } });
       }),
     );
-    const user = userEvent.setup();
     renderView();
 
-    await connectEndBlock(user);
+    connectEndBlock();
 
     await waitFor(() => expect(sentBaseVersion).toBe(3), { timeout: 3000 });
   });
@@ -318,18 +328,20 @@ describe('ExperienceView', () => {
     const savedRepeatCounts: number[] = [];
     server.use(
       http.put('*/api/sessions/:id/project', async ({ request }) => {
-        const body = (await request.json()) as { program: { repeatCount: number } };
-        savedRepeatCounts.push(body.program.repeatCount);
+        const body = (await request.json()) as {
+          program: { chain: Array<{ kind: string; count?: number }> };
+        };
+        const repeatNode = body.program.chain.find((n) => n.kind === 'repeat');
+        savedRepeatCounts.push(repeatNode?.count ?? -1);
         return HttpResponse.json({
           success: true,
           data: { projectVersion: savedRepeatCounts.length },
         });
       }),
     );
-    const user = userEvent.setup();
     renderView();
     await new Promise((resolve) => setTimeout(resolve, 300));
-    await connectEndBlock(user);
+    connectEndBlock();
     await screen.findByText('저장됨', undefined, { timeout: 3000 });
 
     const repeat = screen.getByRole('spinbutton', { name: '반복 횟수' });
@@ -344,13 +356,13 @@ describe('ExperienceView', () => {
     const user = userEvent.setup();
     renderView();
 
-    await connectEndBlock(user);
+    connectEndBlock();
     await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
     await waitForRunButton();
 
     await user.click(screen.getByRole('button', { name: '처음으로' }));
 
-    expect(screen.getByRole('button', { name: '종료 블록 연결하기' })).toBeInTheDocument();
+    expect(hasFloatingBlock()).toBe(true);
     expect(screen.getByRole('button', { name: /로봇 실행하기/ })).toHaveTextContent('잠김');
   });
 });
