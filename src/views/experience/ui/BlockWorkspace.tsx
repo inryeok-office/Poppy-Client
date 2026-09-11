@@ -106,11 +106,12 @@ export function BlockWorkspace({
           />
         </div>
 
-        {/* 스냅 미리보기 — 연결될 자리에 점선 윤곽 (기명서 "연결 위치를 미리 표시"). */}
+        {/* 스냅 미리보기 — 연결될 자리에 점선 윤곽 (기명서 "연결 위치를 미리 표시").
+            GhostBlock(Figma 자리표시 블록)과 같은 점선 스타일: #c9bdae 1.5px. */}
         {dragging?.active && dragging.slot && (
           <div
             aria-hidden
-            className="border-primary/50 pointer-events-none fixed z-40 h-9 w-[212px] -translate-y-1/2 rounded-lg border-2 border-dashed"
+            className="pointer-events-none fixed z-40 h-12 w-[212px] -translate-y-1/2 rounded-lg border-[1.5px] border-dashed border-[#c9bdae]"
             style={{ top: dragging.slot.y, left: dragging.slot.x }}
           />
         )}
