@@ -126,6 +126,15 @@ describe('setBlockParam', () => {
       body: [{ kind: 'move', distanceM: 3 }],
     });
   });
+
+  it('id 가 없는 쪽(자유 블록 그룹)은 새로 만들지 않고 그대로 둔다', () => {
+    const program: BlockProgram = {
+      stack: INITIAL_PROGRAM.stack,
+      floating: [{ id: 'f1', x: 0, y: 0, blocks: [node('end', 'end-0')] }],
+    };
+    const result = setBlockParam(program, 'repeat-0', { count: 5 });
+    expect(result.floating).toBe(program.floating); // 참조 그대로 — 새로 안 만들었다
+  });
 });
 
 describe('serializeProgram', () => {
@@ -185,6 +194,18 @@ describe('draftToProgram / isBlockProgramSnapshot', () => {
       stack: [node('start', 'start-0'), node('end', 'end-0')],
       floating: [{ id: 'f1', x: 0, y: 0, blocks: [node('end', 'end-1')] }],
     };
+    expect(isBlockProgramSnapshot(broken)).toBe(false);
+  });
+
+  it("반복 블록 body 안에 'end' 가 들어 있으면 거부한다 (개수는 하나뿐이어도)", () => {
+    const broken: BlockProgram = {
+      stack: [
+        node('start', 'start-0'),
+        node('repeat', 'repeat-0', { count: 1, body: [node('end', 'end-0')] }),
+      ],
+      floating: [],
+    };
+    // countKind 만 봤다면 'end' 가 총 1개라 통과했을 상태 — 위치까지 봐야 걸러진다
     expect(isBlockProgramSnapshot(broken)).toBe(false);
   });
 });

@@ -118,17 +118,15 @@ export function BlockWorkspace({
           </div>
         )}
 
-        {/* 아직 연결 안 된 자유 블록 그룹 — 놓인 자리에 그대로. 끌어서 스택에 붙인다. */}
+        {/* 아직 연결 안 된 자유 블록 그룹 — 놓인 자리에 그대로. 끌어서 스택에 붙인다.
+            잡혀서 딸려나가는 블록만 dimIds 로 흐리게 한다 (메인 스택과 동일 — 그룹 첫
+            블록만 보고 통째로 숨기면, 그룹 중간을 잡았을 때 그 아래만 흐려져야 하는데
+            전체가 그대로 보이면서 클론과 중복으로 보인다). */}
         {program.floating.map((group) => (
           <div
             key={group.id}
             data-floating-group
-            style={{
-              left: group.x,
-              top: group.y,
-              visibility:
-                dragging?.active && dimIds?.has(group.blocks[0]?.id ?? '') ? 'hidden' : undefined,
-            }}
+            style={{ left: group.x, top: group.y }}
             className="absolute"
           >
             <BlockStack
@@ -136,6 +134,7 @@ export function BlockWorkspace({
               onBlockPointerDown={(node, event) =>
                 startDrag({ origin: 'floating', nodeId: node.id }, event)
               }
+              dimIds={dimIds}
             />
           </div>
         ))}

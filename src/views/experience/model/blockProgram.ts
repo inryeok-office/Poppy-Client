@@ -7,18 +7,24 @@
 //   · 블록을 잡으면 그 아래에 연결된 블록이 함께 딸려온다 (carriedBlocks).
 //   · 연결 가능한 지점(스택 슬롯)에 가까우면 스냅 미리보기 → 스냅 거리 안에서 놓으면 연결 (dropOnSlot).
 //   · 스냅 거리 밖에서 놓으면 연결하지 않고 놓은 자리에 둔다 (dropOnCanvas — floating 그룹).
-//   · '번 반복하기'(repeat) body 는 '뒤로 m 이동' 하나로 프리필 고정 (중첩 편집은 후속).
+//   · '번 반복하기'(repeat) 안쪽으로의 중첩 드롭은 범위 밖이라, body 를 채울 방법이 없다.
+//     INITIAL_PROGRAM(Figma 데모)의 repeat 만 '뒤로 m 이동'으로 미리 채워뒀고, 팔레트에서
+//     새로 꺼낸 repeat 는 body 가 항상 빈 채로 남는다.
 //
 // 서버·시뮬레이션·자동 저장은 블록별 파라미터를 그대로 보존한 SerializedBlockProgram 을 받는다
 // (블록마다 다른 반복 횟수·이동 거리·대기 시간을 가질 수 있어 첫 값만 뽑아 보내면 안 된다) → serializeProgram.
 
+import { LIMITS } from '@/features/simulation';
 import type { SerializedBlockNode, SerializedBlockProgram } from '@/features/simulation';
+import { sumOverBlockTree } from '@/shared/lib/blockTree';
 
 export type BlockKind = 'start' | 'repeat' | 'move' | 'greet' | 'wait' | 'end';
 
-export const REPEAT_RANGE = { min: 1, max: 20 } as const;
-export const MOVE_RANGE = { min: 1, max: 10 } as const;
-export const WAIT_RANGE = { min: 1, max: 60 } as const;
+// 서버(features/simulation LIMITS)와 같은 값을 그대로 가져다 쓴다 — 입력칸 min·max 가
+// 서버 허용 범위와 따로 놀다 어긋나는 걸 막는다.
+export const REPEAT_RANGE = LIMITS.repeatCount;
+export const MOVE_RANGE = LIMITS.moveDistance;
+export const WAIT_RANGE = LIMITS.waitSeconds;
 
 export type BlockNode =
   | { id: string; kind: 'start' }
@@ -47,13 +53,10 @@ export type BlockProgram = {
 
 // ── 블록 생성 ──────────────────────────────────────────────────────────────────
 
-// 세션마다 다른 접두어(로드 시각)를 붙여, 초안을 복원한 뒤 새로 만드는 블록이 복원된
-// 블록과 같은 id 를 받지 않게 한다(카운터는 0부터 다시 시작하지만 접두어가 세션마다 다르다).
-const SESSION_ID_PREFIX = Date.now().toString(36);
-let idSeq = 0;
+// crypto.randomUUID() — 초안을 복원한 뒤 새로 만드는 블록이 복원된 블록과 같은 id 를
+// 받을 걱정이 없다 (session·execution mock 도 이미 같은 방식으로 id 를 만든다).
 function nextId(prefix: string): string {
-  idSeq += 1;
-  return `${prefix}-${SESSION_ID_PREFIX}-${idSeq}`;
+  return `${prefix}-${crypto.randomUUID()}`;
 }
 
 /** 팔레트 → 캔버스로 새 블록을 만든다. 파라미터는 허용 범위 최소값으로 시작. */
@@ -175,21 +178,36 @@ export function dropOnCanvas(
 
 type BlockParamPatch = { count?: number; distanceM?: number; seconds?: number };
 
-/** 특정 블록의 파라미터(반복 횟수·이동 거리 등)만 바꾼다. 트리 어디에 있든 찾는다. */
+function containsId(nodes: BlockNode[], id: string): boolean {
+  return nodes.some(
+    (node) => node.id === id || (node.kind === 'repeat' && containsId(node.body, id)),
+  );
+}
+
+function mapBlockParam(nodes: BlockNode[], id: string, patch: BlockParamPatch): BlockNode[] {
+  return nodes.map((node) => {
+    const next = node.id === id ? ({ ...node, ...patch } as BlockNode) : node;
+    return next.kind === 'repeat' ? { ...next, body: mapBlockParam(next.body, id, patch) } : next;
+  });
+}
+
+/**
+ * 특정 블록의 파라미터(반복 횟수·이동 거리 등)만 바꾼다. 트리 어디에 있든(스택이든 자유
+ * 블록이든, 반복 안이든) 찾아서 바꾸되, id 가 실제로 있는 쪽만 새로 만든다 — 편집할 때마다
+ * 관계없는 자유 블록 그룹까지 전부 새로 할당하지 않는다.
+ */
 export function setBlockParam(
   program: BlockProgram,
   id: string,
   patch: BlockParamPatch,
 ): BlockProgram {
-  const map = (nodes: BlockNode[]): BlockNode[] =>
-    nodes.map((node) => {
-      const next = node.id === id ? ({ ...node, ...patch } as BlockNode) : node;
-      return next.kind === 'repeat' ? { ...next, body: map(next.body) } : next;
-    });
-  return {
-    stack: map(program.stack),
-    floating: program.floating.map((g) => ({ ...g, blocks: map(g.blocks) })),
-  };
+  if (containsId(program.stack, id)) {
+    return { ...program, stack: mapBlockParam(program.stack, id, patch) };
+  }
+  const floating = program.floating.map((g) =>
+    containsId(g.blocks, id) ? { ...g, blocks: mapBlockParam(g.blocks, id, patch) } : g,
+  );
+  return { ...program, floating };
 }
 
 // ── 직렬화 (서버·시뮬레이션·자동 저장 계약 — 블록별 파라미터를 그대로 보존한다) ──
@@ -250,21 +268,32 @@ function isFloatingGroup(value: unknown): value is FloatingGroup {
   );
 }
 
+const bodyOf = (node: BlockNode) => (node.kind === 'repeat' ? node.body : undefined);
+
 /** stack·floating 을 통틀어(반복 body 안까지) 특정 종류가 몇 번 나오는지. */
 function countKind(nodes: BlockNode[], kind: BlockKind): number {
-  return nodes.reduce(
-    (sum, node) =>
-      sum +
-      (node.kind === kind ? 1 : 0) +
-      (node.kind === 'repeat' ? countKind(node.body, kind) : 0),
-    0,
+  return sumOverBlockTree(nodes, {
+    valueOf: (node) => (node.kind === kind ? 1 : 0),
+    bodyOf,
+    repeatCountOf: () => 1, // 구조적으로만 센다 — 반복 횟수를 곱하지 않는다
+  });
+}
+
+/** repeat.body 안에(중첩 어디든) start·end 가 있으면 안 된다 — 중첩 드롭은 지원하지 않는다. */
+function hasNestedStartOrEnd(nodes: BlockNode[]): boolean {
+  return nodes.some(
+    (node) =>
+      node.kind === 'repeat' &&
+      (node.body.some((b) => b.kind === 'start' || b.kind === 'end') ||
+        hasNestedStartOrEnd(node.body)),
   );
 }
 
 /**
  * 자동 저장이 남긴 프로그램 스냅샷인지 확인한다.
  * 노드 모양뿐 아니라 구조 불변식도 지킨다 — start 는 정확히 하나이고 스택 맨 앞에만,
- * end 는 많아야 하나(스택 끝이거나 자유 블록으로) — 그래야 복원 직후 화면이 깨지지 않는다.
+ * end 는 많아야 하나(스택 끝이거나 자유 블록으로), 반복 안에는 start·end 가 못 들어간다 —
+ * 그래야 복원 직후 화면이 깨지지 않는다.
  */
 export function isBlockProgramSnapshot(value: unknown): value is BlockProgram {
   if (typeof value !== 'object' || value === null) return false;
@@ -274,11 +303,13 @@ export function isBlockProgramSnapshot(value: unknown): value is BlockProgram {
 
   const stack = snap.stack as BlockNode[];
   const floating = snap.floating as FloatingGroup[];
-  const allNodes = [...stack, ...floating.flatMap((g) => g.blocks)];
+  const floatingBlocks = floating.flatMap((g) => g.blocks);
+  const allNodes = [...stack, ...floatingBlocks];
 
   if (stack[0]?.kind !== 'start') return false;
   if (countKind(allNodes, 'start') !== 1) return false;
   if (countKind(allNodes, 'end') > 1) return false;
+  if (hasNestedStartOrEnd(stack) || hasNestedStartOrEnd(floatingBlocks)) return false;
 
   return true;
 }
@@ -330,13 +361,9 @@ export function validateBlockProgram(program: BlockProgram): BlockError[] {
 
 /** 프로그램이 로봇을 움직이는 총 거리 (m). 명세: "제한을 우회하는 중첩·합산 값도 계산". */
 export function totalTravelDistance(program: BlockProgram): number {
-  const walk = (nodes: BlockNode[], multiplier: number): number => {
-    let sum = 0;
-    for (const node of nodes) {
-      if (node.kind === 'move') sum += node.distanceM * multiplier;
-      else if (node.kind === 'repeat') sum += walk(node.body, multiplier * node.count);
-    }
-    return sum;
-  };
-  return walk(program.stack, 1);
+  return sumOverBlockTree(program.stack, {
+    valueOf: (node) => (node.kind === 'move' ? node.distanceM : 0),
+    bodyOf,
+    repeatCountOf: (node) => (node.kind === 'repeat' ? node.count : 1),
+  });
 }

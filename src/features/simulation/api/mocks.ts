@@ -1,5 +1,6 @@
 import { HttpResponse, delay, http } from 'msw';
 
+import { sumOverBlockTree } from '@/shared/lib/blockTree';
 import type { ApiResponse } from '@/shared/api';
 
 import { SAFE_ZONE_M, evaluateProgram } from '../model/safety';
@@ -17,10 +18,11 @@ const MOCK_LATENCY_MS = 500;
 
 /** 정규화된 명령 수 — 반복 블록의 body 도 구조상 명령으로 센다(반복 횟수만큼 곱하지 않는다). */
 function countCommands(nodes: SerializedBlockNode[]): number {
-  return nodes.reduce(
-    (sum, node) => sum + 1 + (node.kind === 'repeat' ? countCommands(node.body) : 0),
-    0,
-  );
+  return sumOverBlockTree(nodes, {
+    valueOf: () => 1,
+    bodyOf: (node) => (node.kind === 'repeat' ? node.body : undefined),
+    repeatCountOf: () => 1,
+  });
 }
 
 // `*/` prefix — axios baseURL(상대 '' / 프록시 절대 URL)이 무엇이든 매칭되게 한다.

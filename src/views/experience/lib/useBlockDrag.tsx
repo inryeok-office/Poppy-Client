@@ -22,7 +22,7 @@ import {
   type DragPick,
 } from '../model/blockProgram';
 import { BlockStack } from '../ui/BlockStack';
-import { movedEnough, nearestSlot, slotsFromBlockRects } from './blockDrag';
+import { movedEnough, nearestSlot, slotsFromBlockRects, type SlotRect } from './blockDrag';
 
 // 블록 드래그의 상태·포인터 배선. 순수 스냅 판정은 blockDrag.ts, 프로그램 변형은 blockProgram.ts.
 //
@@ -75,8 +75,17 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
   const [dragging, setDragging] = useState<DragState | null>(null);
   const stackRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLElement | null>(null);
+  const cloneRef = useRef<HTMLDivElement | null>(null);
   const stateRef = useRef<DragState | null>(null);
   const teardownRef = useRef<(() => void) | null>(null);
+  const slotsRef = useRef<SlotRect[]>([]);
+
+  // 드롭 순간 실제로 반영할 최신 프로그램. 드래그 도중 다른 경로(값 편집 등)로 program 이
+  // 바뀌어도 finish() 가 드래그 시작 시점의 낡은 스냅샷으로 덮어쓰지 않게 한다.
+  const programRef = useRef(program);
+  useEffect(() => {
+    programRef.current = program;
+  }, [program]);
 
   const registerStack = useCallback((el: HTMLElement | null) => {
     stackRef.current = el;
@@ -90,13 +99,15 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
     setDragging(next);
   }, []);
 
-  // 드래그는 시작 시점의 프로그램 스냅샷을 기준으로 계산한다 (드래그 중엔 바뀌지 않는다).
+  // 잡는 순간의 program 은 "무엇을 잡았는지"(carried, 클론용) 를 정하는 데만 쓴다.
+  // 실제로 반영할 때는 finish() 가 programRef.current(최신값)를 쓴다.
   const startDrag = useCallback(
     (pick: DragPick, event: ReactPointerEvent) => {
       teardownRef.current?.();
 
       const carried = carriedBlocks(program, pick);
       if (carried.length === 0) return;
+      const carriedIds = new Set(carried.map((b) => b.id));
 
       const rect = event.currentTarget.getBoundingClientRect();
       const start = { x: event.clientX, y: event.clientY };
@@ -114,20 +125,27 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
         const cur = stateRef.current;
         if (!cur) return;
         const pointer = { x: e.clientX, y: e.clientY };
-        if (!cur.active && !movedEnough(start, pointer)) {
-          commit({ ...cur, pointer });
-          return;
+
+        if (!cur.active) {
+          if (!movedEnough(start, pointer)) {
+            commit({ ...cur, pointer });
+            return;
+          }
+          // 드래그가 막 활성화되는 순간에만 슬롯을 측정한다 — 블록 위치는 드래그 중 안
+          // 바뀌니 매 pointermove 마다 다시 재지 않는다. 잡고 있는 블록 자신은 측정에서
+          // 뺀다(안 그러면 "자기 자리 안으로 옮기는" 미리보기가 뜨는데, 그 슬롯은 떼어낸
+          // 뒤엔 존재하지 않아 조용히 원래 자리로 되돌아간다).
+          const container = stackRef.current;
+          const rects = container
+            ? Array.from(container.querySelectorAll<HTMLElement>('[data-block]'))
+                .filter((el) => !carriedIds.has(el.dataset.block ?? ''))
+                .map((el) => el.getBoundingClientRect())
+            : [];
+          slotsRef.current = slotsFromBlockRects(rects);
         }
 
-        const container = stackRef.current;
-        const rects = container
-          ? Array.from(container.querySelectorAll<HTMLElement>('[data-block]')).map((b) =>
-              b.getBoundingClientRect(),
-            )
-          : [];
-        const slots = slotsFromBlockRects(rects);
-        const hit = nearestSlot(e.clientX, e.clientY, slots);
-        const slot = slots.find((s) => s.index === hit?.index);
+        const hit = nearestSlot(e.clientX, e.clientY, slotsRef.current);
+        const slot = slotsRef.current.find((s) => s.index === hit?.index);
 
         commit({
           ...cur,
@@ -141,11 +159,16 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
       const finish = () => {
         teardownRef.current?.();
         const cur = stateRef.current;
+        // 클론이 사라지기(commit(null)) 전에 실제 렌더 크기를 읽는다 — 블록마다 모양이
+        // 달라(반복 C블록 238×106, 실행 블록 212×48 …) 고정 크기로는 캔버스 경계를 잘못
+        // 잡아 큰 블록이 삐져나갈 수 있다.
+        const cloneRect = cloneRef.current?.getBoundingClientRect();
         commit(null);
         if (!cur?.active) return;
 
+        const latestProgram = programRef.current;
         if (cur.slotIndex != null) {
-          onChange(dropOnSlot(program, cur.pick, cur.slotIndex));
+          onChange(dropOnSlot(latestProgram, cur.pick, cur.slotIndex));
           return;
         }
 
@@ -160,9 +183,11 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
         // 팔레트 블록을 캔버스 밖에 놓으면 버린다 (놓을 자리가 없음)
         if (cur.pick.origin === 'palette' && !onCanvas) return;
 
-        const x = clamp(cur.pointer.x - canvas.left - cur.grab.x, 0, canvas.width - CLONE_W);
-        const y = clamp(cur.pointer.y - canvas.top - cur.grab.y, 0, canvas.height - CLONE_H);
-        onChange(dropOnCanvas(program, cur.pick, x, y));
+        const cloneW = cloneRect?.width ?? CLONE_W;
+        const cloneH = cloneRect?.height ?? CLONE_H;
+        const x = clamp(cur.pointer.x - canvas.left - cur.grab.x, 0, canvas.width - cloneW);
+        const y = clamp(cur.pointer.y - canvas.top - cur.grab.y, 0, canvas.height - cloneH);
+        onChange(dropOnCanvas(latestProgram, cur.pick, x, y));
       };
 
       const teardown = () => {
@@ -199,6 +224,7 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
       {dragging?.active && typeof document !== 'undefined'
         ? createPortal(
             <div
+              ref={cloneRef}
               aria-hidden
               className="pointer-events-none fixed z-50 select-none"
               style={{

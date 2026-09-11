@@ -22,6 +22,11 @@ export type SaveProjectResult = {
 /** localStorage 임시 보관 초안 (오프라인 폴백) */
 export type LocalDraft = {
   sessionId: string;
+  /**
+   * 서버로 보낸(또는 보냈어야 할) 그대로의 페이로드. 지금은 로컬 복원에 쓰이지 않는다
+   * (복원은 blocks 를 쓴다) — 오프라인 상태에서 실패한 저장을 나중에 그대로 재전송하는
+   * 기능이 생기면 여기서 읽는다.
+   */
   program: SerializedBlockProgram;
   /**
    * 충실 복원용 도메인 스냅샷 (블록 트리 등). 자동 저장은 이 값을 해석하지 않고 그대로 보관하고,
