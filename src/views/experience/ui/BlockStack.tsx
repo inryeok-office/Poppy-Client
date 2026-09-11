@@ -86,17 +86,6 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
   }
 }
 
-/** 블록 하나의 시각 표현 (li·편집 없이). 드래그 클론·팔레트가 재사용한다. */
-export function BlockGlyph({
-  node,
-  onParamChange,
-}: {
-  node: BlockNode;
-  onParamChange?: RenderOptions['onParamChange'];
-}) {
-  return <>{renderNode(node, { onParamChange })}</>;
-}
-
 type BlockStackProps = {
   nodes: BlockNode[];
   /** 주면 값 입력 칸이 편집 가능해진다. */
