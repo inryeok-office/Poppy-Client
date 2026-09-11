@@ -2,7 +2,7 @@
 
 import { useBlockDrag } from '../lib/useBlockDrag';
 import { type BlockError, type BlockProgram } from '../model/blockProgram';
-import { Block, GhostBlock } from './Block';
+import { Block, BlockOutline, GhostBlock } from './Block';
 import { BlockStack, type BlockParamPatch } from './BlockStack';
 import { SectionLabel } from './SectionLabel';
 import { PillButton } from '@/shared/ui';
@@ -107,13 +107,15 @@ export function BlockWorkspace({
         </div>
 
         {/* 스냅 미리보기 — 연결될 자리에 점선 윤곽 (기명서 "연결 위치를 미리 표시").
-            GhostBlock(Figma 자리표시 블록)과 같은 점선 스타일: #c9bdae 1.5px. */}
-        {dragging?.active && dragging.slot && (
+            잡은 블록과 같은 모양(시작=모자형·종료=캡형·반복=C블록)으로 그린다. */}
+        {dragging?.active && dragging.slot && dragging.carried[0] && (
           <div
             aria-hidden
-            className="pointer-events-none fixed z-40 h-12 w-[212px] -translate-y-1/2 rounded-lg border-[1.5px] border-dashed border-[#c9bdae]"
+            className="pointer-events-none fixed z-40 -translate-y-1/2"
             style={{ top: dragging.slot.y, left: dragging.slot.x }}
-          />
+          >
+            <BlockOutline kind={dragging.carried[0].kind} />
+          </div>
         )}
 
         {/* 아직 연결 안 된 자유 블록 그룹 — 놓인 자리에 그대로. 끌어서 스택에 붙인다. */}
