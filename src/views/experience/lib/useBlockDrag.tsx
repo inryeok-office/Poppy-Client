@@ -200,7 +200,7 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
         ? createPortal(
             <div
               aria-hidden
-              className="pointer-events-none fixed z-50 rotate-2 drop-shadow-xl select-none"
+              className="pointer-events-none fixed z-50 drop-shadow-xl select-none"
               style={{
                 left: dragging.pointer.x - dragging.grab.x,
                 top: dragging.pointer.y - dragging.grab.y,
