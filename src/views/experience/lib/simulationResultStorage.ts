@@ -1,6 +1,6 @@
 import type { SimulationResult } from '@/features/simulation';
 
-import type { BlockProgram } from '../model/blockProgram';
+import { isBlockProgramSnapshot, type BlockProgram } from '../model/blockProgram';
 
 // 시뮬레이션 결과 화면(신규 라우트 /experience/simulation)에 넘길 마지막 시뮬레이션 결과.
 // ExperienceView 는 컴포넌트가 아니라 페이지 단위로 떠 있어, 라우트를 넘어가면 리액트 state 가
@@ -23,12 +23,41 @@ function safeSessionStorage(): Storage | null {
   }
 }
 
-export function writeSimulationResult(value: StoredSimulationResult): void {
+/**
+ * 성공 여부를 반환한다 — 저장이 실패했는데(용량 초과·접근 거부 등) 호출자가 모르고 결과
+ * 화면으로 이동하면, 그 화면은 읽을 게 없어 곧장 /experience 로 되돌아가 방금 끝난
+ * 시뮬레이션 결과가 통째로 사라진다. 실패하면 호출자가 지금 화면에서 계속 보여줘야 한다.
+ */
+export function writeSimulationResult(value: StoredSimulationResult): boolean {
   try {
-    safeSessionStorage()?.setItem(KEY, JSON.stringify(value));
+    const store = safeSessionStorage();
+    if (!store) return false;
+    store.setItem(KEY, JSON.stringify(value));
+    return true;
   } catch {
-    // 저장 공간 초과 등 — 무시. 결과 화면이 읽을 게 없으면 /experience 로 돌려보낸다.
+    return false;
   }
+}
+
+function isSimulationResultShape(value: unknown): value is SimulationResult {
+  if (typeof value !== 'object' || value === null) return false;
+  const r = value as Record<string, unknown>;
+  return (
+    typeof r.passed === 'boolean' &&
+    typeof r.normalizedCommandCount === 'number' &&
+    typeof r.totalDistanceM === 'number' &&
+    Array.isArray(r.violations) &&
+    Array.isArray(r.notes) &&
+    (r.failedAtIndex === undefined || typeof r.failedAtIndex === 'number')
+  );
+}
+
+/** 저장된 값이 실제로 program·result 모양을 갖췄는지 확인한다 — JSON 파싱만 되고 필드가
+ *  빠지거나 어긋난 값을 그대로 믿으면 결과 화면이 program.stack 등에 접근하다 죽는다. */
+function isStoredSimulationResult(value: unknown): value is StoredSimulationResult {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return isBlockProgramSnapshot(v.program) && isSimulationResultShape(v.result);
 }
 
 export function readSimulationResult(): StoredSimulationResult | null {
@@ -36,7 +65,9 @@ export function readSimulationResult(): StoredSimulationResult | null {
   if (!store) return null;
   try {
     const raw = store.getItem(KEY);
-    return raw ? (JSON.parse(raw) as StoredSimulationResult) : null;
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return isStoredSimulationResult(parsed) ? parsed : null;
   } catch {
     return null;
   }

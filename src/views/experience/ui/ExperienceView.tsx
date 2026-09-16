@@ -149,8 +149,12 @@ export function ExperienceView() {
         onSuccess: (result) => {
           // 결과 화면(신규 라우트)이 이어받을 수 있게 program·result 스냅샷을 남긴다 —
           // ExperienceView 는 라우트를 넘어가면 새로 마운트돼 이 mutation 상태를 잃는다.
-          writeSimulationResult({ program, result });
-          router.push('/experience/simulation');
+          // 저장이 실패하면(용량 초과 등) 이동하지 않는다 — 그 화면은 읽을 게 없어 곧장
+          // 돌아오면서 방금 끝난 결과가 안내 없이 사라진다. 대신 이 화면의 기존 인라인
+          // 안내(simulationMessage 등)로 계속 보여준다.
+          if (writeSimulationResult({ program, result })) {
+            router.push('/experience/simulation');
+          }
         },
       },
     );

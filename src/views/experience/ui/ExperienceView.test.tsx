@@ -381,6 +381,28 @@ describe('ExperienceView', () => {
     });
   });
 
+  it('결과 저장이 실패하면(용량 초과 등) 결과 화면으로 이동하지 않고 이 화면에서 계속 보여준다', async () => {
+    // Storage.prototype 은 localStorage 와 공유돼, sessionStorage 호출일 때만 던지고
+    // localStorage 호출(자동 저장)은 그대로 통과시킨다.
+    const proto = Object.getPrototypeOf(window.sessionStorage) as Storage;
+    const original = proto.setItem;
+    vi.spyOn(proto, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (this === window.sessionStorage) throw new DOMException('QuotaExceededError');
+      return original.call(this, key, value);
+    });
+
+    const user = userEvent.setup();
+    renderView();
+
+    connectEndBlock();
+    await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
+
+    // 이동은 안 하지만, 이 화면 자체는 통과 결과를 그대로 보여준다(기존 인라인 흐름)
+    await waitForRunButton();
+    expect(mockRouter.push).not.toHaveBeenCalledWith('/experience/simulation');
+    expect(readSimulationResult()).toBeNull();
+  });
+
   it('결과 화면에서 돌아왔을 때 — 같은 program 의 통과 기록이 남아있으면 로봇 실행하기가 바로 활성화된다', () => {
     writeSimulationResult({
       program: CONNECTED_PROGRAM,
