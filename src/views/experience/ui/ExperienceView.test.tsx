@@ -171,14 +171,14 @@ describe('ExperienceView', () => {
     expect(screen.getByRole('button', { name: '완료' })).toBeInTheDocument();
   });
 
-  it('실행 중에는 실행 중지 버튼이 뜨고, 누르면 멈춘다', async () => {
+  it('배정 대기(ASSIGNED) 중에는 실행 중지 버튼이 뜨고, 누르면 멈춘다', async () => {
     let cancelled = false;
     server.use(
       http.post('*/api/executions', () =>
         HttpResponse.json({ success: true, data: { executionId: 'exec-test' } }),
       ),
       http.get('*/api/executions/:id', () =>
-        HttpResponse.json(executionState(cancelled ? 'cancelled' : 'running')),
+        HttpResponse.json(executionState(cancelled ? 'cancelled' : 'assigned')),
       ),
       http.post('*/api/executions/:id/cancel', () => {
         cancelled = true;
@@ -196,6 +196,24 @@ describe('ExperienceView', () => {
     expect(
       await screen.findByText(/실행을 멈췄어요/, undefined, { timeout: 3000 }),
     ).toBeInTheDocument();
+  });
+
+  it('실행 중(RUNNING)에는 중지 버튼이 없다 — 명세: RUNNING 이후 중지는 관리자 기능', async () => {
+    server.use(
+      http.post('*/api/executions', () =>
+        HttpResponse.json({ success: true, data: { executionId: 'exec-test' } }),
+      ),
+      http.get('*/api/executions/:id', () => HttpResponse.json(executionState('running'))),
+    );
+    const user = userEvent.setup();
+    renderView();
+    await passSimulation(user);
+
+    await user.click(screen.getByRole('button', { name: '로봇 실행하기' }));
+
+    const running = await screen.findByRole('button', { name: '실행 중…' }, { timeout: 3000 });
+    expect(running).toHaveAttribute('aria-disabled');
+    expect(screen.queryByRole('button', { name: '실행 중지' })).not.toBeInTheDocument();
   });
 
   it('취소한 뒤 로봇 실행하기를 다시 누르면 새 실행이 시작된다', async () => {
@@ -245,7 +263,8 @@ describe('ExperienceView', () => {
     await passSimulation(user);
 
     await user.click(screen.getByRole('button', { name: '로봇 실행하기' }));
-    await screen.findByRole('button', { name: '실행 중지' }, { timeout: 3000 });
+    // RUNNING 중엔 중지 버튼이 없다 — 진행 중 상태(힌트 문구)로 대기한다.
+    await screen.findByText(/움직이고 있어요/, undefined, { timeout: 3000 });
 
     await user.click(screen.getByRole('button', { name: '처음으로' }));
 

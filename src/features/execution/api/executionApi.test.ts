@@ -63,10 +63,21 @@ describe('execution mock API', () => {
     });
   });
 
-  it('진행 중 취소하면 cancelled 가 된다', async () => {
+  it('진행 중(QUEUED) 취소하면 cancelled 가 된다', async () => {
     const { executionId } = await requestExecution({ program: runnableProgram });
     const cancelled = await cancelExecution(executionId);
     expect(cancelled.status).toBe('cancelled');
     expect((await getExecutionState(executionId)).status).toBe('cancelled');
+  });
+
+  it('RUNNING 에서는 취소해도 상태가 바뀌지 않는다 (명세: 체험자는 QUEUED·ASSIGNED 에서만 취소 가능, RUNNING 이후는 관리자 기능)', async () => {
+    const { executionId } = await requestExecution({ program: runnableProgram });
+    await wait(1500); // running 구간(1100~2400ms)까지 확실히 진행
+    expect((await getExecutionState(executionId)).status).toBe('running');
+
+    const result = await cancelExecution(executionId);
+
+    expect(result.status).toBe('running'); // cancelled 로 바뀌지 않는다
+    expect((await getExecutionState(executionId)).status).toBe('running');
   });
 });
