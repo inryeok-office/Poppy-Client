@@ -34,7 +34,7 @@ export function BlockWorkspace({
   simulating = false,
   simulationMessage,
 }: BlockWorkspaceProps) {
-  const { dragging, startDrag, registerStack, registerCanvas } = useBlockDrag();
+  const { dragging, startDrag, registerStack, registerCanvas, registerTrash } = useBlockDrag();
 
   const valid = errors.length === 0;
   const hint = simulationMessage ?? errors[0]?.message ?? DEFAULT_HINT;
@@ -138,6 +138,37 @@ export function BlockWorkspace({
             />
           </div>
         ))}
+
+        {/* 쓰레기통 (기명서 "블록 삭제") — 화면 오른쪽 구석에 고정. 드래그 중인 블록이
+            시각 영역 바깥 30px 감지 영역에 들어오면 뚜껑 열린 모양으로 강조한다. */}
+        <div
+          ref={registerTrash}
+          data-trash
+          aria-hidden
+          className={`absolute right-6 bottom-6 size-16 transition-transform ${
+            dragging?.overTrash ? 'scale-110' : ''
+          }`}
+        >
+          {dragging?.overTrash ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/experience/trash-open-body.svg"
+                alt=""
+                className="absolute bottom-0 h-[61px] w-16"
+              />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/experience/trash-open-lid.svg"
+                alt=""
+                className="absolute -top-2 left-1 h-[19px] w-16 -rotate-[35deg]"
+              />
+            </>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src="/experience/trash-closed.svg" alt="블록 삭제" className="size-full" />
+          )}
+        </div>
       </div>
     </section>
   );

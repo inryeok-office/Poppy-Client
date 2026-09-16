@@ -3,7 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ExperienceView } from './ExperienceView';
-import { FAR_X, STACK_X, drag, rectFor, slotCenterY } from './dragTestKit';
+import { FAR_X, STACK_X, TRASH_X, TRASH_Y, drag, rectFor, slotCenterY } from './dragTestKit';
 
 function renderView() {
   const queryClient = new QueryClient({
@@ -96,5 +96,36 @@ describe('블록 드래그 이동·스냅 연결 (기명서)', () => {
 
     expect(stackOrder()).toEqual(['start-0', 'repeat-0', 'greet-0']);
     expect(within(canvas()).queryByText('초 기다리기')).not.toBeInTheDocument();
+  });
+});
+
+describe('블록 삭제 — 쓰레기통 드래그 (기명서)', () => {
+  it('쓰레기통에 드롭하면 블록이 삭제된다', () => {
+    renderView();
+
+    drag(blockLi('인사하기'), TRASH_X, TRASH_Y);
+
+    expect(stackOrder()).toEqual(['start-0', 'repeat-0']);
+    expect(within(canvas()).queryByText('인사하기')).not.toBeInTheDocument();
+  });
+
+  it('연결된 블록 묶음을 쓰레기통에 놓으면 아래로 딸려온 블록도 같이 삭제된다', () => {
+    renderView();
+
+    // repeat 을 잡으면 greet 도 함께 딸려온다 — 쓰레기통에 놓으면 둘 다 사라진다
+    drag(blockLi('번 반복하기'), TRASH_X, TRASH_Y);
+
+    expect(stackOrder()).toEqual(['start-0']);
+    expect(within(canvas()).queryByText('인사하기')).not.toBeInTheDocument();
+  });
+
+  it('감지 영역(시각 영역 바깥 30px) 밖에서 드롭하면 삭제하지 않는다', () => {
+    renderView();
+
+    // 쓰레기통에서 충분히 먼 스냅 밖 지점 — 삭제되지 않고 자유 블록으로 남는다
+    drag(blockLi('인사하기'), FAR_X, 600);
+
+    expect(stackOrder()).toEqual(['start-0', 'repeat-0']);
+    expect(within(canvas()).getByText('인사하기')).toBeInTheDocument();
   });
 });

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { SNAP_THRESHOLD_PX, movedEnough, nearestSlot, slotsFromBlockRects } from './blockDrag';
+import {
+  SNAP_THRESHOLD_PX,
+  isNearRect,
+  movedEnough,
+  nearestSlot,
+  slotsFromBlockRects,
+} from './blockDrag';
 
 const rect = (top: number, height = 44, left = 60, width = 212): DOMRect =>
   ({
@@ -50,6 +56,24 @@ describe('nearestSlot', () => {
   it('세로가 임계 밖이면 null', () => {
     expect(nearestSlot(150, 244 + SNAP_THRESHOLD_PX + 10, slots)).toBeNull();
     expect(nearestSlot(150, -500, slots)).toBeNull();
+  });
+});
+
+describe('isNearRect — 쓰레기통 삭제 감지 영역 (기명서 "시각 영역 바깥 30px")', () => {
+  const trash = rect(500, 80, 1000, 64); // top 500 bottom 580, left 1000 right 1064
+
+  it('시각 영역 안이면 감지된다', () => {
+    expect(isNearRect(1030, 540, trash, 30)).toBe(true);
+  });
+
+  it('시각 영역 바깥이어도 margin 안이면 감지된다', () => {
+    expect(isNearRect(1064 + 20, 540, trash, 30)).toBe(true); // 오른쪽으로 20px 밖
+    expect(isNearRect(1030, 580 + 20, trash, 30)).toBe(true); // 아래로 20px 밖
+  });
+
+  it('margin 밖이면 감지되지 않는다', () => {
+    expect(isNearRect(1064 + 40, 540, trash, 30)).toBe(false);
+    expect(isNearRect(1030, 580 + 40, trash, 30)).toBe(false);
   });
 });
 

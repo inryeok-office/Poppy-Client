@@ -176,6 +176,17 @@ export function dropOnCanvas(
   };
 }
 
+/**
+ * 쓰레기통에 드롭 — 잡은 체인을 원래 자리에서 통째로 지운다 (기명서 "블록 삭제":
+ * "연결된 블록 묶음을 드래그한 경우에는 함께 이동 중인 하위 연결 블록도 같이 삭제한다").
+ * start 는 애초에 못 집으므로(carriedBlocks) 여기서 따로 막을 필요가 없다.
+ */
+export function deleteCarried(program: BlockProgram, pick: DragPick): BlockProgram {
+  const carried = carriedBlocks(program, pick);
+  if (carried.length === 0) return program;
+  return detachCarried(program, pick);
+}
+
 type BlockParamPatch = { count?: number; distanceM?: number; seconds?: number };
 
 function containsId(nodes: BlockNode[], id: string): boolean {
