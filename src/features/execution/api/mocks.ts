@@ -121,8 +121,12 @@ export const executionHandlers = [
             controller.close();
           }
         };
-        push();
+        // interval 을 먼저 등록해야 push() 의 최초 호출에서 바로 terminal 을 만나도
+        // (이미 완료된 실행에 뒤늦게 연결하는 경우 등) intervalId 가 정의돼 있어 제대로
+        // 정리된다 — 반대 순서면 초기 push 의 clearInterval 이 undefined 를 지워 아무
+        // 효과가 없고, 그 직후 등록된 interval 은 영원히 남는다.
         intervalId = setInterval(push, STREAM_CHECK_MS);
+        push();
       },
       cancel() {
         clearInterval(intervalId);
