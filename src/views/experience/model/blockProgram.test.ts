@@ -245,4 +245,45 @@ describe('totalTravelDistance', () => {
   it('반복 횟수 × 중첩 이동 거리', () => {
     expect(totalTravelDistance(INITIAL_PROGRAM)).toBe(2);
   });
+
+  it("'앞으로' 이동도 '뒤로' 이동과 같이 더하고, 회전은 더하지 않는다", () => {
+    const program: BlockProgram = {
+      stack: [
+        node('start', 'start-0'),
+        node('move', 'move-0', { distanceM: 1 }),
+        node('moveForward', 'forward-0', { distanceM: 2 }),
+        node('turnRight', 'turn-0', { degrees: 90 }),
+        node('end', 'end-0'),
+      ],
+      floating: [],
+    };
+    expect(totalTravelDistance(program)).toBe(3);
+  });
+});
+
+describe('newBlock — 새 이동·동작 블록 (기명서 Figma Slide 5 카탈로그)', () => {
+  it('moveForward 는 move 와 같은 거리 파라미터로 시작한다', () => {
+    expect(newBlock('moveForward')).toMatchObject({ kind: 'moveForward', distanceM: 1 });
+  });
+
+  it('turnRight·turnLeft 는 허용 최소 각도로 시작한다', () => {
+    expect(newBlock('turnRight')).toMatchObject({ kind: 'turnRight', degrees: 1 });
+    expect(newBlock('turnLeft')).toMatchObject({ kind: 'turnLeft', degrees: 1 });
+  });
+
+  it('정지·동작류(앉기 등)는 파라미터 없이 id·kind만 가진다', () => {
+    for (const kind of [
+      'stop',
+      'sit',
+      'standUp',
+      'heart',
+      'dance',
+      'rollOver',
+      'attack',
+    ] as const) {
+      const block = newBlock(kind);
+      expect(block.kind).toBe(kind);
+      expect(Object.keys(block).sort()).toEqual(['id', 'kind']);
+    }
+  });
 });

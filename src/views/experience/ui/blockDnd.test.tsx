@@ -129,3 +129,46 @@ describe('블록 삭제 — 쓰레기통 드래그 (기명서)', () => {
     expect(within(canvas()).getByText('인사하기')).toBeInTheDocument();
   });
 });
+
+describe('카테고리 전환 — 이동·동작 블록 팔레트 (Figma Slide 5 카탈로그)', () => {
+  it('기본은 흐름 카테고리만 보이고, 다른 카테고리 블록은 없다', () => {
+    renderView();
+    expect(
+      screen.queryByRole('button', { name: '앞으로 이동 블록 꺼내기' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('이동 카테고리를 누르면 새 이동 블록(뒤로·앞으로·회전·정지)을 꺼낼 수 있다', () => {
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: '이동' }));
+
+    const forward = screen.getByRole('button', { name: '앞으로 이동 블록 꺼내기' });
+    drag(forward, STACK_X, slotCenterY(1));
+
+    expect(stackOrder()).toEqual([
+      'start-0',
+      expect.stringContaining('moveForward'),
+      'repeat-0',
+      'greet-0',
+    ]);
+    // 카테고리를 전환했으니 흐름 블록은 더 이상 안 보인다
+    expect(
+      screen.queryByRole('button', { name: '초 기다리기 블록 꺼내기' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('동작 카테고리를 누르면 새 동작 블록(춤추기 등)을 꺼낼 수 있다', () => {
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: '동작' }));
+
+    const dance = screen.getByRole('button', { name: '춤추기 블록 꺼내기' });
+    drag(dance, STACK_X, slotCenterY(1));
+
+    expect(stackOrder()).toEqual([
+      'start-0',
+      expect.stringContaining('dance'),
+      'repeat-0',
+      'greet-0',
+    ]);
+  });
+});

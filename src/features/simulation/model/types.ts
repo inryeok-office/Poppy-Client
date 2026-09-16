@@ -11,6 +11,16 @@ export type SerializedBlockNode =
   | { id: string; kind: 'greet' }
   | { id: string; kind: 'end' }
   | { id: string; kind: 'move'; distanceM: number }
+  | { id: string; kind: 'moveForward'; distanceM: number }
+  | { id: string; kind: 'turnRight'; degrees: number }
+  | { id: string; kind: 'turnLeft'; degrees: number }
+  | { id: string; kind: 'stop' }
+  | { id: string; kind: 'sit' }
+  | { id: string; kind: 'standUp' }
+  | { id: string; kind: 'heart' }
+  | { id: string; kind: 'dance' }
+  | { id: string; kind: 'rollOver' }
+  | { id: string; kind: 'attack' }
   | { id: string; kind: 'wait'; seconds: number }
   | { id: string; kind: 'repeat'; count: number; body: SerializedBlockNode[] };
 

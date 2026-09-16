@@ -12,6 +12,7 @@ export const LIMITS = {
   repeatCount: { min: 1, max: 20 },
   moveDistance: { min: 1, max: 10 },
   waitSeconds: { min: 1, max: 60 },
+  turnDegrees: { min: 1, max: 90 },
 } as const;
 
 const inRange = (raw: unknown, { min, max }: { min: number; max: number }) => {
@@ -22,7 +23,11 @@ const inRange = (raw: unknown, { min, max }: { min: number; max: number }) => {
 function isValueValid(node: SerializedBlockNode): boolean {
   switch (node.kind) {
     case 'move':
+    case 'moveForward':
       return inRange(node.distanceM, LIMITS.moveDistance);
+    case 'turnRight':
+    case 'turnLeft':
+      return inRange(node.degrees, LIMITS.turnDegrees);
     case 'wait':
       return inRange(node.seconds, LIMITS.waitSeconds);
     case 'repeat':
@@ -44,10 +49,11 @@ function allValuesValid(nodes: SerializedBlockNode[]): boolean {
   return invalidCount === 0;
 }
 
-/** 반복 중첩까지 포함한 총 이동 거리 (명세: "제한을 우회하는 중첩·합산 값도 계산"). */
+/** 반복 중첩까지 포함한 총 이동 거리 (명세: "제한을 우회하는 중첩·합산 값도 계산").
+ *  회전(turnRight/turnLeft)은 거리가 아니라 각도라 합산에 포함하지 않는다. */
 function totalDistance(nodes: SerializedBlockNode[]): number {
   return sumOverBlockTree(nodes, {
-    valueOf: (node) => (node.kind === 'move' ? node.distanceM : 0),
+    valueOf: (node) => (node.kind === 'move' || node.kind === 'moveForward' ? node.distanceM : 0),
     bodyOf,
     repeatCountOf: (node) => (node.kind === 'repeat' ? node.count : 1),
   });

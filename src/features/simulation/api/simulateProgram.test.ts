@@ -96,6 +96,53 @@ describe('simulateProgram (mock API)', () => {
     expect(result.violations[0]?.code).toBe('invalid-values');
   });
 
+  it("'앞으로' 이동도 '뒤로' 이동과 같은 총 이동 거리 계산에 포함된다", async () => {
+    const result = await simulateProgram({
+      program: program({
+        chain: [
+          { id: 'start-0', kind: 'start' },
+          { id: 'move-1', kind: 'move', distanceM: 1 },
+          { id: 'forward-0', kind: 'moveForward', distanceM: 1 },
+          { id: 'end-0', kind: 'end' },
+        ],
+      }),
+    });
+
+    expect(result.totalDistanceM).toBe(2);
+  });
+
+  it('회전(오른쪽·왼쪽)은 거리가 아니라 총 이동 거리 합산에 포함되지 않는다', async () => {
+    const result = await simulateProgram({
+      program: program({
+        chain: [
+          { id: 'start-0', kind: 'start' },
+          { id: 'move-1', kind: 'move', distanceM: 1 },
+          { id: 'turn-0', kind: 'turnRight', degrees: 90 },
+          { id: 'turn-1', kind: 'turnLeft', degrees: 90 },
+          { id: 'end-0', kind: 'end' },
+        ],
+      }),
+    });
+
+    expect(result.totalDistanceM).toBe(1);
+    expect(result.passed).toBe(true);
+  });
+
+  it('회전 각도가 허용 범위(1~90) 밖이면 서버가 거부한다', async () => {
+    const result = await simulateProgram({
+      program: program({
+        chain: [
+          { id: 'start-0', kind: 'start' },
+          { id: 'turn-0', kind: 'turnRight', degrees: 180 },
+          { id: 'end-0', kind: 'end' },
+        ],
+      }),
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.violations[0]?.code).toBe('invalid-values');
+  });
+
   it('서버 오류는 ApiError 로 변환된다', async () => {
     server.use(http.post('*/api/simulations', () => new HttpResponse(null, { status: 500 })));
 
