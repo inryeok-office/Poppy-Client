@@ -1,0 +1,36 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="64" height="80" viewBox="0 0 64 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Group 23">
+<rect id="Rectangle 25" y="10" width="64" height="9" rx="4.5" fill="#C6C5CA"/>
+<path id="Rectangle 32" d="M23.9319 2.27239C24.2658 0.936891 25.4657 0 26.8423 0H37.1577C38.5343 0 39.7342 0.936892 40.0681 2.27239L42 10H22L23.9319 2.27239Z" fill="#ACABB1"/>
+<path id="Rectangle 33" d="M30.4319 2.27239C30.7658 0.936891 31.9657 0 33.3423 0H37.1577C38.5343 0 39.7342 0.936892 40.0681 2.27239L42 10H28.5L30.4319 2.27239Z" fill="#C6C5CA"/>
+<rect id="Rectangle 29" x="12" y="10" width="52" height="9" rx="4.5" fill="#D8D8DA"/>
+<rect id="Rectangle 26" y="19" width="64" height="10" rx="5" fill="#D8D8DA"/>
+<rect id="Rectangle 28" x="22" y="19" width="42" height="10" rx="5" fill="#E8E8E8"/>
+<path id="Rectangle 27" d="M4 29H58L54.7607 70.7731C54.3569 75.9805 50.0136 80 44.7906 80H17.2464C12.0268 80 7.68514 75.9855 7.27701 70.7819L4 29Z" fill="#C6C5CA"/>
+<path id="Rectangle 30" d="M13.0848 36.5784C13.0391 35.997 13.4985 35.5 14.0817 35.5H57.5L54.7248 70.7841C54.3156 75.9868 49.9744 80 44.7556 80H22.9711C19.3179 80 16.279 77.1907 15.9926 73.5489L13.0848 36.5784Z" fill="#D8D8DA"/>
+<path id="Rectangle 31" d="M14.9319 60.3987C14.6992 57.4894 16.9974 55 19.916 55H42.1704C45.0572 55 47.3443 57.4378 47.1602 60.3188L46.3216 73.4463C46.0861 77.1315 43.0285 80 39.3358 80L22.9623 80C19.3128 80 16.2757 77.1961 15.9846 73.5582L14.9319 60.3987Z" fill="#ACABB1"/>
+<path id="Subtract" d="M41.5 55C38.4624 55 36 57.4624 36 60.5H26C26 57.4624 23.5376 55 20.5 55H41.5Z" fill="#D8D8DA"/>
+<path id="Rectangle 34" d="M26 55L36 55V77C36 78.6568 34.6569 80 33 80H29C27.3431 80 26 78.6568 26 77V55Z" fill="#D8D8DA"/>
+<g id="Rectangle 39" filter="url(#filter0_f_0_4)">
+<path d="M14.5 43C14.5 41.067 16.067 39.5 18 39.5H20.5C22.433 39.5 24 41.067 24 43C24 44.933 22.433 46.5 20.5 46.5H18C16.067 46.5 14.5 44.933 14.5 43Z" fill="#E2929E"/>
+</g>
+<g id="Rectangle 40" filter="url(#filter1_f_0_4)">
+<path d="M40 43C40 41.067 41.567 39.5 43.5 39.5H46C47.933 39.5 49.5 41.067 49.5 43C49.5 44.933 47.933 46.5 46 46.5H43.5C41.567 46.5 40 44.933 40 43Z" fill="#E2929E"/>
+</g>
+<rect id="Rectangle 37" x="18" y="35" width="3" height="5" rx="1.5" fill="#495561"/>
+<rect id="Rectangle 38" x="42" y="35" width="3" height="5" rx="1.5" fill="#495561"/>
+<path id="Rectangle 41" d="M28.4699 43.6904C28.7608 42.809 29.5843 42.2137 30.5125 42.2137C31.3863 42.2137 32.1734 42.7423 32.5038 43.5513L32.6879 44.0017C33.3142 45.5348 32.1865 47.2137 30.5304 47.2137C28.9424 47.2137 27.8195 45.6604 28.3173 44.1525L28.4699 43.6904Z" fill="#495561"/>
+</g>
+<defs>
+<filter id="filter0_f_0_4" x="14" y="39" width="10.5" height="8" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="0.25" result="effect1_foregroundBlur_0_4"/>
+</filter>
+<filter id="filter1_f_0_4" x="39.5" y="39" width="10.5" height="8" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="0.25" result="effect1_foregroundBlur_0_4"/>
+</filter>
+</defs>
+</svg>

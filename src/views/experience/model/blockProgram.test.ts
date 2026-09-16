@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   INITIAL_PROGRAM,
   carriedBlocks,
+  deleteCarried,
   draftToProgram,
   dropOnCanvas,
   dropOnSlot,
@@ -110,6 +111,36 @@ describe('dropOnCanvas — 스냅 밖: 놓은 자리에 둔다', () => {
     const moved = dropOnCanvas(INITIAL_PROGRAM, { origin: 'floating', nodeId: 'end-0' }, 500, 400);
     expect(moved.floating).toHaveLength(1);
     expect(moved.floating[0]).toMatchObject({ id: 'float-end-0', x: 500, y: 400 });
+  });
+});
+
+describe('deleteCarried — 쓰레기통 드롭 (기명서 "블록 삭제")', () => {
+  it('스택 블록을 잡아 지우면 그 아래 연결된 블록도 함께 사라진다', () => {
+    // [start, repeat, greet, end] 에서 greet 을 잡으면 greet·end 가 함께 지워진다
+    const result = deleteCarried(connected, { origin: 'stack', nodeId: 'greet-0' });
+    expect(result.stack.map((b) => b.kind)).toEqual(['start', 'repeat']);
+  });
+
+  it('start 는 애초에 못 집으므로 지워지지 않는다', () => {
+    expect(deleteCarried(connected, { origin: 'stack', nodeId: 'start-0' })).toBe(connected);
+  });
+
+  it('자유 그룹의 블록을 지우면, 남은 블록이 없으면 그룹 자체가 사라진다', () => {
+    const program: BlockProgram = {
+      stack: [node('start', 'start-0')],
+      floating: [{ id: 'f1', x: 0, y: 0, blocks: [node('end', 'end-0')] }],
+    };
+    const result = deleteCarried(program, { origin: 'floating', nodeId: 'end-0' });
+    expect(result.floating).toEqual([]);
+  });
+
+  it('자유 그룹 중간 블록을 지우면 그 위의 블록만 그룹에 남는다', () => {
+    const program: BlockProgram = {
+      stack: [node('start', 'start-0')],
+      floating: [{ id: 'f1', x: 0, y: 0, blocks: [node('greet', 'g1'), node('end', 'e1')] }],
+    };
+    const result = deleteCarried(program, { origin: 'floating', nodeId: 'e1' });
+    expect(result.floating[0]?.blocks.map((b) => b.id)).toEqual(['g1']);
   });
 });
 

@@ -54,6 +54,24 @@ export function movedEnough(from: { x: number; y: number }, to: { x: number; y: 
 }
 
 /**
+ * 점이 사각형의 시각 영역 바깥 marginPx 까지(감지 영역) 안에 있는지.
+ * 쓰레기통 삭제 감지에 쓴다(기명서: "시각 영역 바깥 30px 까지를 삭제 감지 영역으로").
+ */
+export function isNearRect(
+  pointerX: number,
+  pointerY: number,
+  rect: { left: number; right: number; top: number; bottom: number },
+  marginPx: number,
+): boolean {
+  return (
+    pointerX >= rect.left - marginPx &&
+    pointerX <= rect.right + marginPx &&
+    pointerY >= rect.top - marginPx &&
+    pointerY <= rect.bottom + marginPx
+  );
+}
+
+/**
  * 스택 블록 요소들의 사각형에서 삽입 슬롯 목록을 만든다.
  * 슬롯 i 는 "블록 i-1 다음" — 블록 i-1 하단과 블록 i 상단의 중점.
  */

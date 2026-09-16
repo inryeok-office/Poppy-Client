@@ -15,6 +15,7 @@ import { createPortal } from 'react-dom';
 
 import {
   carriedBlocks,
+  deleteCarried,
   dropOnCanvas,
   dropOnSlot,
   type BlockNode,
@@ -22,7 +23,13 @@ import {
   type DragPick,
 } from '../model/blockProgram';
 import { BlockStack } from '../ui/BlockStack';
-import { movedEnough, nearestSlot, slotsFromBlockRects, type SlotRect } from './blockDrag';
+import {
+  isNearRect,
+  movedEnough,
+  nearestSlot,
+  slotsFromBlockRects,
+  type SlotRect,
+} from './blockDrag';
 
 // 블록 드래그의 상태·포인터 배선. 순수 스냅 판정은 blockDrag.ts, 프로그램 변형은 blockProgram.ts.
 //
@@ -30,9 +37,14 @@ import { movedEnough, nearestSlot, slotsFromBlockRects, type SlotRect } from './
 //   · 블록을 잡으면 아래에 연결된 블록이 함께 딸려온다 (carriedBlocks)
 //   · 스택 슬롯에 가까우면 스냅 미리보기 → 스냅 안에서 놓으면 연결 (dropOnSlot)
 //   · 스냅 밖에서 놓으면 연결 없이 놓은 자리에 둔다 (dropOnCanvas)
+// 기명서 "블록 삭제":
+//   · 쓰레기통 시각 영역 바깥 30px 까지가 삭제 감지 영역 — 그 안에서 놓으면 지운다 (deleteCarried)
+//   · 감지 영역은 스냅보다 우선 확인한다 (쓰레기통 위에서 놓았는데 스냅되면 안 된다)
 
 const CLONE_W = 220;
 const CLONE_H = 44;
+/** 쓰레기통 삭제 감지 영역 — 시각 영역 바깥 이 값(px)까지 (기명서). */
+const TRASH_HIT_MARGIN_PX = 30;
 
 type DragState = {
   pick: DragPick;
@@ -47,6 +59,8 @@ type DragState = {
   slotIndex: number | null;
   /** 스냅 미리보기 위치 (viewport) — 새 블록이 실제로 놓일 좌상단 */
   slot: { x: number; y: number } | null;
+  /** 쓰레기통 삭제 감지 영역 안인지 — true 면 스냅보다 우선해 삭제한다. */
+  overTrash: boolean;
 };
 
 type BlockDragValue = {
@@ -54,6 +68,7 @@ type BlockDragValue = {
   startDrag: (pick: DragPick, event: ReactPointerEvent) => void;
   registerStack: (el: HTMLElement | null) => void;
   registerCanvas: (el: HTMLElement | null) => void;
+  registerTrash: (el: HTMLElement | null) => void;
 };
 
 const BlockDragContext = createContext<BlockDragValue | null>(null);
@@ -75,6 +90,7 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
   const [dragging, setDragging] = useState<DragState | null>(null);
   const stackRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLElement | null>(null);
+  const trashRef = useRef<HTMLElement | null>(null);
   const cloneRef = useRef<HTMLDivElement | null>(null);
   const stateRef = useRef<DragState | null>(null);
   const teardownRef = useRef<(() => void) | null>(null);
@@ -92,6 +108,9 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
   }, []);
   const registerCanvas = useCallback((el: HTMLElement | null) => {
     canvasRef.current = el;
+  }, []);
+  const registerTrash = useCallback((el: HTMLElement | null) => {
+    trashRef.current = el;
   }, []);
 
   const commit = useCallback((next: DragState | null) => {
@@ -119,6 +138,7 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
         active: false,
         slotIndex: null,
         slot: null,
+        overTrash: false,
       });
 
       const handleMove = (e: PointerEvent) => {
@@ -147,16 +167,22 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
         const hit = nearestSlot(e.clientX, e.clientY, slotsRef.current);
         const slot = slotsRef.current.find((s) => s.index === hit?.index);
 
+        const trashRect = trashRef.current?.getBoundingClientRect();
+        const overTrash = trashRect
+          ? isNearRect(e.clientX, e.clientY, trashRect, TRASH_HIT_MARGIN_PX)
+          : false;
+
         commit({
           ...cur,
           pointer,
           active: true,
           slotIndex: hit?.index ?? null,
           slot: hit && slot ? { x: slot.left, y: slot.top } : null,
+          overTrash,
         });
       };
 
-      const finish = () => {
+      const finish = (e: PointerEvent) => {
         teardownRef.current?.();
         const cur = stateRef.current;
         // 클론이 사라지기(commit(null)) 전에 실제 렌더 크기를 읽는다 — 블록마다 모양이
@@ -167,6 +193,17 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
         if (!cur?.active) return;
 
         const latestProgram = programRef.current;
+        // 삭제는 되돌릴 수 없으니 마지막 pointermove 시점의 낡은 overTrash 를 믿지 않고,
+        // pointerup 좌표로 다시 판정한다 — move 이벤트가 씹히면 실제 위치와 어긋날 수 있다.
+        const trashRect = trashRef.current?.getBoundingClientRect();
+        const overTrashAtDrop = trashRect
+          ? isNearRect(e.clientX, e.clientY, trashRect, TRASH_HIT_MARGIN_PX)
+          : false;
+        // 삭제 감지 영역은 스냅보다 먼저 확인한다 — 쓰레기통 위에서 놓았는데 스냅되면 안 된다.
+        if (overTrashAtDrop) {
+          onChange(deleteCarried(latestProgram, cur.pick));
+          return;
+        }
         if (cur.slotIndex != null) {
           onChange(dropOnSlot(latestProgram, cur.pick, cur.slotIndex));
           return;
@@ -214,8 +251,8 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
   }, [active]);
 
   const value = useMemo<BlockDragValue>(
-    () => ({ dragging, startDrag, registerStack, registerCanvas }),
-    [dragging, startDrag, registerStack, registerCanvas],
+    () => ({ dragging, startDrag, registerStack, registerCanvas, registerTrash }),
+    [dragging, startDrag, registerStack, registerCanvas, registerTrash],
   );
 
   return (

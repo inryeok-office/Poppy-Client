@@ -13,6 +13,14 @@ export const STACK_LEFT = CANVAS_LEFT + 20;
 export const STACK_X = STACK_LEFT + 100; // 스택 블록 가로 중앙 근처 (스냅 범위 안)
 export const FAR_X = 800; // 스택에서 가로로 멀리 (스냅 안 됨)
 
+// 쓰레기통 (data-trash) — 캔버스·스택과 안 겹치는 자리에 고정.
+export const TRASH_LEFT = 700;
+export const TRASH_TOP = 700;
+export const TRASH_SIZE = 64;
+/** 쓰레기통 시각 영역 한가운데 좌표 — 드롭하면 삭제된다. */
+export const TRASH_X = TRASH_LEFT + TRASH_SIZE / 2;
+export const TRASH_Y = TRASH_TOP + TRASH_SIZE / 2;
+
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({
     left,
@@ -33,6 +41,7 @@ export function rectFor(this: HTMLElement): DOMRect {
     return rect(STACK_LEFT, BLOCK_TOP + idx * (BLOCK_H + BLOCK_GAP), 212, BLOCK_H);
   }
   if (this.hasAttribute('data-block-canvas')) return rect(CANVAS_LEFT, 60, 900, 900);
+  if (this.hasAttribute('data-trash')) return rect(TRASH_LEFT, TRASH_TOP, TRASH_SIZE, TRASH_SIZE);
   if (this.tagName === 'OL') return rect(STACK_LEFT, BLOCK_TOP, 212, 400);
   return rect(0, 0, 120, 40);
 }
