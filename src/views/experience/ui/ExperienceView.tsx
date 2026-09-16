@@ -176,7 +176,7 @@ export function ExperienceView() {
       />
       <BlockDragProvider program={program} onChange={applyDrop}>
         <div className="flex flex-1">
-          <BlockPalette />
+          <BlockPalette program={program} />
           {simulationPassed ? (
             <RunReadyWorkspace
               program={program}

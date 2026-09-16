@@ -7,6 +7,7 @@ import {
   draftToProgram,
   dropOnCanvas,
   dropOnSlot,
+  hasBlockKind,
   isBlockProgramSnapshot,
   newBlock,
   serializeProgram,
@@ -285,5 +286,20 @@ describe('newBlock — 새 이동·동작 블록 (기명서 Figma Slide 5 카탈
       expect(block.kind).toBe(kind);
       expect(Object.keys(block).sort()).toEqual(['id', 'kind']);
     }
+  });
+});
+
+describe('hasBlockKind — 시작·종료 중복 생성 방지 (inryeok-bot 리뷰: 팔레트에서 유일 블록을 또 만들면 안 됨)', () => {
+  it('스택에 있으면 찾는다', () => {
+    expect(hasBlockKind(connected, 'start')).toBe(true);
+    expect(hasBlockKind(connected, 'end')).toBe(true);
+  });
+
+  it('자유 블록(floating)에 있어도 찾는다', () => {
+    expect(hasBlockKind(INITIAL_PROGRAM, 'end')).toBe(true); // 종료가 떨어진 자유 블록으로만 있음
+  });
+
+  it('어디에도 없으면 false', () => {
+    expect(hasBlockKind(INITIAL_PROGRAM, 'wait')).toBe(false);
   });
 });

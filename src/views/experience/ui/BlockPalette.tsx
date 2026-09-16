@@ -2,7 +2,7 @@
 
 import { useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 
-import { newBlock, type BlockKind } from '../model/blockProgram';
+import { hasBlockKind, newBlock, type BlockKind, type BlockProgram } from '../model/blockProgram';
 import { useBlockDrag } from '../lib/useBlockDrag';
 import { Block, BlockInput, CBlock } from './Block';
 
@@ -47,9 +47,15 @@ function PaletteBlockItem({
   );
 }
 
-export function BlockPalette() {
+type BlockPaletteProps = {
+  /** 시작·종료가 이미 있는지 확인용 — 둘 다 프로그램에 하나만 있어야 해서 중복 생성을 막는다. */
+  program: BlockProgram;
+};
+
+export function BlockPalette({ program }: BlockPaletteProps) {
   const { startDrag } = useBlockDrag();
   const [selectedCategory, setSelectedCategory] = useState<CategoryLabel>('흐름');
+  const endExists = hasBlockKind(program, 'end');
 
   const grab = (node: ReturnType<typeof newBlock>, event: ReactPointerEvent) =>
     startDrag({ origin: 'palette', node }, event);
@@ -79,19 +85,34 @@ export function BlockPalette() {
       </nav>
 
       {/* 선택된 카테고리의 블록. 눌러서 캔버스로 끌어다 놓는다. */}
-      <ul className="border-line bg-page flex w-[294px] shrink-0 flex-col gap-4 border-r-[1.5px] px-6 pt-10">
+      <ul
+        aria-label="선택된 카테고리 블록"
+        className="border-line bg-page flex w-[294px] shrink-0 flex-col gap-4 border-r-[1.5px] px-6 pt-10"
+      >
         {selectedCategory === '시작' && (
           <>
-            <PaletteBlockItem ariaLabel="시작 블록 꺼내기" kind="start" onGrab={grab}>
+            {/* 시작은 프로그램에 정확히 하나만 있어야 한다(스택 맨 앞, 고정) — 팔레트에서
+                새로 꺼낼 수 없게 그림만 보여준다(끌어다 놓을 수 없음). */}
+            <li>
               <Block color="start" variant="hat">
                 시작
               </Block>
-            </PaletteBlockItem>
-            <PaletteBlockItem ariaLabel="종료 블록 꺼내기" kind="end" onGrab={grab}>
-              <Block color="start" variant="cap">
-                종료
-              </Block>
-            </PaletteBlockItem>
+            </li>
+            {/* 종료도 많아야 하나 — 이미 있으면(스택이든 자유 블록이든) 더 꺼낼 수 없다.
+                기존 인스턴스가 없을 때만 draggable 로 보여준다. */}
+            {endExists ? (
+              <li>
+                <Block color="start" variant="cap">
+                  종료
+                </Block>
+              </li>
+            ) : (
+              <PaletteBlockItem ariaLabel="종료 블록 꺼내기" kind="end" onGrab={grab}>
+                <Block color="start" variant="cap">
+                  종료
+                </Block>
+              </PaletteBlockItem>
+            )}
           </>
         )}
 
