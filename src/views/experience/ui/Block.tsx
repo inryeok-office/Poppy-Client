@@ -175,18 +175,8 @@ const OUTLINE_SHAPE: Record<BlockKind, { path: string; w: number; h: number }> =
   start: { path: HAT_PATH, w: 212, h: 48 },
   end: { path: CAP_PATH, w: 212, h: 42 },
   move: { path: STATEMENT_PATH, w: 212, h: 48 },
-  moveForward: { path: STATEMENT_PATH, w: 212, h: 48 },
-  turnRight: { path: STATEMENT_PATH, w: 212, h: 48 },
-  turnLeft: { path: STATEMENT_PATH, w: 212, h: 48 },
-  stop: { path: STATEMENT_PATH, w: 212, h: 48 },
   wait: { path: STATEMENT_PATH, w: 212, h: 48 },
   greet: { path: STATEMENT_PATH, w: 212, h: 48 },
-  sit: { path: STATEMENT_PATH, w: 212, h: 48 },
-  standUp: { path: STATEMENT_PATH, w: 212, h: 48 },
-  heart: { path: STATEMENT_PATH, w: 212, h: 48 },
-  dance: { path: STATEMENT_PATH, w: 212, h: 48 },
-  rollOver: { path: STATEMENT_PATH, w: 212, h: 48 },
-  attack: { path: STATEMENT_PATH, w: 212, h: 48 },
   repeat: { path: CBLOCK_PATH, w: 238, h: 106 },
 };
 

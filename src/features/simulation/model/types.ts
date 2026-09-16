@@ -11,16 +11,6 @@ export type SerializedBlockNode =
   | { id: string; kind: 'greet' }
   | { id: string; kind: 'end' }
   | { id: string; kind: 'move'; distanceM: number }
-  | { id: string; kind: 'moveForward'; distanceM: number }
-  | { id: string; kind: 'turnRight'; degrees: number }
-  | { id: string; kind: 'turnLeft'; degrees: number }
-  | { id: string; kind: 'stop' }
-  | { id: string; kind: 'sit' }
-  | { id: string; kind: 'standUp' }
-  | { id: string; kind: 'heart' }
-  | { id: string; kind: 'dance' }
-  | { id: string; kind: 'rollOver' }
-  | { id: string; kind: 'attack' }
   | { id: string; kind: 'wait'; seconds: number }
   | { id: string; kind: 'repeat'; count: number; body: SerializedBlockNode[] };
 
@@ -53,9 +43,6 @@ export type SimulationResult = {
   totalDistanceM: number;
   /** 안전 제한 위반 목록 (명세 "안전 제한 검증") */
   violations: SafetyViolation[];
-  /** 안전 구역을 벗어난 실행 순서상 위치 (1-based) — 통과했거나 값 자체가 무효하면 없음.
-   *  결과 화면 "N번째 블록에서 멈춤"·실행순서 단계별 상태 표시에 쓴다. */
-  failedAtIndex?: number;
   /** 실제 물리 결과와 차이가 있을 수 있음 등 안내 문구 */
   notes: string[];
 };
