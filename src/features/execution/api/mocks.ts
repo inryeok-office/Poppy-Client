@@ -3,6 +3,7 @@ import { HttpResponse, delay, http } from 'msw';
 import { evaluateProgram, type SerializedBlockProgram } from '@/features/simulation';
 import type { ApiResponse } from '@/shared/api';
 
+import { isCancellableStatus } from '../model/types';
 import type { ExecutionState, ExecutionStatus, RequestExecutionRequest } from '../model/types';
 
 // 백엔드(Poppy-Server) 전 임시 mock.
@@ -73,11 +74,9 @@ export const executionHandlers = [
     const executionId = String(params.executionId);
     const execution = executions.get(executionId);
     if (!execution) return new HttpResponse(null, { status: 404 });
-    if (
-      statusOf(execution) === 'running' ||
-      statusOf(execution) === 'queued' ||
-      statusOf(execution) === 'assigned'
-    ) {
+    // 명세: 체험자는 QUEUED·ASSIGNED 에서만 취소할 수 있다. RUNNING 이후 중지는 관리자
+    // 기능이라 이 체험자용 엔드포인트에서는 상태를 바꾸지 않고 현재 상태 그대로 응답한다.
+    if (isCancellableStatus(statusOf(execution))) {
       execution.cancelledAt = Date.now();
     }
     return HttpResponse.json<ApiResponse<ExecutionState>>({
