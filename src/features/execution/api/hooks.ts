@@ -1,9 +1,8 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 
-import { isTerminalStatus } from '../model/types';
+import { subscribeExecutionState } from '../lib/executionStream';
 import { cancelExecution, getExecutionState, requestExecution } from './executionApi';
-
-const POLL_INTERVAL_MS = 600;
 
 export function useRequestExecution() {
   return useMutation({ mutationFn: requestExecution });
@@ -14,15 +13,24 @@ export function useCancelExecution() {
 }
 
 /**
- * 실행 상태 폴링. 종료 상태(완료·실패·취소)가 되면 폴링을 멈춘다.
- * (명세: SSE 우선 검토, 지금은 폴링 — "재연결 시 현재 상태를 다시 조회" 를 만족)
+ * 실행 상태 구독 (명세: "Server → Web 실시간 갱신은 SSE를 사용한다"). 처음엔 REST로 한 번
+ * 조회하고, 이후 갱신은 SSE 구독이 밀어준다 — 재연결·화면 복구는 subscribeExecutionState 가
+ * 처리한다.
  */
 export function useExecutionState(executionId: string | null) {
-  return useQuery({
+  const queryClient = useQueryClient();
+  const query = useQuery({
     queryKey: ['execution', executionId],
     queryFn: () => getExecutionState(executionId as string),
     enabled: executionId !== null,
-    refetchInterval: (query) =>
-      isTerminalStatus(query.state.data?.status) ? false : POLL_INTERVAL_MS,
   });
+
+  useEffect(() => {
+    if (executionId === null) return;
+    return subscribeExecutionState(executionId, (state) => {
+      queryClient.setQueryData(['execution', executionId], state);
+    });
+  }, [executionId, queryClient]);
+
+  return query;
 }
