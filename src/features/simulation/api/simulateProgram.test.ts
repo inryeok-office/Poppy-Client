@@ -31,6 +31,7 @@ describe('simulateProgram (mock API)', () => {
     expect(result.passed).toBe(true);
     expect(result.totalDistanceM).toBe(2);
     expect(result.violations).toEqual([]);
+    expect(result.failedAtIndex).toBeUndefined();
   });
 
   it("'종료' 로 끝나지 않으면 통과하지 못한다", async () => {
@@ -63,6 +64,9 @@ describe('simulateProgram (mock API)', () => {
     expect(result.totalDistanceM).toBe(3);
     expect(result.violations[0]?.code).toBe('exceeds-safe-zone');
     expect(result.violations[0]?.message).toMatch(/안전 구역/);
+    // repeat(3){move 1m} 를 실제 실행 순서로 펼치면 [start, move, move, move, greet, end] —
+    // 4번째(세 번째 move)에서 누적 3m 로 2m 안전 구역을 처음 벗어난다.
+    expect(result.failedAtIndex).toBe(4);
   });
 
   it('반복 안 이동과 별도 이동 블록의 거리를 각각 더한다 (첫 값만 뽑지 않는다)', async () => {
@@ -93,6 +97,55 @@ describe('simulateProgram (mock API)', () => {
 
     expect(result.passed).toBe(false);
     expect(result.totalDistanceM).toBe(0);
+    expect(result.violations[0]?.code).toBe('invalid-values');
+    // count 가 무효해 실행 순서를 펼칠 수 없다 — 실패 위치는 알 수 없음
+    expect(result.failedAtIndex).toBeUndefined();
+  });
+
+  it("'앞으로' 이동도 '뒤로' 이동과 같은 총 이동 거리 계산에 포함된다", async () => {
+    const result = await simulateProgram({
+      program: program({
+        chain: [
+          { id: 'start-0', kind: 'start' },
+          { id: 'move-1', kind: 'move', distanceM: 1 },
+          { id: 'forward-0', kind: 'moveForward', distanceM: 1 },
+          { id: 'end-0', kind: 'end' },
+        ],
+      }),
+    });
+
+    expect(result.totalDistanceM).toBe(2);
+  });
+
+  it('회전(오른쪽·왼쪽)은 거리가 아니라 총 이동 거리 합산에 포함되지 않는다', async () => {
+    const result = await simulateProgram({
+      program: program({
+        chain: [
+          { id: 'start-0', kind: 'start' },
+          { id: 'move-1', kind: 'move', distanceM: 1 },
+          { id: 'turn-0', kind: 'turnRight', degrees: 90 },
+          { id: 'turn-1', kind: 'turnLeft', degrees: 90 },
+          { id: 'end-0', kind: 'end' },
+        ],
+      }),
+    });
+
+    expect(result.totalDistanceM).toBe(1);
+    expect(result.passed).toBe(true);
+  });
+
+  it('회전 각도가 허용 범위(1~90) 밖이면 서버가 거부한다', async () => {
+    const result = await simulateProgram({
+      program: program({
+        chain: [
+          { id: 'start-0', kind: 'start' },
+          { id: 'turn-0', kind: 'turnRight', degrees: 180 },
+          { id: 'end-0', kind: 'end' },
+        ],
+      }),
+    });
+
+    expect(result.passed).toBe(false);
     expect(result.violations[0]?.code).toBe('invalid-values');
   });
 

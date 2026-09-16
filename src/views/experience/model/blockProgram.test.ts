@@ -7,11 +7,13 @@ import {
   draftToProgram,
   dropOnCanvas,
   dropOnSlot,
+  hasBlockKind,
   isBlockProgramSnapshot,
   newBlock,
   serializeProgram,
   setBlockParam,
   totalTravelDistance,
+  unrollExecutionSteps,
   validateBlockProgram,
   type BlockNode,
   type BlockProgram,
@@ -244,5 +246,94 @@ describe('draftToProgram / isBlockProgramSnapshot', () => {
 describe('totalTravelDistance', () => {
   it('반복 횟수 × 중첩 이동 거리', () => {
     expect(totalTravelDistance(INITIAL_PROGRAM)).toBe(2);
+  });
+
+  it("'앞으로' 이동도 '뒤로' 이동과 같이 더하고, 회전은 더하지 않는다", () => {
+    const program: BlockProgram = {
+      stack: [
+        node('start', 'start-0'),
+        node('move', 'move-0', { distanceM: 1 }),
+        node('moveForward', 'forward-0', { distanceM: 2 }),
+        node('turnRight', 'turn-0', { degrees: 90 }),
+        node('end', 'end-0'),
+      ],
+      floating: [],
+    };
+    expect(totalTravelDistance(program)).toBe(3);
+  });
+});
+
+describe('newBlock — 새 이동·동작 블록 (기명서 Figma Slide 5 카탈로그)', () => {
+  it('moveForward 는 move 와 같은 거리 파라미터로 시작한다', () => {
+    expect(newBlock('moveForward')).toMatchObject({ kind: 'moveForward', distanceM: 1 });
+  });
+
+  it('turnRight·turnLeft 는 허용 최소 각도로 시작한다', () => {
+    expect(newBlock('turnRight')).toMatchObject({ kind: 'turnRight', degrees: 1 });
+    expect(newBlock('turnLeft')).toMatchObject({ kind: 'turnLeft', degrees: 1 });
+  });
+
+  it('정지·동작류(앉기 등)는 파라미터 없이 id·kind만 가진다', () => {
+    for (const kind of [
+      'stop',
+      'sit',
+      'standUp',
+      'heart',
+      'dance',
+      'rollOver',
+      'attack',
+    ] as const) {
+      const block = newBlock(kind);
+      expect(block.kind).toBe(kind);
+      expect(Object.keys(block).sort()).toEqual(['id', 'kind']);
+    }
+  });
+});
+
+describe('hasBlockKind — 시작·종료 중복 생성 방지 (inryeok-bot 리뷰: 팔레트에서 유일 블록을 또 만들면 안 됨)', () => {
+  it('스택에 있으면 찾는다', () => {
+    expect(hasBlockKind(connected, 'start')).toBe(true);
+    expect(hasBlockKind(connected, 'end')).toBe(true);
+  });
+
+  it('자유 블록(floating)에 있어도 찾는다', () => {
+    expect(hasBlockKind(INITIAL_PROGRAM, 'end')).toBe(true); // 종료가 떨어진 자유 블록으로만 있음
+  });
+
+  it('어디에도 없으면 false', () => {
+    expect(hasBlockKind(INITIAL_PROGRAM, 'wait')).toBe(false);
+  });
+});
+
+describe('unrollExecutionSteps — 시뮬레이션 결과 화면 "실행순서" (repeat 를 실제 실행 횟수만큼 펼침)', () => {
+  it('repeat 가 아닌 블록은 그대로 지나간다', () => {
+    const steps = unrollExecutionSteps([node('start', 'start-0'), node('end', 'end-0')]);
+    expect(steps.map((s) => s.kind)).toEqual(['start', 'end']);
+  });
+
+  it('repeat 의 body 를 count 번 펼친다', () => {
+    const steps = unrollExecutionSteps(INITIAL_PROGRAM.stack);
+    // start, repeat{move}×2, greet — repeat 자신은 사라지고 body(move)가 count(2)번 나온다
+    expect(steps.map((s) => s.kind)).toEqual(['start', 'move', 'move', 'greet']);
+  });
+
+  it('펼친 각 단계는 원래 body 블록의 값(파라미터)을 그대로 들고 있다', () => {
+    const program: BlockProgram = {
+      stack: [
+        node('start', 'start-0'),
+        node('repeat', 'repeat-0', {
+          count: 3,
+          body: [node('move', 'move-0', { distanceM: 2 })],
+        }),
+      ],
+      floating: [],
+    };
+    const steps = unrollExecutionSteps(program.stack);
+    expect(steps).toHaveLength(4); // start + move×3
+    expect(steps.slice(1)).toEqual([
+      { id: 'move-0', kind: 'move', distanceM: 2 },
+      { id: 'move-0', kind: 'move', distanceM: 2 },
+      { id: 'move-0', kind: 'move', distanceM: 2 },
+    ]);
   });
 });

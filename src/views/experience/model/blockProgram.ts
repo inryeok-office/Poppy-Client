@@ -18,19 +18,46 @@ import { LIMITS } from '@/features/simulation';
 import type { SerializedBlockNode, SerializedBlockProgram } from '@/features/simulation';
 import { sumOverBlockTree } from '@/shared/lib/blockTree';
 
-export type BlockKind = 'start' | 'repeat' | 'move' | 'greet' | 'wait' | 'end';
+export type BlockKind =
+  | 'start'
+  | 'repeat'
+  | 'move'
+  | 'moveForward'
+  | 'turnRight'
+  | 'turnLeft'
+  | 'stop'
+  | 'greet'
+  | 'sit'
+  | 'standUp'
+  | 'heart'
+  | 'dance'
+  | 'rollOver'
+  | 'attack'
+  | 'wait'
+  | 'end';
 
 // 서버(features/simulation LIMITS)와 같은 값을 그대로 가져다 쓴다 — 입력칸 min·max 가
 // 서버 허용 범위와 따로 놀다 어긋나는 걸 막는다.
 export const REPEAT_RANGE = LIMITS.repeatCount;
 export const MOVE_RANGE = LIMITS.moveDistance;
 export const WAIT_RANGE = LIMITS.waitSeconds;
+export const TURN_RANGE = LIMITS.turnDegrees;
 
 export type BlockNode =
   | { id: string; kind: 'start' }
   | { id: string; kind: 'greet' }
   | { id: string; kind: 'end' }
   | { id: string; kind: 'move'; distanceM: number }
+  | { id: string; kind: 'moveForward'; distanceM: number }
+  | { id: string; kind: 'turnRight'; degrees: number }
+  | { id: string; kind: 'turnLeft'; degrees: number }
+  | { id: string; kind: 'stop' }
+  | { id: string; kind: 'sit' }
+  | { id: string; kind: 'standUp' }
+  | { id: string; kind: 'heart' }
+  | { id: string; kind: 'dance' }
+  | { id: string; kind: 'rollOver' }
+  | { id: string; kind: 'attack' }
   | { id: string; kind: 'wait'; seconds: number }
   | { id: string; kind: 'repeat'; count: number; body: BlockNode[] };
 
@@ -63,7 +90,11 @@ function nextId(prefix: string): string {
 export function newBlock(kind: BlockKind): BlockNode {
   switch (kind) {
     case 'move':
-      return { id: nextId('move'), kind, distanceM: MOVE_RANGE.min };
+    case 'moveForward':
+      return { id: nextId(kind), kind, distanceM: MOVE_RANGE.min };
+    case 'turnRight':
+    case 'turnLeft':
+      return { id: nextId(kind), kind, degrees: TURN_RANGE.min };
     case 'wait':
       return { id: nextId('wait'), kind, seconds: WAIT_RANGE.min };
     case 'repeat':
@@ -187,7 +218,12 @@ export function deleteCarried(program: BlockProgram, pick: DragPick): BlockProgr
   return detachCarried(program, pick);
 }
 
-type BlockParamPatch = { count?: number; distanceM?: number; seconds?: number };
+type BlockParamPatch = {
+  count?: number;
+  distanceM?: number;
+  seconds?: number;
+  degrees?: number;
+};
 
 function containsId(nodes: BlockNode[], id: string): boolean {
   return nodes.some(
@@ -244,7 +280,24 @@ export function serializeProgram(program: BlockProgram): SerializedBlockProgram 
 
 // ── 초안(localStorage) 복원 ───────────────────────────────────────────────────
 
-const BLOCK_KINDS: readonly BlockKind[] = ['start', 'repeat', 'move', 'greet', 'wait', 'end'];
+const BLOCK_KINDS: readonly BlockKind[] = [
+  'start',
+  'repeat',
+  'move',
+  'moveForward',
+  'turnRight',
+  'turnLeft',
+  'stop',
+  'greet',
+  'sit',
+  'standUp',
+  'heart',
+  'dance',
+  'rollOver',
+  'attack',
+  'wait',
+  'end',
+];
 
 /** 블록 종류별 필수 필드까지 확인한다 — 손상된 스냅샷을 그대로 렌더하면 화면이 죽는다. */
 function isBlockNode(value: unknown): value is BlockNode {
@@ -255,7 +308,11 @@ function isBlockNode(value: unknown): value is BlockNode {
 
   switch (node.kind as BlockKind) {
     case 'move':
+    case 'moveForward':
       return typeof node.distanceM === 'number';
+    case 'turnRight':
+    case 'turnLeft':
+      return typeof node.degrees === 'number';
     case 'wait':
       return typeof node.seconds === 'number';
     case 'repeat':
@@ -288,6 +345,17 @@ function countKind(nodes: BlockNode[], kind: BlockKind): number {
     bodyOf,
     repeatCountOf: () => 1, // 구조적으로만 센다 — 반복 횟수를 곱하지 않는다
   });
+}
+
+/**
+ * program(스택 + 자유 블록) 어디든 해당 종류가 하나라도 있는지.
+ * 팔레트에서 시작·종료처럼 프로그램에 하나만 있어야 하는 블록을 중복 생성하지 못하게
+ * 막는 데 쓴다 — 중복되면 자동 저장 스냅샷 검증(isBlockProgramSnapshot)이 다음 복원 때
+ * 전체 초안을 거부해 작업이 통째로 사라진다.
+ */
+export function hasBlockKind(program: BlockProgram, kind: BlockKind): boolean {
+  const floatingBlocks = program.floating.flatMap((g) => g.blocks);
+  return countKind([...program.stack, ...floatingBlocks], kind) > 0;
 }
 
 /** repeat.body 안에(중첩 어디든) start·end 가 있으면 안 된다 — 중첩 드롭은 지원하지 않는다. */
@@ -370,11 +438,25 @@ export function validateBlockProgram(program: BlockProgram): BlockError[] {
   return errors;
 }
 
-/** 프로그램이 로봇을 움직이는 총 거리 (m). 명세: "제한을 우회하는 중첩·합산 값도 계산". */
+/** 프로그램이 로봇을 움직이는 총 거리 (m). 명세: "제한을 우회하는 중첩·합산 값도 계산".
+ *  회전(turnRight/turnLeft)은 거리가 아니라 각도라 합산에 포함하지 않는다. */
 export function totalTravelDistance(program: BlockProgram): number {
   return sumOverBlockTree(program.stack, {
-    valueOf: (node) => (node.kind === 'move' ? node.distanceM : 0),
+    valueOf: (node) => (node.kind === 'move' || node.kind === 'moveForward' ? node.distanceM : 0),
     bodyOf,
     repeatCountOf: (node) => (node.kind === 'repeat' ? node.count : 1),
+  });
+}
+
+/**
+ * repeat 를 실제 실행 횟수만큼 펼친 실행 순서 (시뮬레이션 결과 화면 "실행순서").
+ * 서버(features/simulation safety.ts)의 안전 구역 판정과 같은 펼치기 규칙을 쓴다 —
+ * 그래야 결과의 failedAtIndex 가 여기서 만든 목록의 몇 번째와 같은 블록을 가리킨다.
+ */
+export function unrollExecutionSteps(nodes: BlockNode[]): BlockNode[] {
+  return nodes.flatMap((node) => {
+    if (node.kind !== 'repeat') return [node];
+    const body = unrollExecutionSteps(node.body);
+    return Array.from({ length: node.count }, () => body).flat();
   });
 }

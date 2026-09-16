@@ -129,3 +129,91 @@ describe('블록 삭제 — 쓰레기통 드래그 (기명서)', () => {
     expect(within(canvas()).getByText('인사하기')).toBeInTheDocument();
   });
 });
+
+describe('카테고리 전환 — 이동·동작 블록 팔레트 (Figma Slide 5 카탈로그)', () => {
+  it('기본은 흐름 카테고리만 보이고, 다른 카테고리 블록은 없다', () => {
+    renderView();
+    expect(
+      screen.queryByRole('button', { name: '앞으로 이동 블록 꺼내기' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('이동 카테고리를 누르면 새 이동 블록(뒤로·앞으로·회전·정지)을 꺼낼 수 있다', () => {
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: '이동' }));
+
+    const forward = screen.getByRole('button', { name: '앞으로 이동 블록 꺼내기' });
+    drag(forward, STACK_X, slotCenterY(1));
+
+    expect(stackOrder()).toEqual([
+      'start-0',
+      expect.stringContaining('moveForward'),
+      'repeat-0',
+      'greet-0',
+    ]);
+    // 카테고리를 전환했으니 흐름 블록은 더 이상 안 보인다
+    expect(
+      screen.queryByRole('button', { name: '초 기다리기 블록 꺼내기' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('동작 카테고리를 누르면 새 동작 블록(춤추기 등)을 꺼낼 수 있다', () => {
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: '동작' }));
+
+    const dance = screen.getByRole('button', { name: '춤추기 블록 꺼내기' });
+    drag(dance, STACK_X, slotCenterY(1));
+
+    expect(stackOrder()).toEqual([
+      'start-0',
+      expect.stringContaining('dance'),
+      'repeat-0',
+      'greet-0',
+    ]);
+  });
+});
+
+describe('시작 카테고리 — 시작·종료 중복 생성 방지 (inryeok-bot 리뷰)', () => {
+  it('시작은 그림만 보여주고 팔레트에서 꺼낼 수 없다 (프로그램에 정확히 하나만 있어야 한다)', () => {
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: '시작' }));
+
+    const list = screen.getByRole('list', { name: '선택된 카테고리 블록' });
+    expect(
+      within(list).queryByRole('button', { name: '시작 블록 꺼내기' }),
+    ).not.toBeInTheDocument();
+    expect(within(list).getByText('시작')).toBeInTheDocument();
+  });
+
+  it('종료가 이미 있으면(기본 상태) 종료도 그림만 보여주고 꺼낼 수 없다', () => {
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: '시작' }));
+
+    const list = screen.getByRole('list', { name: '선택된 카테고리 블록' });
+    expect(
+      within(list).queryByRole('button', { name: '종료 블록 꺼내기' }),
+    ).not.toBeInTheDocument();
+    expect(within(list).getByText('종료')).toBeInTheDocument();
+  });
+
+  it('종료를 쓰레기통으로 지우면 그 뒤엔 팔레트에서 다시 꺼낼 수 있다', () => {
+    renderView();
+
+    // 기본 상태의 떨어진 종료를 쓰레기통에 드롭 — 프로그램에서 완전히 사라진다
+    drag(blockLi('종료'), TRASH_X, TRASH_Y);
+    expect(within(canvas()).queryByText('종료')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '시작' }));
+    const list = screen.getByRole('list', { name: '선택된 카테고리 블록' });
+    const endButton = within(list).getByRole('button', { name: '종료 블록 꺼내기' });
+
+    drag(endButton, STACK_X, slotCenterY(3));
+
+    expect(stackOrder()).toEqual([
+      'start-0',
+      'repeat-0',
+      'greet-0',
+      expect.stringContaining('end'),
+    ]);
+  });
+});

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 import {
   cancelExecution as cancelExecutionApi,
@@ -10,9 +11,15 @@ import {
   useRequestExecution,
 } from '@/features/execution';
 import { readLocalDraft, useAutoSaveProject, useSession } from '@/features/session';
-import { useSimulateProgram } from '@/features/simulation';
+import { useSimulateProgram, type SimulationResult } from '@/features/simulation';
 
 import { BlockDragProvider } from '../lib/useBlockDrag';
+import {
+  clearSimulationResult,
+  isResultForProgram,
+  readSimulationResult,
+  writeSimulationResult,
+} from '../lib/simulationResultStorage';
 import {
   INITIAL_PROGRAM,
   draftToProgram,
@@ -54,11 +61,21 @@ function initialProgram(): { program: BlockProgram; restoredDirty: boolean } {
 const AUTOSAVE_DEBOUNCE_MS = 600;
 
 export function ExperienceView() {
+  const router = useRouter();
   const [{ program: startProgram, restoredDirty }] = useState(initialProgram);
   const [program, setProgram] = useState<BlockProgram>(startProgram);
   const [executionId, setExecutionId] = useState<string | null>(null);
   // 초기화 후 늦게 도착한 실행 요청 onSuccess 가 오래된 실행 ID 를 되살리지 않게 한다.
   const runGeneration = useRef(0);
+
+  // 시뮬레이션 결과 화면(/experience/simulation)에서 돌아왔을 때 — 그 화면에 남긴 결과가
+  // 지금 이 program 을 대상으로 한 게 맞고(그 사이 편집 안 했으면) 통과였으면 이어 받는다.
+  // ExperienceView 는 라우트를 넘어갔다 오면 새로 마운트되어 simulation mutation 상태가
+  // 초기화되므로, 이 값 없이는 성공 직후에도 항상 BlockWorkspace(편집 화면)로 보인다.
+  const [restoredResult, setRestoredResult] = useState<SimulationResult | null>(() => {
+    const stored = readSimulationResult();
+    return isResultForProgram(stored, startProgram) && stored.result.passed ? stored.result : null;
+  });
 
   const session = useSession();
   const autoSave = useAutoSaveProject(session.data?.sessionId ?? null);
@@ -93,7 +110,7 @@ export function ExperienceView() {
   }, [program, saveProgram]);
   // ────────────────────────────────────────────────────────────────────────
 
-  const simulationResult = simulation.data;
+  const simulationResult = simulation.data ?? restoredResult ?? undefined;
   const simulationPassed = simulationResult?.passed === true;
   const simulationMessage = simulation.isError
     ? '시뮬레이션에 실패했어요. 잠시 후 다시 시도해 주세요.'
@@ -120,11 +137,27 @@ export function ExperienceView() {
   const invalidate = () => {
     simulation.reset();
     clearExecution();
+    clearSimulationResult();
+    setRestoredResult(null);
   };
 
   const runSimulation = () => {
     if (simulation.isPending || !blockValid) return;
-    simulation.mutate({ program: serializeProgram(program) });
+    simulation.mutate(
+      { program: serializeProgram(program) },
+      {
+        onSuccess: (result) => {
+          // 결과 화면(신규 라우트)이 이어받을 수 있게 program·result 스냅샷을 남긴다 —
+          // ExperienceView 는 라우트를 넘어가면 새로 마운트돼 이 mutation 상태를 잃는다.
+          // 저장이 실패하면(용량 초과 등) 이동하지 않는다 — 그 화면은 읽을 게 없어 곧장
+          // 돌아오면서 방금 끝난 결과가 안내 없이 사라진다. 대신 이 화면의 기존 인라인
+          // 안내(simulationMessage 등)로 계속 보여준다.
+          if (writeSimulationResult({ program, result })) {
+            router.push('/experience/simulation');
+          }
+        },
+      },
+    );
   };
 
   const requestRun = () => {
@@ -176,7 +209,7 @@ export function ExperienceView() {
       />
       <BlockDragProvider program={program} onChange={applyDrop}>
         <div className="flex flex-1">
-          <BlockPalette />
+          <BlockPalette program={program} />
           {simulationPassed ? (
             <RunReadyWorkspace
               program={program}
