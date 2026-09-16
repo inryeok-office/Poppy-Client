@@ -12,7 +12,6 @@ export const LIMITS = {
   repeatCount: { min: 1, max: 20 },
   moveDistance: { min: 1, max: 10 },
   waitSeconds: { min: 1, max: 60 },
-  turnDegrees: { min: 1, max: 90 },
 } as const;
 
 const inRange = (raw: unknown, { min, max }: { min: number; max: number }) => {
@@ -23,11 +22,7 @@ const inRange = (raw: unknown, { min, max }: { min: number; max: number }) => {
 function isValueValid(node: SerializedBlockNode): boolean {
   switch (node.kind) {
     case 'move':
-    case 'moveForward':
       return inRange(node.distanceM, LIMITS.moveDistance);
-    case 'turnRight':
-    case 'turnLeft':
-      return inRange(node.degrees, LIMITS.turnDegrees);
     case 'wait':
       return inRange(node.seconds, LIMITS.waitSeconds);
     case 'repeat':
@@ -49,38 +44,13 @@ function allValuesValid(nodes: SerializedBlockNode[]): boolean {
   return invalidCount === 0;
 }
 
-/** 반복 중첩까지 포함한 총 이동 거리 (명세: "제한을 우회하는 중첩·합산 값도 계산").
- *  회전(turnRight/turnLeft)은 거리가 아니라 각도라 합산에 포함하지 않는다. */
+/** 반복 중첩까지 포함한 총 이동 거리 (명세: "제한을 우회하는 중첩·합산 값도 계산"). */
 function totalDistance(nodes: SerializedBlockNode[]): number {
   return sumOverBlockTree(nodes, {
-    valueOf: (node) => (node.kind === 'move' || node.kind === 'moveForward' ? node.distanceM : 0),
+    valueOf: (node) => (node.kind === 'move' ? node.distanceM : 0),
     bodyOf,
     repeatCountOf: (node) => (node.kind === 'repeat' ? node.count : 1),
   });
-}
-
-/** repeat 를 실제 실행 횟수만큼 펼친다 (구조상 1개인 repeat 를 count 번 반복 실행한 순서). */
-function unroll(nodes: SerializedBlockNode[]): SerializedBlockNode[] {
-  return nodes.flatMap((node) => {
-    if (node.kind !== 'repeat') return [node];
-    const body = unroll(node.body);
-    return Array.from({ length: node.count }, () => body).flat();
-  });
-}
-
-/**
- * 안전 구역을 처음 벗어나는 실행 순서상 위치 (1-based, "N번째 블록에서 멈춤" 명세용).
- * 값이 유효할 때만 부른다 — count 가 무효하면 펼칠 수 없다.
- */
-function safeZoneBreachIndex(nodes: SerializedBlockNode[]): number | undefined {
-  let cumulative = 0;
-  const steps = unroll(nodes);
-  for (let i = 0; i < steps.length; i++) {
-    const step = steps[i];
-    if (step.kind === 'move' || step.kind === 'moveForward') cumulative += step.distanceM;
-    if (cumulative > SAFE_ZONE_M) return i + 1;
-  }
-  return undefined;
 }
 
 export type ProgramEvaluation = {
@@ -90,8 +60,6 @@ export type ProgramEvaluation = {
   withinSafeZone: boolean;
   /** 시뮬레이션·실제 실행을 모두 진행할 수 있는 상태인지 */
   runnable: boolean;
-  /** 안전 구역을 벗어난 실행 순서상 위치 (1-based) — 벗어나지 않았거나 값이 무효하면 없음. */
-  failedAtIndex?: number;
 };
 
 export function evaluateProgram(program: SerializedBlockProgram): ProgramEvaluation {
@@ -106,6 +74,5 @@ export function evaluateProgram(program: SerializedBlockProgram): ProgramEvaluat
     totalDistanceM,
     withinSafeZone,
     runnable: structurallyValid && valuesValid && withinSafeZone,
-    failedAtIndex: valuesValid && !withinSafeZone ? safeZoneBreachIndex(program.chain) : undefined,
   };
 }

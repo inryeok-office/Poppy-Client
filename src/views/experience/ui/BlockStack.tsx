@@ -1,12 +1,6 @@
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 
-import {
-  MOVE_RANGE,
-  REPEAT_RANGE,
-  TURN_RANGE,
-  WAIT_RANGE,
-  type BlockNode,
-} from '../model/blockProgram';
+import { MOVE_RANGE, REPEAT_RANGE, WAIT_RANGE, type BlockNode } from '../model/blockProgram';
 import { Block, BlockInput, CBlock } from './Block';
 
 // 블록 체인(program.stack / floating 그룹)을 그대로 렌더한다.
@@ -14,12 +8,7 @@ import { Block, BlockInput, CBlock } from './Block';
 // onBlockPointerDown 을 주면 start 를 뺀 블록이 드래그 핸들이 된다 (잡으면 아래 블록이 함께 딸려온다).
 // 슬롯 측정은 각 블록의 [data-block] 로 한다.
 
-export type BlockParamPatch = {
-  count?: number;
-  distanceM?: number;
-  seconds?: number;
-  degrees?: number;
-};
+export type BlockParamPatch = { count?: number; distanceM?: number; seconds?: number };
 
 type RenderOptions = {
   onParamChange?: (id: string, patch: BlockParamPatch) => void;
@@ -45,20 +34,6 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
       );
     case 'greet':
       return <Block color="action">인사하기</Block>;
-    case 'sit':
-      return <Block color="action">앉기</Block>;
-    case 'standUp':
-      return <Block color="action">일어서기</Block>;
-    case 'heart':
-      return <Block color="action">하트</Block>;
-    case 'dance':
-      return <Block color="action">춤추기</Block>;
-    case 'rollOver':
-      return <Block color="action">구르기</Block>;
-    case 'attack':
-      return <Block color="action">공격</Block>;
-    case 'stop':
-      return <Block color="move">정지</Block>;
     case 'wait':
       return (
         <Block color="flow">
@@ -84,48 +59,6 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
             aria-label="이동 거리 (미터)"
           />{' '}
           m 이동
-        </Block>
-      );
-    case 'moveForward':
-      return (
-        <Block color="move">
-          앞으로{' '}
-          <BlockInput
-            value={node.distanceM}
-            onChange={bind((distanceM) => ({ distanceM }))}
-            min={MOVE_RANGE.min}
-            max={MOVE_RANGE.max}
-            aria-label="이동 거리 (미터)"
-          />{' '}
-          m 이동
-        </Block>
-      );
-    case 'turnRight':
-      return (
-        <Block color="move">
-          오른쪽으로{' '}
-          <BlockInput
-            value={node.degrees}
-            onChange={bind((degrees) => ({ degrees }))}
-            min={TURN_RANGE.min}
-            max={TURN_RANGE.max}
-            aria-label="회전 각도 (도)"
-          />
-          ° 이동
-        </Block>
-      );
-    case 'turnLeft':
-      return (
-        <Block color="move">
-          왼쪽으로{' '}
-          <BlockInput
-            value={node.degrees}
-            onChange={bind((degrees) => ({ degrees }))}
-            min={TURN_RANGE.min}
-            max={TURN_RANGE.max}
-            aria-label="회전 각도 (도)"
-          />
-          ° 이동
         </Block>
       );
     case 'repeat':

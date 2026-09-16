@@ -39,10 +39,6 @@
   --color-primary: #ba7448; /* 채워진 강조 버튼 (활성 '시뮬레이션 하기' 등) */
   --color-primary-hover: #a8663d; /* primary 버튼 hover */
   --color-primary-active: #965a35; /* primary 버튼 눌림 */
-  --color-danger: #d96a5c; /* 시뮬레이션 실패 배지·테두리·강조 텍스트 */
-  --color-danger-bg: #ffefed; /* 시뮬레이션 실패 카드 배경 */
-  --color-success: #9dc88b; /* 시뮬레이션 성공 배지·테두리·강조 텍스트 */
-  --color-success-bg: rgba(233, 255, 238, 0.86); /* 시뮬레이션 성공 카드 배경 */
 }
 
 /* 카드 배경의 점 격자 (Figma Rectangle 5·7, 약 18px 간격). bg-card 와 함께 쓴다. */
