@@ -182,7 +182,7 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
         });
       };
 
-      const finish = () => {
+      const finish = (e: PointerEvent) => {
         teardownRef.current?.();
         const cur = stateRef.current;
         // 클론이 사라지기(commit(null)) 전에 실제 렌더 크기를 읽는다 — 블록마다 모양이
@@ -193,8 +193,14 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
         if (!cur?.active) return;
 
         const latestProgram = programRef.current;
+        // 삭제는 되돌릴 수 없으니 마지막 pointermove 시점의 낡은 overTrash 를 믿지 않고,
+        // pointerup 좌표로 다시 판정한다 — move 이벤트가 씹히면 실제 위치와 어긋날 수 있다.
+        const trashRect = trashRef.current?.getBoundingClientRect();
+        const overTrashAtDrop = trashRect
+          ? isNearRect(e.clientX, e.clientY, trashRect, TRASH_HIT_MARGIN_PX)
+          : false;
         // 삭제 감지 영역은 스냅보다 먼저 확인한다 — 쓰레기통 위에서 놓았는데 스냅되면 안 된다.
-        if (cur.overTrash) {
+        if (overTrashAtDrop) {
           onChange(deleteCarried(latestProgram, cur.pick));
           return;
         }
