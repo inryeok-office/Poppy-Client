@@ -1,6 +1,6 @@
 'use client';
 
-import { newBlock } from '../model/blockProgram';
+import { hasBlockKind, newBlock, type BlockProgram } from '../model/blockProgram';
 import { useBlockDrag } from '../lib/useBlockDrag';
 import { Block, BlockInput, CBlock } from './Block';
 
@@ -19,8 +19,15 @@ const CATEGORIES = [
 
 const SELECTED_CATEGORY = '흐름';
 
-export function BlockPalette() {
+type BlockPaletteProps = {
+  /** 종료가 이미 있는지 확인용 — 쓰레기통으로 지운 뒤 다시 꺼낼 수 있어야 한다(기명서
+   *  "블록 삭제"). 카테고리 전환은 이 화면 범위 밖이라, 흐름 목록 안에 조건부로 끼워 넣는다. */
+  program: BlockProgram;
+};
+
+export function BlockPalette({ program }: BlockPaletteProps) {
   const { startDrag } = useBlockDrag();
+  const endExists = hasBlockKind(program, 'end');
 
   return (
     <aside className="flex shrink-0" aria-label="블록 팔레트">
@@ -80,6 +87,31 @@ export function BlockPalette() {
             />
           </div>
         </li>
+        {/* 종료는 프로그램에 많아야 하나 — 쓰레기통으로 지운 뒤(기명서 "블록 삭제")에는
+            다시 꺼낼 방법이 있어야 한다. 이미 있으면(스택이든 자유 블록이든) 중복 생성을
+            막기 위해 그림만 보여준다. */}
+        {endExists ? (
+          <li>
+            <Block color="start" variant="cap">
+              종료
+            </Block>
+          </li>
+        ) : (
+          <li>
+            <div
+              role="button"
+              aria-label="종료 블록 꺼내기"
+              onPointerDown={(event) =>
+                startDrag({ origin: 'palette', node: newBlock('end') }, event)
+              }
+              className="inline-block cursor-grab touch-none active:cursor-grabbing"
+            >
+              <Block color="start" variant="cap">
+                종료
+              </Block>
+            </div>
+          </li>
+        )}
       </ul>
     </aside>
   );

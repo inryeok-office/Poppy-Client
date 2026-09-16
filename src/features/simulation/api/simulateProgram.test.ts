@@ -96,6 +96,24 @@ describe('simulateProgram (mock API)', () => {
     expect(result.violations[0]?.code).toBe('invalid-values');
   });
 
+  it('알 수 없는(지원 종료된) 블록 kind 는 값 검증을 우회하지 못하고 거부된다 (inryeok-bot 리뷰)', async () => {
+    // 예: 지원 종료된 구버전 moveForward 요청 — 알 수 없는 kind 를 값 검증 없이 통과시키면
+    // 안전 구역 계산에서도 빠져 위반을 놓칠 수 있다.
+    const unknownNode = {
+      id: 'legacy-0',
+      kind: 'moveForward',
+      distanceM: 999,
+    } as unknown as SerializedBlockNode;
+    const result = await simulateProgram({
+      program: program({
+        chain: [{ id: 'start-0', kind: 'start' }, unknownNode, { id: 'end-0', kind: 'end' }],
+      }),
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.violations[0]?.code).toBe('invalid-values');
+  });
+
   it('서버 오류는 ApiError 로 변환된다', async () => {
     server.use(http.post('*/api/simulations', () => new HttpResponse(null, { status: 500 })));
 

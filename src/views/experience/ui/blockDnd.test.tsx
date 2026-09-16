@@ -129,3 +129,29 @@ describe('블록 삭제 — 쓰레기통 드래그 (기명서)', () => {
     expect(within(canvas()).getByText('인사하기')).toBeInTheDocument();
   });
 });
+
+describe('종료 블록 팔레트 복구 (inryeok-bot 리뷰: 쓰레기통으로 지우면 다시 꺼낼 방법이 있어야 함)', () => {
+  it('종료가 이미 있으면(기본 상태) 팔레트에서 그림만 보이고 꺼낼 수 없다', () => {
+    renderView();
+
+    expect(screen.queryByRole('button', { name: '종료 블록 꺼내기' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('종료').length).toBeGreaterThan(0);
+  });
+
+  it('종료를 쓰레기통으로 지우면 팔레트에서 다시 꺼낼 수 있다', () => {
+    renderView();
+
+    drag(blockLi('종료'), TRASH_X, TRASH_Y);
+    expect(within(canvas()).queryByText('종료')).not.toBeInTheDocument();
+
+    const endButton = screen.getByRole('button', { name: '종료 블록 꺼내기' });
+    drag(endButton, STACK_X, slotCenterY(3));
+
+    expect(stackOrder()).toEqual([
+      'start-0',
+      'repeat-0',
+      'greet-0',
+      expect.stringContaining('end'),
+    ]);
+  });
+});

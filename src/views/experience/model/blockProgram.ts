@@ -290,6 +290,17 @@ function countKind(nodes: BlockNode[], kind: BlockKind): number {
   });
 }
 
+/**
+ * program(스택 + 자유 블록) 어디든 해당 종류가 하나라도 있는지.
+ * 팔레트에서 종료처럼 프로그램에 많아야 하나 있어야 하는 블록을 중복 생성하지 못하게
+ * 막는 데 쓴다 — 중복되면 자동 저장 스냅샷 검증(isBlockProgramSnapshot)이 다음 복원 때
+ * 전체 초안을 거부해 작업이 통째로 사라진다.
+ */
+export function hasBlockKind(program: BlockProgram, kind: BlockKind): boolean {
+  const floatingBlocks = program.floating.flatMap((g) => g.blocks);
+  return countKind([...program.stack, ...floatingBlocks], kind) > 0;
+}
+
 /** repeat.body 안에(중첩 어디든) start·end 가 있으면 안 된다 — 중첩 드롭은 지원하지 않는다. */
 function hasNestedStartOrEnd(nodes: BlockNode[]): boolean {
   return nodes.some(

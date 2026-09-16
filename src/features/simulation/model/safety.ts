@@ -27,8 +27,13 @@ function isValueValid(node: SerializedBlockNode): boolean {
       return inRange(node.seconds, LIMITS.waitSeconds);
     case 'repeat':
       return inRange(node.count, LIMITS.repeatCount);
+    case 'start':
+    case 'greet':
+    case 'end':
+      return true; // 파라미터가 없는 블록 — 값 검증 대상이 아니다
     default:
-      return true;
+      // 알 수 없는(지원 종료됐거나 조작된) kind — 값 검증을 우회하지 못하게 명시적으로 거부한다.
+      return false;
   }
 }
 
