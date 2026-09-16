@@ -13,6 +13,14 @@ export function isTerminalStatus(status: ExecutionStatus | undefined): boolean {
   return status !== undefined && TERMINAL_STATUSES.includes(status);
 }
 
+/** 체험자가 취소할 수 있는 상태 (명세: "체험자는 QUEUED·ASSIGNED에서만 취소할 수 있다.
+ *  RUNNING 이후 중지는 관리자 기능으로 처리한다"). */
+export const CANCELLABLE_STATUSES: ExecutionStatus[] = ['queued', 'assigned'];
+
+export function isCancellableStatus(status: ExecutionStatus | undefined): boolean {
+  return status !== undefined && CANCELLABLE_STATUSES.includes(status);
+}
+
 export type RequestExecutionRequest = {
   program: SerializedBlockProgram;
 };

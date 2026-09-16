@@ -1,4 +1,4 @@
-import type { ExecutionStatus } from '@/features/execution';
+import { isCancellableStatus, type ExecutionStatus } from '@/features/execution';
 
 import { useBlockDrag } from '../lib/useBlockDrag';
 import type { BlockProgram } from '../model/blockProgram';
@@ -50,6 +50,8 @@ export function RunReadyWorkspace({
   const { registerCanvas, registerStack } = useBlockDrag();
   const inProgress =
     executionStatus === 'queued' || executionStatus === 'assigned' || executionStatus === 'running';
+  // 명세: 체험자는 QUEUED·ASSIGNED 에서만 취소할 수 있다. RUNNING 이후 중지는 관리자 기능.
+  const cancellable = isCancellableStatus(executionStatus ?? undefined);
   const busy = requesting || inProgress;
   const hint = requesting
     ? '실행을 요청하고 있어요…'
@@ -73,10 +75,13 @@ export function RunReadyWorkspace({
           )}
           {requesting ? (
             <PillButton aria-disabled>요청 중…</PillButton>
-          ) : inProgress ? (
+          ) : cancellable ? (
             <PillButton variant="primary" onClick={onStop}>
               실행 중지
             </PillButton>
+          ) : executionStatus === 'running' ? (
+            // 명세: RUNNING 이후 중지는 관리자 기능 — 체험자 화면엔 중지 버튼을 보여주지 않는다.
+            <PillButton aria-disabled>실행 중…</PillButton>
           ) : executionStatus === 'completed' ? (
             <PillButton aria-disabled>완료</PillButton>
           ) : (
