@@ -13,6 +13,7 @@ import {
   serializeProgram,
   setBlockParam,
   totalTravelDistance,
+  unrollExecutionSteps,
   validateBlockProgram,
   type BlockNode,
   type BlockProgram,
@@ -301,5 +302,38 @@ describe('hasBlockKind — 시작·종료 중복 생성 방지 (inryeok-bot 리�
 
   it('어디에도 없으면 false', () => {
     expect(hasBlockKind(INITIAL_PROGRAM, 'wait')).toBe(false);
+  });
+});
+
+describe('unrollExecutionSteps — 시뮬레이션 결과 화면 "실행순서" (repeat 를 실제 실행 횟수만큼 펼침)', () => {
+  it('repeat 가 아닌 블록은 그대로 지나간다', () => {
+    const steps = unrollExecutionSteps([node('start', 'start-0'), node('end', 'end-0')]);
+    expect(steps.map((s) => s.kind)).toEqual(['start', 'end']);
+  });
+
+  it('repeat 의 body 를 count 번 펼친다', () => {
+    const steps = unrollExecutionSteps(INITIAL_PROGRAM.stack);
+    // start, repeat{move}×2, greet — repeat 자신은 사라지고 body(move)가 count(2)번 나온다
+    expect(steps.map((s) => s.kind)).toEqual(['start', 'move', 'move', 'greet']);
+  });
+
+  it('펼친 각 단계는 원래 body 블록의 값(파라미터)을 그대로 들고 있다', () => {
+    const program: BlockProgram = {
+      stack: [
+        node('start', 'start-0'),
+        node('repeat', 'repeat-0', {
+          count: 3,
+          body: [node('move', 'move-0', { distanceM: 2 })],
+        }),
+      ],
+      floating: [],
+    };
+    const steps = unrollExecutionSteps(program.stack);
+    expect(steps).toHaveLength(4); // start + move×3
+    expect(steps.slice(1)).toEqual([
+      { id: 'move-0', kind: 'move', distanceM: 2 },
+      { id: 'move-0', kind: 'move', distanceM: 2 },
+      { id: 'move-0', kind: 'move', distanceM: 2 },
+    ]);
   });
 });

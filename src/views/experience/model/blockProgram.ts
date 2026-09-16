@@ -447,3 +447,16 @@ export function totalTravelDistance(program: BlockProgram): number {
     repeatCountOf: (node) => (node.kind === 'repeat' ? node.count : 1),
   });
 }
+
+/**
+ * repeat 를 실제 실행 횟수만큼 펼친 실행 순서 (시뮬레이션 결과 화면 "실행순서").
+ * 서버(features/simulation safety.ts)의 안전 구역 판정과 같은 펼치기 규칙을 쓴다 —
+ * 그래야 결과의 failedAtIndex 가 여기서 만든 목록의 몇 번째와 같은 블록을 가리킨다.
+ */
+export function unrollExecutionSteps(nodes: BlockNode[]): BlockNode[] {
+  return nodes.flatMap((node) => {
+    if (node.kind !== 'repeat') return [node];
+    const body = unrollExecutionSteps(node.body);
+    return Array.from({ length: node.count }, () => body).flat();
+  });
+}

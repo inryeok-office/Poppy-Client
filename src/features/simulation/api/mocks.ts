@@ -53,6 +53,7 @@ export const simulationHandlers = [
       normalizedCommandCount: countCommands(program.chain),
       totalDistanceM: evaluation.totalDistanceM,
       violations,
+      failedAtIndex: evaluation.failedAtIndex,
       notes: passed ? ['실제 물리 결과와 차이가 있을 수 있어요.'] : [],
     };
 
