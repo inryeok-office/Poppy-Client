@@ -1,8 +1,16 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
-import { afterAll, afterEach, beforeAll } from 'vitest';
+import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 
 import { server } from '@/shared/api/msw/server';
+import { mockRouter, resetMockRouter } from '@/shared/testing/routerMock';
+
+// next/navigation 의 useRouter 는 실제 App Router 트리 없이는 죽는다 — 전역으로 대체한다.
+vi.mock('next/navigation', () => ({
+  useRouter: () => mockRouter,
+  usePathname: () => '/experience',
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 // jsdom엔 matchMedia가 없다. matchMedia에 의존하는 라이브러리(토스트 등)를 위해 최소 구현을 채운다.
 if (!window.matchMedia) {
@@ -26,8 +34,10 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => {
   server.resetHandlers();
   cleanup();
+  resetMockRouter();
   try {
     window.localStorage.clear();
+    window.sessionStorage.clear();
   } catch {
     // 무시
   }

@@ -59,6 +59,30 @@ function totalDistance(nodes: SerializedBlockNode[]): number {
   });
 }
 
+/** repeat 를 실제 실행 횟수만큼 펼친다 (구조상 1개인 repeat 를 count 번 반복 실행한 순서). */
+function unroll(nodes: SerializedBlockNode[]): SerializedBlockNode[] {
+  return nodes.flatMap((node) => {
+    if (node.kind !== 'repeat') return [node];
+    const body = unroll(node.body);
+    return Array.from({ length: node.count }, () => body).flat();
+  });
+}
+
+/**
+ * 안전 구역을 처음 벗어나는 실행 순서상 위치 (1-based, "N번째 블록에서 멈춤" 명세용).
+ * 값이 유효할 때만 부른다 — count 가 무효하면 펼칠 수 없다.
+ */
+function safeZoneBreachIndex(nodes: SerializedBlockNode[]): number | undefined {
+  let cumulative = 0;
+  const steps = unroll(nodes);
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    if (step.kind === 'move' || step.kind === 'moveForward') cumulative += step.distanceM;
+    if (cumulative > SAFE_ZONE_M) return i + 1;
+  }
+  return undefined;
+}
+
 export type ProgramEvaluation = {
   structurallyValid: boolean;
   valuesValid: boolean;
@@ -66,6 +90,8 @@ export type ProgramEvaluation = {
   withinSafeZone: boolean;
   /** 시뮬레이션·실제 실행을 모두 진행할 수 있는 상태인지 */
   runnable: boolean;
+  /** 안전 구역을 벗어난 실행 순서상 위치 (1-based) — 벗어나지 않았거나 값이 무효하면 없음. */
+  failedAtIndex?: number;
 };
 
 export function evaluateProgram(program: SerializedBlockProgram): ProgramEvaluation {
@@ -80,5 +106,6 @@ export function evaluateProgram(program: SerializedBlockProgram): ProgramEvaluat
     totalDistanceM,
     withinSafeZone,
     runnable: structurallyValid && valuesValid && withinSafeZone,
+    failedAtIndex: valuesValid && !withinSafeZone ? safeZoneBreachIndex(program.chain) : undefined,
   };
 }
