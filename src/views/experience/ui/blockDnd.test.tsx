@@ -133,6 +133,8 @@ describe('블록 삭제 — 쓰레기통 드래그 (기명서)', () => {
 describe('종료 블록 팔레트 복구 (inryeok-bot 리뷰: 쓰레기통으로 지우면 다시 꺼낼 방법이 있어야 함)', () => {
   it('종료가 이미 있으면(기본 상태) 팔레트에서 그림만 보이고 꺼낼 수 없다', () => {
     renderView();
+    // 종료는 '시작' 카테고리에 있다 (팔레트 카테고리 전환 — #28)
+    fireEvent.click(screen.getByRole('button', { name: '시작' }));
 
     expect(screen.queryByRole('button', { name: '종료 블록 꺼내기' })).not.toBeInTheDocument();
     expect(screen.getAllByText('종료').length).toBeGreaterThan(0);
@@ -144,6 +146,7 @@ describe('종료 블록 팔레트 복구 (inryeok-bot 리뷰: 쓰레기통으로
     drag(blockLi('종료'), TRASH_X, TRASH_Y);
     expect(within(canvas()).queryByText('종료')).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: '시작' }));
     const endButton = screen.getByRole('button', { name: '종료 블록 꺼내기' });
     drag(endButton, STACK_X, slotCenterY(3));
 

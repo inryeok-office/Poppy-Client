@@ -151,30 +151,22 @@ export function BlockPalette({ program }: BlockPaletteProps) {
           <>
             <PaletteItem kind="move" ariaLabel="뒤로 이동 블록 꺼내기">
               <Block color="move">
-                뒤로{' '}
-                <BlockInput />
-                {' '}m 이동
+                뒤로 <BlockInput /> m 이동
               </Block>
             </PaletteItem>
             <PaletteItem kind="moveForward" ariaLabel="앞으로 이동 블록 꺼내기">
               <Block color="move">
-                앞으로{' '}
-                <BlockInput />
-                {' '}m 이동
+                앞으로 <BlockInput /> m 이동
               </Block>
             </PaletteItem>
             <PaletteItem kind="rotateRight" ariaLabel="오른쪽으로 회전 블록 꺼내기">
               <Block color="move">
-                오른쪽으로{' '}
-                <BlockInput />
-                {' '}° 이동
+                오른쪽으로 <BlockInput /> ° 이동
               </Block>
             </PaletteItem>
             <PaletteItem kind="rotateLeft" ariaLabel="왼쪽으로 회전 블록 꺼내기">
               <Block color="move">
-                왼쪽으로{' '}
-                <BlockInput />
-                {' '}° 이동
+                왼쪽으로 <BlockInput /> ° 이동
               </Block>
             </PaletteItem>
             <PaletteItem kind="stop" ariaLabel="정지 블록 꺼내기">

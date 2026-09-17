@@ -72,6 +72,19 @@ export function toServerBlockProgram(program: SerializedBlockProgram): ServerBlo
         };
       case 'greet':
         throw new Error('The Server block contract does not support the GREET block');
+      case 'moveForward':
+      case 'rotateLeft':
+      case 'rotateRight':
+      case 'stop':
+      case 'sit':
+      case 'standUp':
+      case 'heart':
+      case 'dance':
+      case 'roll':
+      case 'attack':
+        throw new Error(
+          `The Server block contract does not support the ${node.kind.toUpperCase()} block`,
+        );
     }
   };
 
