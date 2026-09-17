@@ -175,6 +175,56 @@ describe('ExperienceView', () => {
     expect(screen.queryByText('튜토리얼')).not.toBeInTheDocument();
   });
 
+  it('시뮬레이션 직전 아직 자동 저장되지 않은 편집이 있으면, 먼저 저장한 최신 버전으로 통과 기록을 남긴다 (코드리뷰: 버전 어긋남 방지)', async () => {
+    let nextVersion = 0;
+    const savedRepeatCounts: number[] = [];
+    let simulationPassVersion: number | null = null;
+    server.use(
+      http.post('*/api/v1/sessions/:sessionId/block-revisions', async ({ request }) => {
+        const body = (await request.json()) as {
+          document: { blocks: Array<{ type: string; parameters?: { count?: number } }> };
+        };
+        const repeatNode = body.document.blocks.find((n) => n.type === 'REPEAT');
+        savedRepeatCounts.push(repeatNode?.parameters?.count ?? -1);
+        nextVersion += 1;
+        return HttpResponse.json({
+          success: true,
+          data: { sessionId: 'session-test', blockVersion: nextVersion },
+          error: null,
+        });
+      }),
+      http.post('*/api/v1/sessions/:sessionId/simulation-passes', async ({ request }) => {
+        const body = (await request.json()) as { blockVersion: number };
+        simulationPassVersion = body.blockVersion;
+        return HttpResponse.json({
+          success: true,
+          data: {
+            sessionId: 'session-test',
+            blockVersion: body.blockVersion,
+            passedAt: new Date().toISOString(),
+          },
+          error: null,
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderView();
+
+    connectEndBlock(); // 종료 연결 → 첫 자동 저장 (버전 1, 반복 횟수 2)
+    await waitFor(() => expect(savedRepeatCounts).toEqual([2]), { timeout: 3000 });
+
+    // 반복 횟수를 1로 바꾼다 — 600ms 디바운스가 끝나기 전에 바로 시뮬레이션한다
+    fireEvent.change(screen.getByRole('spinbutton', { name: '반복 횟수' }), {
+      target: { value: '1' },
+    });
+    await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
+
+    await waitFor(() => expect(simulationPassVersion).not.toBeNull(), { timeout: 3000 });
+    // 디바운스를 기다리지 않고 바로 저장돼, 통과 기록이 방금 편집한(반복 1회) 버전을 가리킨다
+    expect(savedRepeatCounts).toEqual([2, 1]);
+    expect(simulationPassVersion).toBe(2);
+  });
+
   it('이동 거리를 늘려 안전 구역을 벗어나면 위반 안내가 뜨고 통과하지 못한다', async () => {
     const user = userEvent.setup();
     renderView();

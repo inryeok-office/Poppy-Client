@@ -74,7 +74,12 @@ export function newBlock(kind: BlockKind): BlockNode {
   }
 }
 
-/** Figma Slide 2 상태 — '종료' 블록이 스택 밖(캔버스 x325 y174)에 놓여 있다. */
+/**
+ * Figma Slide 2 상태 — '종료' 블록이 스택 밖(캔버스 x325 y174)에 놓여 있다.
+ * 원래 Figma 데모엔 이 다음에 '인사하기'(greet)가 있었지만, 실제 Poppy-Server 블록 계약에
+ * greet 가 없어(toServerBlockProgram 이 거부) 그 상태로 기본 프로그램을 두면 첫 자동 저장부터
+ * 실패한다(코드리뷰 발견). 서버가 지원할 때까지 기본 프로그램에서는 뺀다.
+ */
 export const INITIAL_PROGRAM: BlockProgram = {
   stack: [
     { id: 'start-0', kind: 'start' },
@@ -84,7 +89,6 @@ export const INITIAL_PROGRAM: BlockProgram = {
       count: 2,
       body: [{ id: 'move-0', kind: 'move', distanceM: 1 }],
     },
-    { id: 'greet-0', kind: 'greet' },
   ],
   floating: [{ id: 'float-end-0', x: 325, y: 174, blocks: [{ id: 'end-0', kind: 'end' }] }],
 };
@@ -348,7 +352,11 @@ export function draftToProgram(snapshot: unknown): BlockProgram {
 
 // ── 검증 · 이동 거리 ──────────────────────────────────────────────────────────
 
-export type BlockErrorCode = 'disconnected-block' | 'missing-end';
+export type BlockErrorCode = 'disconnected-block' | 'missing-end' | 'unsupported-block';
+
+/** Poppy-Server 블록 계약이 아직 지원하지 않는 종류 (toServerBlockProgram 참고 — greet 는
+ *  서버에 대응 타입이 없어 저장 시 거부된다). 여기 없는 종류만 저장·시뮬레이션을 진행한다. */
+const SERVER_UNSUPPORTED_KINDS: readonly BlockKind[] = ['greet'];
 
 export type BlockError = {
   code: BlockErrorCode;
@@ -375,6 +383,16 @@ export function validateBlockProgram(program: BlockProgram): BlockError[] {
     errors.push({
       code: 'missing-end',
       message: '‘종료’ 블록을 연결해 프로그램을 끝내 주세요.',
+    });
+  }
+
+  const floatingBlocks = program.floating.flatMap((g) => g.blocks);
+  const allNodes = [...program.stack, ...floatingBlocks];
+  const unsupportedKind = SERVER_UNSUPPORTED_KINDS.find((kind) => countKind(allNodes, kind) > 0);
+  if (unsupportedKind) {
+    errors.push({
+      code: 'unsupported-block',
+      message: '아직 로봇 실행에서 지원되지 않는 블록이 있어요. 빼주세요.',
     });
   }
 

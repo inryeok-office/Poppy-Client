@@ -142,19 +142,22 @@ export function ExperienceView() {
   const runSimulation = async () => {
     if (simulation.isPending || !blockValid) return;
     let currentVersion = projectVersion;
-    if (session.data && currentVersion === 0) {
+    // 아직 한 번도 저장 안 됐거나(버전 0), 마지막으로 저장한 프로그램과 지금 화면이 다르면
+    // (600ms 자동 저장 debounce 가 아직 안 끝났을 수 있다) 지금 바로 저장해 그 버전을 쓴다.
+    // 안 그러면 시뮬레이션은 최신 프로그램으로 통과했는데 통과 기록은 그 이전(구버전)에
+    // 남아, 실제 실행이 방금 검증한 것과 다른 이전 버전으로 나갈 수 있다(코드리뷰 발견).
+    if (session.data && (currentVersion === 0 || program !== savedProgramRef.current)) {
+      savedProgramRef.current = program;
       saveProgram(serializeProgram(program), program);
       currentVersion = await flushSave();
     }
 
     const result = await simulation.mutateAsync({ program: serializeProgram(program) });
-    if (result.passed && session.data) {
-      if (currentVersion > 0) {
-        await simulationPass.mutateAsync({
-          sessionId: session.data.sessionId,
-          blockVersion: currentVersion,
-        });
-      }
+    if (result.passed && session.data && currentVersion > 0) {
+      await simulationPass.mutateAsync({
+        sessionId: session.data.sessionId,
+        blockVersion: currentVersion,
+      });
     }
   };
 

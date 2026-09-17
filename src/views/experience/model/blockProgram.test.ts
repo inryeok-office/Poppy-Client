@@ -23,7 +23,7 @@ const node = (
   extra: Record<string, unknown> = {},
 ): BlockNode => ({ id, kind, ...extra }) as BlockNode;
 
-// 시작 → 반복{이동} → 인사 → 종료 (연결 완료)
+// 시작 → 반복{이동} → 종료 (연결 완료)
 const connected: BlockProgram = {
   stack: [...INITIAL_PROGRAM.stack, node('end', 'end-0')],
   floating: [],
@@ -45,12 +45,35 @@ describe('validateBlockProgram', () => {
     };
     expect(validateBlockProgram(program).map((e) => e.code)).toContain('disconnected-block');
   });
+
+  it("Server 가 지원하지 않는 'greet' 블록이 스택에 있으면 unsupported-block 오류 (코드리뷰: 기본 프로그램에 있던 greet 가 자동 저장을 실패시킴)", () => {
+    const program: BlockProgram = {
+      stack: [node('start', 'start-0'), node('greet', 'greet-0'), node('end', 'end-0')],
+      floating: [],
+    };
+    expect(validateBlockProgram(program).map((e) => e.code)).toContain('unsupported-block');
+  });
+
+  it("자유 블록으로 떠 있는 'greet' 도 unsupported-block 오류를 낸다", () => {
+    const program: BlockProgram = {
+      stack: [node('start', 'start-0'), node('end', 'end-0')],
+      floating: [{ id: 'f1', x: 10, y: 10, blocks: [node('greet', 'greet-1')] }],
+    };
+    expect(validateBlockProgram(program).map((e) => e.code)).toContain('unsupported-block');
+  });
+
+  it('greet 가 없으면 unsupported-block 오류가 없다 (기본 프로그램 포함)', () => {
+    expect(validateBlockProgram(connected).map((e) => e.code)).not.toContain('unsupported-block');
+    expect(validateBlockProgram(INITIAL_PROGRAM).map((e) => e.code)).not.toContain(
+      'unsupported-block',
+    );
+  });
 });
 
 describe('carriedBlocks — 아래에 연결된 블록이 함께 딸려온다', () => {
   it('스택 블록을 잡으면 그 아래 블록이 모두 딸려온다', () => {
     const carried = carriedBlocks(connected, { origin: 'stack', nodeId: 'repeat-0' });
-    expect(carried.map((b) => b.kind)).toEqual(['repeat', 'greet', 'end']);
+    expect(carried.map((b) => b.kind)).toEqual(['repeat', 'end']);
   });
 
   it('start 는 잡을 수 없다', () => {
@@ -84,9 +107,9 @@ describe('dropOnSlot — 스냅 연결', () => {
   });
 
   it('스택 블록을 잡아 딸려온 체인을 다른 슬롯으로 옮긴다', () => {
-    // [start, repeat, greet, end] 에서 greet 이하(greet,end)를 슬롯 1로
-    const result = dropOnSlot(connected, { origin: 'stack', nodeId: 'greet-0' }, 1);
-    expect(result.stack.map((b) => b.kind)).toEqual(['start', 'greet', 'end', 'repeat']);
+    // [start, repeat, end] 에서 end 를 슬롯 1로
+    const result = dropOnSlot(connected, { origin: 'stack', nodeId: 'end-0' }, 1);
+    expect(result.stack.map((b) => b.kind)).toEqual(['start', 'end', 'repeat']);
   });
 });
 
@@ -100,10 +123,10 @@ describe('dropOnCanvas — 스냅 밖: 놓은 자리에 둔다', () => {
   });
 
   it('스택 블록 체인을 떼어내 캔버스에 둔다', () => {
-    const result = dropOnCanvas(connected, { origin: 'stack', nodeId: 'greet-0' }, 300, 100);
+    const result = dropOnCanvas(connected, { origin: 'stack', nodeId: 'end-0' }, 300, 100);
     expect(result.stack.map((b) => b.kind)).toEqual(['start', 'repeat']);
     const group = result.floating.at(-1);
-    expect(group?.blocks.map((b) => b.kind)).toEqual(['greet', 'end']);
+    expect(group?.blocks.map((b) => b.kind)).toEqual(['end']);
     expect(group).toMatchObject({ x: 300, y: 100 });
   });
 
@@ -116,9 +139,9 @@ describe('dropOnCanvas — 스냅 밖: 놓은 자리에 둔다', () => {
 
 describe('deleteCarried — 쓰레기통 드롭 (기명서 "블록 삭제")', () => {
   it('스택 블록을 잡아 지우면 그 아래 연결된 블록도 함께 사라진다', () => {
-    // [start, repeat, greet, end] 에서 greet 을 잡으면 greet·end 가 함께 지워진다
-    const result = deleteCarried(connected, { origin: 'stack', nodeId: 'greet-0' });
-    expect(result.stack.map((b) => b.kind)).toEqual(['start', 'repeat']);
+    // [start, repeat, end] 에서 repeat 을 잡으면 repeat·end 가 함께 지워진다
+    const result = deleteCarried(connected, { origin: 'stack', nodeId: 'repeat-0' });
+    expect(result.stack.map((b) => b.kind)).toEqual(['start']);
   });
 
   it('start 는 애초에 못 집으므로 지워지지 않는다', () => {
@@ -179,7 +202,6 @@ describe('serializeProgram', () => {
           count: 2,
           body: [{ id: 'move-0', kind: 'move', distanceM: 1 }],
         },
-        { id: 'greet-0', kind: 'greet' },
         { id: 'end-0', kind: 'end' },
       ],
       detached: [],
