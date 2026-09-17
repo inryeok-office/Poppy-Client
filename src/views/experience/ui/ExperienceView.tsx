@@ -10,7 +10,7 @@ import {
   useRequestExecution,
 } from '@/features/execution';
 import { readLocalDraft, useAutoSaveProject, useSession } from '@/features/session';
-import { useSimulateProgram } from '@/features/simulation';
+import { useRecordSimulationPass, useSimulateProgram } from '@/features/simulation';
 
 import { BlockDragProvider } from '../lib/useBlockDrag';
 import {
@@ -50,7 +50,6 @@ function initialProgram(): { program: BlockProgram; restoredDirty: boolean } {
   }
   return { program: INITIAL_PROGRAM, restoredDirty: false };
 }
-
 const AUTOSAVE_DEBOUNCE_MS = 600;
 
 export function ExperienceView() {
@@ -63,15 +62,16 @@ export function ExperienceView() {
   const session = useSession();
   const autoSave = useAutoSaveProject(session.data?.sessionId ?? null);
   const simulation = useSimulateProgram();
+  const simulationPass = useRecordSimulationPass();
   const requestExecution = useRequestExecution();
   const cancelExecution = useCancelExecution();
-  const execution = useExecutionState(executionId);
+  const execution = useExecutionState(session.data?.sessionId ?? null, executionId);
 
   const blockErrors = useMemo(() => validateBlockProgram(program), [program]);
   const blockValid = blockErrors.length === 0;
 
   // ── 자동 저장 (명세 Session "프로젝트 자동 저장") ─────────────────────────────
-  const { save: saveProgram, setBaseVersion } = autoSave;
+  const { save: saveProgram, flush: flushSave, setBaseVersion, projectVersion } = autoSave;
   const savedProgramRef = useRef<BlockProgram>(program);
 
   // 세션 확보 시 서버 버전을 맞추고, 세션 준비 전 변경분·미저장 초안을 동기화한다.
@@ -94,13 +94,28 @@ export function ExperienceView() {
   // ────────────────────────────────────────────────────────────────────────
 
   const simulationResult = simulation.data;
-  const simulationPassed = simulationResult?.passed === true;
-  const simulationMessage = simulation.isError
-    ? '시뮬레이션에 실패했어요. 잠시 후 다시 시도해 주세요.'
-    : simulationResult && !simulationResult.passed
-      ? simulationResult.violations[0]?.message
-      : undefined;
+  const simulationPassed =
+    simulationResult?.passed === true && simulationPass.data?.blockVersion === projectVersion;
+  const simulationMessage =
+    simulation.isError || simulationPass.isError
+      ? '시뮬레이션에 실패했어요. 잠시 후 다시 시도해 주세요.'
+      : simulationResult && !simulationResult.passed
+        ? simulationResult.violations[0]?.message
+        : undefined;
   const estimatedDistanceM = simulationResult?.totalDistanceM ?? 0;
+
+  useEffect(() => {
+    if (
+      !simulationResult?.passed ||
+      !session.data ||
+      projectVersion <= 0 ||
+      simulationPass.isPending ||
+      simulationPass.data?.blockVersion === projectVersion
+    ) {
+      return;
+    }
+    simulationPass.mutate({ sessionId: session.data.sessionId, blockVersion: projectVersion });
+  }, [projectVersion, session.data, simulationPass, simulationResult]);
 
   const executionStatus = executionId !== null ? (execution.data?.status ?? 'queued') : null;
   const executionSettled = isTerminalStatus(executionStatus ?? undefined);
@@ -109,7 +124,8 @@ export function ExperienceView() {
   const clearExecution = () => {
     // 진행 중인 실행이면 서버에도 취소를 보낸다.
     if (executionId !== null && !executionSettled) {
-      void cancelExecutionApi(executionId).catch(() => {});
+      const sessionId = session.data?.sessionId;
+      if (sessionId) void cancelExecutionApi(sessionId, executionId).catch(() => {});
     }
     runGeneration.current += 1;
     setExecutionId(null);
@@ -119,12 +135,27 @@ export function ExperienceView() {
 
   const invalidate = () => {
     simulation.reset();
+    simulationPass.reset();
     clearExecution();
   };
 
-  const runSimulation = () => {
+  const runSimulation = async () => {
     if (simulation.isPending || !blockValid) return;
-    simulation.mutate({ program: serializeProgram(program) });
+    let currentVersion = projectVersion;
+    if (session.data && currentVersion === 0) {
+      saveProgram(serializeProgram(program), program);
+      currentVersion = await flushSave();
+    }
+
+    const result = await simulation.mutateAsync({ program: serializeProgram(program) });
+    if (result.passed && session.data) {
+      if (currentVersion > 0) {
+        await simulationPass.mutateAsync({
+          sessionId: session.data.sessionId,
+          blockVersion: currentVersion,
+        });
+      }
+    }
   };
 
   const requestRun = () => {
@@ -136,11 +167,13 @@ export function ExperienceView() {
     requestExecution.reset();
     const generation = (runGeneration.current += 1);
     requestExecution.mutate(
-      { program: serializeProgram(program) },
+      { sessionId: session.data?.sessionId ?? '', blockVersion: projectVersion },
       {
         onSuccess: (data) => {
           if (generation === runGeneration.current) setExecutionId(data.executionId);
-          else void cancelExecutionApi(data.executionId).catch(() => {});
+          else if (session.data) {
+            void cancelExecutionApi(session.data.sessionId, data.executionId).catch(() => {});
+          }
         },
       },
     );
@@ -148,7 +181,11 @@ export function ExperienceView() {
 
   const stopRun = () => {
     if (executionId === null) return;
-    cancelExecution.mutate(executionId, { onSuccess: () => void execution.refetch() });
+    if (!session.data) return;
+    cancelExecution.mutate(
+      { sessionId: session.data.sessionId, executionId },
+      { onSuccess: () => void execution.refetch() },
+    );
   };
 
   const changeBlockParam = (id: string, patch: BlockParamPatch) => {

@@ -26,6 +26,51 @@ export type SimulationRequest = {
   program: SerializedBlockProgram;
 };
 
+export type ServerBlock = {
+  id: string;
+  type: string;
+  parameters: Record<string, number | string>;
+  children?: ServerBlock[];
+};
+
+export type ServerBlockProgram = {
+  schemaVersion: 1;
+  blocks: ServerBlock[];
+};
+
+export function toServerBlockProgram(program: SerializedBlockProgram): ServerBlockProgram {
+  const convert = (node: SerializedBlockNode): ServerBlock => {
+    switch (node.kind) {
+      case 'start':
+        return { id: node.id, type: 'START', parameters: {} };
+      case 'end':
+        return { id: node.id, type: 'END', parameters: {} };
+      case 'move':
+        return {
+          id: node.id,
+          type: 'MOVE_FORWARD',
+          parameters: { distanceMeters: node.distanceM },
+        };
+      case 'wait':
+        return { id: node.id, type: 'WAIT', parameters: { durationSeconds: node.seconds } };
+      case 'repeat':
+        return {
+          id: node.id,
+          type: 'REPEAT',
+          parameters: { count: node.count },
+          children: node.body.map(convert),
+        };
+      case 'greet':
+        throw new Error('The Server block contract does not support the GREET block');
+    }
+  };
+
+  if (program.detached.length > 0) {
+    throw new Error('Disconnected blocks must be attached before saving to the Server');
+  }
+  return { schemaVersion: 1, blocks: program.chain.map(convert) };
+}
+
 export type SafetyViolationCode = 'exceeds-safe-zone' | 'invalid-values';
 
 export type SafetyViolation = {

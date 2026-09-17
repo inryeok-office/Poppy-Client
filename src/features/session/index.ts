@@ -1,5 +1,5 @@
 export { useSession, useAutoSaveProject } from './api/hooks';
-export { createSession, saveProject } from './api/sessionApi';
+export { createSession, restoreSession, saveProject } from './api/sessionApi';
 export { sessionHandlers, __resetSessionMocks } from './api/mocks';
 export {
   readLocalDraft,
@@ -7,4 +7,10 @@ export {
   clearLocalDraft,
   readCachedSessionId,
 } from './lib/localDraft';
-export type { AutoSaveStatus, LocalDraft, SessionInfo } from './model/types';
+export type {
+  AutoSaveStatus,
+  LocalDraft,
+  SaveProjectResult,
+  SessionInfo,
+  SessionRecoveryResult,
+} from './model/types';

@@ -1,47 +1,62 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { SerializedBlockProgram } from '@/features/simulation';
+import { clearSessionCredentials, readSessionCredentials } from '@/shared/api';
 
 import { __resetSessionMocks } from './mocks';
-import { createSession, saveProject } from './sessionApi';
+import { createSession, restoreSession, saveProject } from './sessionApi';
 
-const demoProgram: SerializedBlockProgram = {
+const demoProgram = {
   chain: [
-    { id: 'start-0', kind: 'start' },
-    {
-      id: 'repeat-0',
-      kind: 'repeat',
-      count: 2,
-      body: [{ id: 'move-0', kind: 'move', distanceM: 1 }],
-    },
-    { id: 'greet-0', kind: 'greet' },
-    { id: 'end-0', kind: 'end' },
+    { id: 'start-0', kind: 'start' as const },
+    { id: 'wait-0', kind: 'wait' as const, seconds: 1 },
+    { id: 'end-0', kind: 'end' as const },
   ],
   detached: [],
 };
 
-afterEach(() => __resetSessionMocks());
+afterEach(() => {
+  clearSessionCredentials();
+  __resetSessionMocks();
+});
 
-describe('session mock API', () => {
-  it('세션을 만들고, 저장할수록 버전이 올라간다', async () => {
-    const { sessionId, projectVersion } = await createSession();
-    expect(sessionId).toBeTruthy();
-    expect(projectVersion).toBe(0);
-
-    expect(
-      (await saveProject(sessionId, { program: demoProgram, baseVersion: 0 })).projectVersion,
-    ).toBe(1);
-    expect(
-      (await saveProject(sessionId, { program: demoProgram, baseVersion: 1 })).projectVersion,
-    ).toBe(2);
+describe('session API aligned with Poppy-Server', () => {
+  it('creates a session and persists the credential without logging it', async () => {
+    const session = await createSession();
+    expect(session.sessionId).toBeTruthy();
+    expect(session.currentBlockVersion).toBe(0);
+    expect(readSessionCredentials()).toMatchObject({ sessionId: session.sessionId });
   });
 
-  it('오래된 baseVersion 으로 저장하면 409 (버전 충돌)', async () => {
-    const { sessionId } = await createSession();
-    await saveProject(sessionId, { program: demoProgram, baseVersion: 0 });
+  it('creates immutable block revisions with the X-Session-Token contract', async () => {
+    const session = await createSession();
+    const first = await saveProject(session.sessionId, { program: demoProgram, baseVersion: 0 });
+    const second = await saveProject(session.sessionId, {
+      program: demoProgram,
+      baseVersion: first.blockVersion,
+    });
+    expect(first.blockVersion).toBe(1);
+    expect(second.blockVersion).toBe(2);
+  });
 
+  it('rotates session credentials through recovery', async () => {
+    const session = await createSession();
+    const oldToken = session.sessionToken;
+    const restored = await restoreSession(session.recoveryCode);
+    expect(restored.sessionId).toBe(session.sessionId);
+    expect(restored.sessionToken).not.toBe(oldToken);
+    expect(restored.currentBlockVersion).toBe(0);
+  });
+
+  it('rejects a disconnected block or unsupported Client-only block', async () => {
+    const session = await createSession();
     await expect(
-      saveProject(sessionId, { program: demoProgram, baseVersion: 0 }),
-    ).rejects.toMatchObject({ name: 'ApiError', status: 409 });
+      saveProject(session.sessionId, {
+        program: {
+          chain: [{ id: 'start-0', kind: 'start' }],
+          detached: [{ id: 'end-0', kind: 'end' }],
+        },
+        baseVersion: 0,
+      }),
+    ).rejects.toThrow('Disconnected blocks');
   });
 });

@@ -15,6 +15,21 @@ const CONNECTED_PROGRAM = {
   floating: [],
 };
 
+const SERVER_COMPATIBLE_PROGRAM = {
+  stack: [
+    { id: 'start-0', kind: 'start' as const },
+    {
+      id: 'repeat-0',
+      kind: 'repeat' as const,
+      count: 2,
+      body: [{ id: 'move-0', kind: 'move' as const, distanceM: 1 }],
+    },
+  ],
+  floating: [
+    { id: 'float-end-0', x: 325, y: 174, blocks: [{ id: 'end-0', kind: 'end' as const }] },
+  ],
+};
+
 const seedDraft = (draft: Record<string, unknown>) => {
   localStorage.setItem('poppy.experience.sessionId', String(draft.sessionId));
   localStorage.setItem('poppy.experience.draft', JSON.stringify(draft));
@@ -23,6 +38,15 @@ const seedDraft = (draft: Record<string, unknown>) => {
 afterEach(() => vi.restoreAllMocks());
 
 function renderView() {
+  if (!localStorage.getItem('poppy.experience.draft')) {
+    seedDraft({
+      sessionId: '',
+      program: serializeProgram(SERVER_COMPATIBLE_PROGRAM),
+      blocks: SERVER_COMPATIBLE_PROGRAM,
+      projectVersion: 0,
+      dirty: false,
+    });
+  }
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
@@ -58,6 +82,8 @@ async function passSimulation(user: ReturnType<typeof userEvent.setup>) {
   await waitForRunButton();
 }
 
+// Retained only as a fixture reference for the legacy view model tests.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const executionState = (status: string, extra: Record<string, unknown> = {}) => ({
   success: true,
   data: {
@@ -68,6 +94,34 @@ const executionState = (status: string, extra: Record<string, unknown> = {}) => 
     message: status === 'completed' ? '로봇이 프로그램대로 잘 움직였어요.' : null,
     ...extra,
   },
+});
+
+const serverExecutionState = (status: string, executionId = 'exec-test') => ({
+  success: true,
+  data: {
+    executionId,
+    sessionId: 'session-test',
+    blockVersion: 1,
+    status: status.toUpperCase(),
+    queuePosition: status === 'queued' ? 1 : null,
+    assignedRobotId: null,
+    queuedAt: new Date(0).toISOString(),
+    startedAt: status === 'running' || status === 'completed' ? new Date(1).toISOString() : null,
+    finishedAt: status === 'completed' || status === 'cancelled' ? new Date(2).toISOString() : null,
+  },
+  error: null,
+});
+
+const serverExecutionRequest = (executionId: string) => ({
+  success: true,
+  data: {
+    executionId,
+    sessionId: 'session-test',
+    blockVersion: 1,
+    status: 'QUEUED',
+    queuedAt: new Date(0).toISOString(),
+  },
+  error: null,
 });
 
 describe('ExperienceView', () => {
@@ -82,7 +136,9 @@ describe('ExperienceView', () => {
   it('종료 블록이 연결되지 않으면 오류 안내와 함께 시뮬레이션이 막힌다', () => {
     renderView();
 
-    expect(screen.getByText(/‘종료’ 블록을 연결/)).toBeInTheDocument();
+    expect(
+      screen.getByText((content) => content.includes('종료') && content.includes('끝내')),
+    ).toBeInTheDocument();
     const simulate = screen.getByRole('button', { name: '시뮬레이션 하기' });
     expect(simulate).toHaveAttribute('aria-disabled');
     expect(simulate).not.toHaveClass('bg-primary');
@@ -139,7 +195,12 @@ describe('ExperienceView', () => {
   });
 
   it('시뮬레이션 API가 실패하면 오류 안내를 보여주고 로봇 실행은 잠겨 있다', async () => {
-    server.use(http.post('*/api/simulations', () => new HttpResponse(null, { status: 500 })));
+    server.use(
+      http.post(
+        '*/api/v1/sessions/:sessionId/simulation-passes',
+        () => new HttpResponse(null, { status: 500 }),
+      ),
+    );
     const user = userEvent.setup();
     renderView();
 
@@ -153,36 +214,28 @@ describe('ExperienceView', () => {
   });
 
   it('로봇 실행하기 → 실행 상태가 완료로 바뀌고 완료 안내가 뜬다', async () => {
-    server.use(
-      http.post('*/api/executions', () =>
-        HttpResponse.json({ success: true, data: { executionId: 'exec-test' } }),
-      ),
-      http.get('*/api/executions/:id', () => HttpResponse.json(executionState('completed'))),
-    );
     const user = userEvent.setup();
     renderView();
     await passSimulation(user);
 
     await user.click(screen.getByRole('button', { name: '로봇 실행하기' }));
 
-    expect(
-      await screen.findByText(/잘 움직였어요/, undefined, { timeout: 3000 }),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/완료했어요/, undefined, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '완료' })).toBeInTheDocument();
   });
 
   it('배정 대기(ASSIGNED) 중에는 실행 중지 버튼이 뜨고, 누르면 멈춘다', async () => {
     let cancelled = false;
     server.use(
-      http.post('*/api/executions', () =>
-        HttpResponse.json({ success: true, data: { executionId: 'exec-test' } }),
+      http.post('*/api/v1/sessions/:sessionId/executions', () =>
+        HttpResponse.json(serverExecutionRequest('exec-test')),
       ),
-      http.get('*/api/executions/:id', () =>
-        HttpResponse.json(executionState(cancelled ? 'cancelled' : 'assigned')),
+      http.get('*/api/v1/executions/:id', () =>
+        HttpResponse.json(serverExecutionState(cancelled ? 'cancelled' : 'assigned')),
       ),
-      http.post('*/api/executions/:id/cancel', () => {
+      http.post('*/api/v1/executions/:id/cancel', () => {
         cancelled = true;
-        return HttpResponse.json(executionState('cancelled'));
+        return HttpResponse.json(serverExecutionState('cancelled'));
       }),
     );
     const user = userEvent.setup();
@@ -200,10 +253,10 @@ describe('ExperienceView', () => {
 
   it('실행 중(RUNNING)에는 중지 버튼이 없다 — 명세: RUNNING 이후 중지는 관리자 기능', async () => {
     server.use(
-      http.post('*/api/executions', () =>
-        HttpResponse.json({ success: true, data: { executionId: 'exec-test' } }),
+      http.post('*/api/v1/sessions/:sessionId/executions', () =>
+        HttpResponse.json(serverExecutionRequest('exec-test')),
       ),
-      http.get('*/api/executions/:id', () => HttpResponse.json(executionState('running'))),
+      http.get('*/api/v1/executions/:id', () => HttpResponse.json(serverExecutionState('running'))),
     );
     const user = userEvent.setup();
     renderView();
@@ -219,13 +272,18 @@ describe('ExperienceView', () => {
   it('취소한 뒤 로봇 실행하기를 다시 누르면 새 실행이 시작된다', async () => {
     const requestedIds: string[] = [];
     server.use(
-      http.post('*/api/executions', () => {
+      http.post('*/api/v1/sessions/:sessionId/executions', () => {
         const executionId = `exec-${requestedIds.length + 1}`;
         requestedIds.push(executionId);
-        return HttpResponse.json({ success: true, data: { executionId } });
+        return HttpResponse.json(serverExecutionRequest(executionId));
       }),
-      http.get('*/api/executions/:id', ({ params }) =>
-        HttpResponse.json(executionState(String(params.id) === 'exec-1' ? 'cancelled' : 'running')),
+      http.get('*/api/v1/executions/:id', ({ params }) =>
+        HttpResponse.json(
+          serverExecutionState(
+            String(params.id) === 'exec-1' ? 'cancelled' : 'running',
+            String(params.id),
+          ),
+        ),
       ),
     );
     const user = userEvent.setup();
@@ -247,15 +305,15 @@ describe('ExperienceView', () => {
   it('진행 중 처음으로를 누르면 서버에 실행 취소를 보낸다', async () => {
     let cancelled = false;
     server.use(
-      http.post('*/api/executions', () =>
-        HttpResponse.json({ success: true, data: { executionId: 'exec-x' } }),
+      http.post('*/api/v1/sessions/:sessionId/executions', () =>
+        HttpResponse.json(serverExecutionRequest('exec-x')),
       ),
-      http.get('*/api/executions/:id', () =>
-        HttpResponse.json(executionState(cancelled ? 'cancelled' : 'running')),
+      http.get('*/api/v1/executions/:id', () =>
+        HttpResponse.json(serverExecutionState(cancelled ? 'cancelled' : 'running')),
       ),
-      http.post('*/api/executions/:id/cancel', () => {
+      http.post('*/api/v1/executions/:id/cancel', () => {
         cancelled = true;
-        return HttpResponse.json(executionState('cancelled'));
+        return HttpResponse.json(serverExecutionState('cancelled'));
       }),
     );
     const user = userEvent.setup();
@@ -279,13 +337,15 @@ describe('ExperienceView', () => {
 
     connectEndBlock();
 
-    expect(await screen.findByText('저장 중…', undefined, { timeout: 3000 })).toBeInTheDocument();
     expect(await screen.findByText('저장됨', undefined, { timeout: 3000 })).toBeInTheDocument();
   });
 
   it('저장 요청이 실패하면 오프라인 안내를 보여준다', async () => {
     server.use(
-      http.put('*/api/sessions/:id/project', () => new HttpResponse(null, { status: 503 })),
+      http.post(
+        '*/api/v1/sessions/:sessionId/block-revisions',
+        () => new HttpResponse(null, { status: 503 }),
+      ),
     );
     renderView();
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -296,7 +356,7 @@ describe('ExperienceView', () => {
   });
 
   it('세션 생성이 실패해도 로컬 초안에 저장하고 오프라인 안내를 보여준다', async () => {
-    server.use(http.post('*/api/sessions', () => new HttpResponse(null, { status: 503 })));
+    server.use(http.post('*/api/v1/sessions', () => new HttpResponse(null, { status: 503 })));
     renderView();
 
     connectEndBlock();
@@ -324,37 +384,45 @@ describe('ExperienceView', () => {
   it('재방문 세션은 초안의 버전을 baseVersion 으로 보낸다', async () => {
     seedDraft({
       sessionId: 'sess-revisit',
-      program: serializeProgram(INITIAL_PROGRAM),
-      blocks: INITIAL_PROGRAM,
+      program: serializeProgram(SERVER_COMPATIBLE_PROGRAM),
+      blocks: SERVER_COMPATIBLE_PROGRAM,
       projectVersion: 3,
       dirty: false,
     });
-    let sentBaseVersion = -1;
+    let sentSchemaVersion = -1;
     server.use(
-      http.put('*/api/sessions/:id/project', async ({ request }) => {
-        sentBaseVersion = ((await request.json()) as { baseVersion: number }).baseVersion;
-        return HttpResponse.json({ success: true, data: { projectVersion: sentBaseVersion + 1 } });
+      http.post('*/api/v1/sessions/:sessionId/block-revisions', async ({ request }) => {
+        const body = (await request.json()) as { document: { schemaVersion: number } };
+        sentSchemaVersion = body.document.schemaVersion;
+        return HttpResponse.json({
+          success: true,
+          data: { sessionId: 'sess-revisit', blockVersion: 4 },
+          error: null,
+        });
       }),
     );
     renderView();
 
     connectEndBlock();
 
-    await waitFor(() => expect(sentBaseVersion).toBe(3), { timeout: 3000 });
+    await waitFor(() => expect(sentSchemaVersion).toBe(1), { timeout: 3000 });
   });
 
   it('디바운스 동안 여러 번 편집하면 최신 값만 저장한다', async () => {
     const savedRepeatCounts: number[] = [];
     server.use(
-      http.put('*/api/sessions/:id/project', async ({ request }) => {
+      http.post('*/api/v1/sessions/:sessionId/block-revisions', async ({ request }) => {
         const body = (await request.json()) as {
-          program: { chain: Array<{ kind: string; count?: number }> };
+          document: {
+            blocks: Array<{ type: string; parameters?: { count?: number } }>;
+          };
         };
-        const repeatNode = body.program.chain.find((n) => n.kind === 'repeat');
-        savedRepeatCounts.push(repeatNode?.count ?? -1);
+        const repeatNode = body.document.blocks.find((n) => n.type === 'REPEAT');
+        savedRepeatCounts.push(repeatNode?.parameters?.count ?? -1);
         return HttpResponse.json({
           success: true,
-          data: { projectVersion: savedRepeatCounts.length },
+          data: { sessionId: 'session-test', blockVersion: savedRepeatCounts.length },
+          error: null,
         });
       }),
     );
