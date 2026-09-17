@@ -1,83 +1,90 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { SerializedBlockProgram } from '@/features/simulation';
+import { recordSimulationPass } from '@/features/simulation';
+import { clearSessionCredentials } from '@/shared/api';
+import { createSession, saveProject } from '@/features/session';
 
 import { __resetExecutionMocks } from './mocks';
 import { cancelExecution, getExecutionState, requestExecution } from './executionApi';
+import { __resetSessionMocks } from '@/features/session/api/mocks';
 
-const runnableProgram: SerializedBlockProgram = {
+const runnableProgram = {
   chain: [
-    { id: 'start-0', kind: 'start' },
-    {
-      id: 'repeat-0',
-      kind: 'repeat',
-      count: 2,
-      body: [{ id: 'move-0', kind: 'move', distanceM: 1 }],
-    },
-    { id: 'greet-0', kind: 'greet' },
-    { id: 'end-0', kind: 'end' },
+    { id: 'start-0', kind: 'start' as const },
+    { id: 'wait-0', kind: 'wait' as const, seconds: 1 },
+    { id: 'end-0', kind: 'end' as const },
   ],
   detached: [],
 };
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-afterEach(() => __resetExecutionMocks());
+async function readyExecutionRequest() {
+  const session = await createSession();
+  const revision = await saveProject(session.sessionId, {
+    program: runnableProgram,
+    baseVersion: 0,
+  });
+  await recordSimulationPass(session.sessionId, revision.blockVersion);
+  return { session, blockVersion: revision.blockVersion };
+}
 
-describe('execution mock API', () => {
-  it('통과 가능한 프로그램은 executionId 를 발급하고 대기→진행→완료로 흐른다', async () => {
-    const { executionId } = await requestExecution({ program: runnableProgram });
-    expect(executionId).toBeTruthy();
+afterEach(() => {
+  clearSessionCredentials();
+  __resetSessionMocks();
+  __resetExecutionMocks();
+});
 
-    expect((await getExecutionState(executionId)).status).toBe('queued');
+describe('execution API aligned with Poppy-Server', () => {
+  it('requests and reads an immutable block-version execution', async () => {
+    const { session, blockVersion } = await readyExecutionRequest();
+    const requested = await requestExecution({ sessionId: session.sessionId, blockVersion });
 
-    await wait(1300);
-    expect(['assigned', 'running']).toContain((await getExecutionState(executionId)).status);
+    expect(requested.executionId).toBeTruthy();
+    expect(requested.status).toBe('queued');
+    expect((await getExecutionState(session.sessionId, requested.executionId)).status).toBe(
+      'queued',
+    );
 
-    await wait(1400);
-    const done = await getExecutionState(executionId);
+    await wait(2600);
+    const done = await getExecutionState(session.sessionId, requested.executionId);
     expect(done.status).toBe('completed');
     expect(done.missionCleared).toBe(true);
-    expect(done.message).toBeTruthy();
   });
 
-  it('안전하지 않은 프로그램은 실행 요청을 거부한다', async () => {
-    const unsafeProgram: SerializedBlockProgram = {
-      chain: [
-        { id: 'start-0', kind: 'start' },
-        // 반복 10회 × 이동 1m = 10m > 2m 안전 구역
-        {
-          id: 'repeat-0',
-          kind: 'repeat',
-          count: 10,
-          body: [{ id: 'move-0', kind: 'move', distanceM: 1 }],
-        },
-        { id: 'greet-0', kind: 'greet' },
-        { id: 'end-0', kind: 'end' },
-      ],
-      detached: [],
-    };
-    await expect(requestExecution({ program: unsafeProgram })).rejects.toMatchObject({
+  it('rejects an execution request without the current Simulation Pass', async () => {
+    const session = await createSession();
+    const revision = await saveProject(session.sessionId, {
+      program: runnableProgram,
+      baseVersion: 0,
+    });
+
+    await expect(
+      requestExecution({ sessionId: session.sessionId, blockVersion: revision.blockVersion }),
+    ).rejects.toMatchObject({
       name: 'ApiError',
-      status: 422,
+      status: 409,
     });
   });
 
-  it('진행 중(QUEUED) 취소하면 cancelled 가 된다', async () => {
-    const { executionId } = await requestExecution({ program: runnableProgram });
-    const cancelled = await cancelExecution(executionId);
-    expect(cancelled.status).toBe('cancelled');
-    expect((await getExecutionState(executionId)).status).toBe('cancelled');
-  });
+  it('cancels QUEUED work but preserves RUNNING cancellation policy', async () => {
+    const { session, blockVersion } = await readyExecutionRequest();
+    const queued = await requestExecution({ sessionId: session.sessionId, blockVersion });
+    expect((await cancelExecution(session.sessionId, queued.executionId)).status).toBe('cancelled');
 
-  it('RUNNING 에서는 취소해도 상태가 바뀌지 않는다 (명세: 체험자는 QUEUED·ASSIGNED 에서만 취소 가능, RUNNING 이후는 관리자 기능)', async () => {
-    const { executionId } = await requestExecution({ program: runnableProgram });
-    await wait(1500); // running 구간(1100~2400ms)까지 확실히 진행
-    expect((await getExecutionState(executionId)).status).toBe('running');
-
-    const result = await cancelExecution(executionId);
-
-    expect(result.status).toBe('running'); // cancelled 로 바뀌지 않는다
-    expect((await getExecutionState(executionId)).status).toBe('running');
+    const nextRevision = await saveProject(session.sessionId, {
+      program: runnableProgram,
+      baseVersion: blockVersion,
+    });
+    await recordSimulationPass(session.sessionId, nextRevision.blockVersion);
+    const running = await requestExecution({
+      sessionId: session.sessionId,
+      blockVersion: nextRevision.blockVersion,
+    });
+    await wait(1300);
+    expect((await getExecutionState(session.sessionId, running.executionId)).status).toBe(
+      'running',
+    );
+    expect((await cancelExecution(session.sessionId, running.executionId)).status).toBe('running');
   });
 });

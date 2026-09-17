@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 
 import { simulateProgram } from './simulateProgram';
+import { recordSimulationPass } from './simulateProgram';
 
 /**
  * 시뮬레이션 실행 mutation.
@@ -8,4 +9,11 @@ import { simulateProgram } from './simulateProgram';
  */
 export function useSimulateProgram() {
   return useMutation({ mutationFn: simulateProgram });
+}
+
+export function useRecordSimulationPass() {
+  return useMutation({
+    mutationFn: ({ sessionId, blockVersion }: { sessionId: string; blockVersion: number }) =>
+      recordSimulationPass(sessionId, blockVersion),
+  });
 }

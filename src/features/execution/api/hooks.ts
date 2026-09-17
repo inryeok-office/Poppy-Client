@@ -9,7 +9,10 @@ export function useRequestExecution() {
 }
 
 export function useCancelExecution() {
-  return useMutation({ mutationFn: cancelExecution });
+  return useMutation({
+    mutationFn: ({ sessionId, executionId }: { sessionId: string; executionId: string }) =>
+      cancelExecution(sessionId, executionId),
+  });
 }
 
 /**
@@ -17,20 +20,20 @@ export function useCancelExecution() {
  * 조회하고, 이후 갱신은 SSE 구독이 밀어준다 — 재연결·화면 복구는 subscribeExecutionState 가
  * 처리한다.
  */
-export function useExecutionState(executionId: string | null) {
+export function useExecutionState(sessionId: string | null, executionId: string | null) {
   const queryClient = useQueryClient();
   const query = useQuery({
-    queryKey: ['execution', executionId],
-    queryFn: () => getExecutionState(executionId as string),
-    enabled: executionId !== null,
+    queryKey: ['execution', sessionId, executionId],
+    queryFn: () => getExecutionState(sessionId as string, executionId as string),
+    enabled: sessionId !== null && executionId !== null,
   });
 
   useEffect(() => {
-    if (executionId === null) return;
-    return subscribeExecutionState(executionId, (state) => {
-      queryClient.setQueryData(['execution', executionId], state);
+    if (sessionId === null || executionId === null) return;
+    return subscribeExecutionState(sessionId, executionId, (state) => {
+      queryClient.setQueryData(['execution', sessionId, executionId], state);
     });
-  }, [executionId, queryClient]);
+  }, [executionId, queryClient, sessionId]);
 
   return query;
 }

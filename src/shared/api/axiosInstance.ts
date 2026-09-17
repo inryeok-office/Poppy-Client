@@ -12,6 +12,11 @@ export const api = axios.create({
 export interface ApiResponse<T> {
   success: boolean;
   data: T;
+  error?: {
+    code?: string;
+    message?: string;
+    fieldErrors?: FieldError[];
+  } | null;
   meta?: { requestId?: string | null };
 }
 

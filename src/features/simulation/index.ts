@@ -1,5 +1,5 @@
-export { useSimulateProgram } from './api/useSimulateProgram';
-export { simulateProgram } from './api/simulateProgram';
+export { useRecordSimulationPass, useSimulateProgram } from './api/useSimulateProgram';
+export { recordSimulationPass, simulateProgram } from './api/simulateProgram';
 export { simulationHandlers } from './api/mocks';
 export { evaluateProgram, LIMITS, SAFE_ZONE_M, type ProgramEvaluation } from './model/safety';
 export type {
@@ -8,4 +8,7 @@ export type {
   SerializedBlockProgram,
   SimulationRequest,
   SimulationResult,
+  ServerBlock,
+  ServerBlockProgram,
 } from './model/types';
+export { toServerBlockProgram } from './model/types';
