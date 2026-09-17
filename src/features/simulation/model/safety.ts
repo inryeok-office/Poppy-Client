@@ -12,6 +12,7 @@ export const LIMITS = {
   repeatCount: { min: 1, max: 20 },
   moveDistance: { min: 1, max: 10 },
   waitSeconds: { min: 1, max: 60 },
+  rotateDegree: { min: 1, max: 360 },
 } as const;
 
 const inRange = (raw: unknown, { min, max }: { min: number; max: number }) => {
@@ -22,14 +23,25 @@ const inRange = (raw: unknown, { min, max }: { min: number; max: number }) => {
 function isValueValid(node: SerializedBlockNode): boolean {
   switch (node.kind) {
     case 'move':
+    case 'moveForward':
       return inRange(node.distanceM, LIMITS.moveDistance);
     case 'wait':
       return inRange(node.seconds, LIMITS.waitSeconds);
     case 'repeat':
       return inRange(node.count, LIMITS.repeatCount);
+    case 'rotateLeft':
+    case 'rotateRight':
+      return inRange(node.degrees, LIMITS.rotateDegree);
     case 'start':
     case 'greet':
     case 'end':
+    case 'stop':
+    case 'sit':
+    case 'standUp':
+    case 'heart':
+    case 'dance':
+    case 'roll':
+    case 'attack':
       return true; // 파라미터가 없는 블록 — 값 검증 대상이 아니다
     default:
       // 알 수 없는(지원 종료됐거나 조작된) kind — 값 검증을 우회하지 못하게 명시적으로 거부한다.
@@ -52,7 +64,7 @@ function allValuesValid(nodes: SerializedBlockNode[]): boolean {
 /** 반복 중첩까지 포함한 총 이동 거리 (명세: "제한을 우회하는 중첩·합산 값도 계산"). */
 function totalDistance(nodes: SerializedBlockNode[]): number {
   return sumOverBlockTree(nodes, {
-    valueOf: (node) => (node.kind === 'move' ? node.distanceM : 0),
+    valueOf: (node) => (node.kind === 'move' || node.kind === 'moveForward' ? node.distanceM : 0),
     bodyOf,
     repeatCountOf: (node) => (node.kind === 'repeat' ? node.count : 1),
   });

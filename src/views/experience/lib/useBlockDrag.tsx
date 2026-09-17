@@ -66,6 +66,8 @@ type DragState = {
 type BlockDragValue = {
   dragging: DragState | null;
   startDrag: (pick: DragPick, event: ReactPointerEvent) => void;
+  /** 키보드로 팔레트 블록을 스택 맨 끝에 바로 연결한다 (드래그의 키보드 대체 경로). */
+  addToStackEnd: (node: BlockNode) => void;
   registerStack: (el: HTMLElement | null) => void;
   registerCanvas: (el: HTMLElement | null) => void;
   registerTrash: (el: HTMLElement | null) => void;
@@ -243,6 +245,16 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
 
   useEffect(() => () => teardownRef.current?.(), []);
 
+  // 드래그 없이 Enter/Space 로 팔레트 블록을 꺼낼 때 쓰는 경로 — 스냅 위치를 고를 포인터가
+  // 없으니, 항상 스택 맨 끝에 연결한다 (dropOnSlot 이 인덱스를 stack.length 로 clamp).
+  const addToStackEnd = useCallback(
+    (node: BlockNode) => {
+      const current = programRef.current;
+      onChange(dropOnSlot(current, { origin: 'palette', node }, current.stack.length));
+    },
+    [onChange],
+  );
+
   const active = dragging?.active ?? false;
   useEffect(() => {
     if (!active || typeof document === 'undefined') return;
@@ -251,8 +263,15 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
   }, [active]);
 
   const value = useMemo<BlockDragValue>(
-    () => ({ dragging, startDrag, registerStack, registerCanvas, registerTrash }),
-    [dragging, startDrag, registerStack, registerCanvas, registerTrash],
+    () => ({
+      dragging,
+      startDrag,
+      addToStackEnd,
+      registerStack,
+      registerCanvas,
+      registerTrash,
+    }),
+    [dragging, startDrag, addToStackEnd, registerStack, registerCanvas, registerTrash],
   );
 
   return (

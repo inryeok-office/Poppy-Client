@@ -11,6 +11,16 @@ export type SerializedBlockNode =
   | { id: string; kind: 'greet' }
   | { id: string; kind: 'end' }
   | { id: string; kind: 'move'; distanceM: number }
+  | { id: string; kind: 'moveForward'; distanceM: number }
+  | { id: string; kind: 'rotateLeft'; degrees: number }
+  | { id: string; kind: 'rotateRight'; degrees: number }
+  | { id: string; kind: 'stop' }
+  | { id: string; kind: 'sit' }
+  | { id: string; kind: 'standUp' }
+  | { id: string; kind: 'heart' }
+  | { id: string; kind: 'dance' }
+  | { id: string; kind: 'roll' }
+  | { id: string; kind: 'attack' }
   | { id: string; kind: 'wait'; seconds: number }
   | { id: string; kind: 'repeat'; count: number; body: SerializedBlockNode[] };
 
@@ -62,6 +72,19 @@ export function toServerBlockProgram(program: SerializedBlockProgram): ServerBlo
         };
       case 'greet':
         throw new Error('The Server block contract does not support the GREET block');
+      case 'moveForward':
+      case 'rotateLeft':
+      case 'rotateRight':
+      case 'stop':
+      case 'sit':
+      case 'standUp':
+      case 'heart':
+      case 'dance':
+      case 'roll':
+      case 'attack':
+        throw new Error(
+          `The Server block contract does not support the ${node.kind.toUpperCase()} block`,
+        );
     }
   };
 
