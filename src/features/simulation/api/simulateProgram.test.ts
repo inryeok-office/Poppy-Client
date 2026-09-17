@@ -84,4 +84,34 @@ describe('simulateProgram local evaluation', () => {
     expect(result.totalDistanceM).toBe(0);
     expect(result.violations[0]?.code).toBe('invalid-values');
   });
+
+  it('counts moveForward the same as move toward the total distance', async () => {
+    const result = await simulateProgram({
+      program: program({
+        chain: [
+          { id: 'start-0', kind: 'start' },
+          { id: 'move-0', kind: 'move', distanceM: 1 },
+          { id: 'moveForward-0', kind: 'moveForward', distanceM: 1 },
+          { id: 'end-0', kind: 'end' },
+        ],
+      }),
+    });
+
+    expect(result.totalDistanceM).toBe(2);
+  });
+
+  it('rejects a rotation outside the allowed degree range', async () => {
+    const result = await simulateProgram({
+      program: program({
+        chain: [
+          { id: 'start-0', kind: 'start' },
+          { id: 'rotate-0', kind: 'rotateRight', degrees: 400 },
+          { id: 'end-0', kind: 'end' },
+        ],
+      }),
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.violations[0]?.code).toBe('invalid-values');
+  });
 });

@@ -245,4 +245,32 @@ describe('totalTravelDistance', () => {
   it('반복 횟수 × 중첩 이동 거리', () => {
     expect(totalTravelDistance(INITIAL_PROGRAM)).toBe(2);
   });
+
+  it("'앞으로 m 이동' 도 '뒤로 m 이동' 과 같이 합산된다", () => {
+    const program: BlockProgram = {
+      stack: [
+        node('start', 'start-0'),
+        node('move', 'move-0', { distanceM: 1 }),
+        node('moveForward', 'moveForward-0', { distanceM: 2 }),
+      ],
+      floating: [],
+    };
+    expect(totalTravelDistance(program)).toBe(3);
+  });
+});
+
+describe('newBlock — 새 카테고리 블록 기본값', () => {
+  it('회전 블록은 회전 허용 범위 최소값으로 시작한다', () => {
+    expect(newBlock('rotateLeft')).toMatchObject({ kind: 'rotateLeft', degrees: 1 });
+    expect(newBlock('rotateRight')).toMatchObject({ kind: 'rotateRight', degrees: 1 });
+  });
+
+  it("'앞으로 m 이동' 은 이동 허용 범위 최소값으로 시작한다", () => {
+    expect(newBlock('moveForward')).toMatchObject({ kind: 'moveForward', distanceM: 1 });
+  });
+
+  it('파라미터가 없는 동작 블록은 id·kind 만 갖는다', () => {
+    expect(newBlock('sit')).toMatchObject({ kind: 'sit' });
+    expect(newBlock('attack')).toMatchObject({ kind: 'attack' });
+  });
 });

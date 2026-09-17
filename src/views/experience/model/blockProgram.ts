@@ -18,19 +18,46 @@ import { LIMITS } from '@/features/simulation';
 import type { SerializedBlockNode, SerializedBlockProgram } from '@/features/simulation';
 import { sumOverBlockTree } from '@/shared/lib/blockTree';
 
-export type BlockKind = 'start' | 'repeat' | 'move' | 'greet' | 'wait' | 'end';
+export type BlockKind =
+  | 'start'
+  | 'repeat'
+  | 'move'
+  | 'moveForward'
+  | 'rotateLeft'
+  | 'rotateRight'
+  | 'stop'
+  | 'greet'
+  | 'sit'
+  | 'standUp'
+  | 'heart'
+  | 'dance'
+  | 'roll'
+  | 'attack'
+  | 'wait'
+  | 'end';
 
 // 서버(features/simulation LIMITS)와 같은 값을 그대로 가져다 쓴다 — 입력칸 min·max 가
 // 서버 허용 범위와 따로 놀다 어긋나는 걸 막는다.
 export const REPEAT_RANGE = LIMITS.repeatCount;
 export const MOVE_RANGE = LIMITS.moveDistance;
 export const WAIT_RANGE = LIMITS.waitSeconds;
+export const ROTATE_RANGE = LIMITS.rotateDegree;
 
 export type BlockNode =
   | { id: string; kind: 'start' }
   | { id: string; kind: 'greet' }
   | { id: string; kind: 'end' }
   | { id: string; kind: 'move'; distanceM: number }
+  | { id: string; kind: 'moveForward'; distanceM: number }
+  | { id: string; kind: 'rotateLeft'; degrees: number }
+  | { id: string; kind: 'rotateRight'; degrees: number }
+  | { id: string; kind: 'stop' }
+  | { id: string; kind: 'sit' }
+  | { id: string; kind: 'standUp' }
+  | { id: string; kind: 'heart' }
+  | { id: string; kind: 'dance' }
+  | { id: string; kind: 'roll' }
+  | { id: string; kind: 'attack' }
   | { id: string; kind: 'wait'; seconds: number }
   | { id: string; kind: 'repeat'; count: number; body: BlockNode[] };
 
@@ -63,7 +90,11 @@ function nextId(prefix: string): string {
 export function newBlock(kind: BlockKind): BlockNode {
   switch (kind) {
     case 'move':
-      return { id: nextId('move'), kind, distanceM: MOVE_RANGE.min };
+    case 'moveForward':
+      return { id: nextId(kind), kind, distanceM: MOVE_RANGE.min };
+    case 'rotateLeft':
+    case 'rotateRight':
+      return { id: nextId(kind), kind, degrees: ROTATE_RANGE.min };
     case 'wait':
       return { id: nextId('wait'), kind, seconds: WAIT_RANGE.min };
     case 'repeat':
@@ -187,7 +218,7 @@ export function deleteCarried(program: BlockProgram, pick: DragPick): BlockProgr
   return detachCarried(program, pick);
 }
 
-type BlockParamPatch = { count?: number; distanceM?: number; seconds?: number };
+type BlockParamPatch = { count?: number; distanceM?: number; seconds?: number; degrees?: number };
 
 function containsId(nodes: BlockNode[], id: string): boolean {
   return nodes.some(
@@ -244,7 +275,24 @@ export function serializeProgram(program: BlockProgram): SerializedBlockProgram 
 
 // ── 초안(localStorage) 복원 ───────────────────────────────────────────────────
 
-const BLOCK_KINDS: readonly BlockKind[] = ['start', 'repeat', 'move', 'greet', 'wait', 'end'];
+const BLOCK_KINDS: readonly BlockKind[] = [
+  'start',
+  'repeat',
+  'move',
+  'moveForward',
+  'rotateLeft',
+  'rotateRight',
+  'stop',
+  'greet',
+  'sit',
+  'standUp',
+  'heart',
+  'dance',
+  'roll',
+  'attack',
+  'wait',
+  'end',
+];
 
 /** 블록 종류별 필수 필드까지 확인한다 — 손상된 스냅샷을 그대로 렌더하면 화면이 죽는다. */
 function isBlockNode(value: unknown): value is BlockNode {
@@ -255,7 +303,11 @@ function isBlockNode(value: unknown): value is BlockNode {
 
   switch (node.kind as BlockKind) {
     case 'move':
+    case 'moveForward':
       return typeof node.distanceM === 'number';
+    case 'rotateLeft':
+    case 'rotateRight':
+      return typeof node.degrees === 'number';
     case 'wait':
       return typeof node.seconds === 'number';
     case 'repeat':
@@ -263,7 +315,7 @@ function isBlockNode(value: unknown): value is BlockNode {
         typeof node.count === 'number' && Array.isArray(node.body) && node.body.every(isBlockNode)
       );
     default:
-      return true; // start · greet · end 는 추가 필드가 없다
+      return true; // start · end · stop · greet · sit · standUp · heart · dance · roll · attack 는 추가 필드가 없다
   }
 }
 
@@ -384,7 +436,7 @@ export function validateBlockProgram(program: BlockProgram): BlockError[] {
 /** 프로그램이 로봇을 움직이는 총 거리 (m). 명세: "제한을 우회하는 중첩·합산 값도 계산". */
 export function totalTravelDistance(program: BlockProgram): number {
   return sumOverBlockTree(program.stack, {
-    valueOf: (node) => (node.kind === 'move' ? node.distanceM : 0),
+    valueOf: (node) => (node.kind === 'move' || node.kind === 'moveForward' ? node.distanceM : 0),
     bodyOf,
     repeatCountOf: (node) => (node.kind === 'repeat' ? node.count : 1),
   });
