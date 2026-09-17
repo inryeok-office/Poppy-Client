@@ -59,12 +59,6 @@ describe('sessionCredentials — localStorage 를 못 쓸 때 메모리로 대�
     expect(readSessionCredentials()).toEqual(credentials);
   });
 
-  it('localStorage 가 비어 있어도 메모리 캐시가 있으면 그걸 쓴다', () => {
-    writeSessionCredentials(credentials);
-    window.localStorage.clear(); // 스토리지만 다른 사유로 사라진 상황을 흉내
-    expect(readSessionCredentials()).toEqual(credentials);
-  });
-
   it('sessionAuthHeaders 도 메모리 캐시로 계속 동작한다', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('storage unavailable');
@@ -82,6 +76,29 @@ describe('sessionCredentials — localStorage 를 못 쓸 때 메모리로 대�
 
     clearSessionCredentials();
 
+    expect(readSessionCredentials()).toBeNull();
+  });
+});
+
+describe('sessionCredentials — 정상적으로 지워진 세션은 메모리 캐시로 되살리지 않는다 (코드리뷰: SECURITY)', () => {
+  it('localStorage 가 정상적으로 비어 있으면(다른 탭 로그아웃 등) 메모리 캐시가 있어도 null', () => {
+    writeSessionCredentials(credentials);
+    window.localStorage.clear(); // getItem 이 예외 없이 null 을 돌려주는 정상적인 삭제 상황
+
+    expect(readSessionCredentials()).toBeNull();
+  });
+
+  it('storage 이벤트로 다른 탭의 삭제를 감지하면 이 탭의 메모리 캐시도 비운다', () => {
+    writeSessionCredentials(credentials);
+
+    window.dispatchEvent(
+      new StorageEvent('storage', { key: 'poppy.session.credentials', newValue: null }),
+    );
+
+    // 이후 storage 접근 자체가 막혀도(과거엔 메모리로 대체했을 상황) 지워진 채로 남아야 한다.
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('접근 차단', 'SecurityError');
+    });
     expect(readSessionCredentials()).toBeNull();
   });
 });
