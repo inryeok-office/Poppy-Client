@@ -142,19 +142,27 @@ export function ExperienceView() {
   const runSimulation = async () => {
     if (simulation.isPending || !blockValid) return;
     let currentVersion = projectVersion;
-    if (session.data && currentVersion === 0) {
-      saveProgram(serializeProgram(program), program);
+    if (session.data) {
+      // 아직 한 번도 저장 안 됐거나(버전 0), 마지막으로 저장한 프로그램과 지금 화면이
+      // 다르면(600ms 자동 저장 debounce 가 아직 안 끝났을 수 있다) 지금 큐에 넣는다.
+      if (currentVersion === 0 || program !== savedProgramRef.current) {
+        savedProgramRef.current = program;
+        saveProgram(serializeProgram(program), program);
+      }
+      // 항상 flush 해서 실제로 저장이 끝난 버전을 받는다 — 방금 큐에 넣은 저장이든, 이
+      // 순간 디바운스가 먼저 시작해 이미 진행 중이던 저장이든 상관없이 기다린다. 위
+      // 조건만 보고 "이미 같으니 됐다"고 넘기면, 디바운스가 막 저장을 시작했지만 아직
+      // 안 끝난 순간엔 currentVersion 이 그 저장 이전 값에 머물러, 통과 기록이 방금
+      // 시뮬레이션한 프로그램이 아닌 이전 버전을 가리킬 수 있다(코드리뷰 발견).
       currentVersion = await flushSave();
     }
 
     const result = await simulation.mutateAsync({ program: serializeProgram(program) });
-    if (result.passed && session.data) {
-      if (currentVersion > 0) {
-        await simulationPass.mutateAsync({
-          sessionId: session.data.sessionId,
-          blockVersion: currentVersion,
-        });
-      }
+    if (result.passed && session.data && currentVersion > 0) {
+      await simulationPass.mutateAsync({
+        sessionId: session.data.sessionId,
+        blockVersion: currentVersion,
+      });
     }
   };
 
