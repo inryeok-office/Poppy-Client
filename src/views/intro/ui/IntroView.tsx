@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useId, useState, type FormEvent } from 'react';
 
 import { useRestoreSession } from '@/features/session';
+import { ApiError } from '@/shared/api';
 import { PoppyLogo } from '@/shared/ui';
 
 // Figma "뽀샤" 인트로 화면(node 5:2, 체험하러 가기) + node 227:784·227:909(Slide 8·9, 복구 코드
@@ -13,7 +14,10 @@ import { PoppyLogo } from '@/shared/ui';
 // 디자인에 hover/press 상태가 없어 브랜드 톤에 맞춰 임의로 정함(명도만 조정 + 화살표 nudge).
 //
 // 복구 코드는 세션 "정체성"만 되돌린다(명세 "세션 복구") — 그 세션에 있던 블록 내용을 서버에서
-// 불러오는 API 는 아직 없어(저장만 가능·조회 불가), 복구해도 캔버스는 새로 시작한다. 후속 필요.
+// 불러오는 API 는 아직 없어(저장만 가능·조회 불가). 코드리뷰 지적: 이 상태로 곧장 /experience 로
+// 보내면 "완전히 복구됐다"고 오인한 사용자가 편집·자동 저장으로 서버에 남아 있던 진짜 내용을 빈
+// 캔버스로 덮어써 버릴 수 있다 — 그래서 복구 성공 후 바로 이동하지 않고, 새 캔버스로 시작한다는
+// 걸 분명히 알린 뒤 사용자가 직접 "계속하기"를 눌러야 넘어가게 한다.
 export function IntroView() {
   const router = useRouter();
   const restore = useRestoreSession();
@@ -24,8 +28,16 @@ export function IntroView() {
     event.preventDefault();
     const trimmed = code.trim();
     if (!trimmed || restore.isPending) return;
-    restore.mutate(trimmed, { onSuccess: () => router.push('/experience') });
+    restore.mutate(trimmed);
   };
+
+  // 코드리뷰 지적: invalid-code(401)와 통신·서버 오류를 구분하지 않으면, 유효한 코드를 쓴
+  // 사용자도 "코드를 잘못 입력했다"고 오인해 같은 코드를 반복 시도하게 된다.
+  const errorMessage = !restore.isError
+    ? null
+    : restore.error instanceof ApiError && restore.error.status === 401
+      ? '복구 코드를 다시 확인해 주세요.'
+      : '확인하는 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.';
 
   return (
     <main className="flex min-h-full flex-1 flex-col items-center justify-center gap-8 bg-[#fbf4ea] px-6 py-12 text-center">
@@ -54,31 +66,48 @@ export function IntroView() {
       </Link>
 
       {/* 복구 코드로 이어하기 (Figma Slide 8·9). */}
-      <form onSubmit={handleRestore} className="flex w-full max-w-sm flex-col gap-3">
-        <label htmlFor={inputId} className="sr-only">
-          복구 코드
-        </label>
-        <input
-          id={inputId}
-          type="text"
-          value={code}
-          onChange={(event) => setCode(event.target.value)}
-          placeholder="복구 코드 입력"
-          className="w-full rounded-[20px] border border-[#3a1710] bg-transparent px-10 py-5 text-center text-xl text-[#3a1710] placeholder:text-[#bab0a2] focus-visible:ring-2 focus-visible:ring-[#3a1710] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf4ea] focus-visible:outline-none"
-        />
-        <button
-          type="submit"
-          disabled={!code.trim() || restore.isPending}
-          className="inline-flex items-center justify-center gap-3 rounded-[20px] bg-[#3a1710] px-10 py-5 text-xl text-[#fff9f4] transition-colors duration-150 hover:bg-[#4a2016] focus-visible:ring-2 focus-visible:ring-[#3a1710] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf4ea] focus-visible:outline-none active:bg-[#2e120c] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {restore.isPending ? '확인하는 중…' : '이어 체험 하러 가기'}
-        </button>
-        {restore.isError && (
-          <p role="alert" className="text-danger text-sm">
-            복구 코드를 다시 확인해 주세요.
+      {restore.isSuccess ? (
+        <div className="flex w-full max-w-sm flex-col gap-3 rounded-[20px] border border-[#3a1710] p-6">
+          <p className="text-[#39120b]">세션을 확인했어요.</p>
+          <p className="text-sm text-[#6b5a4e]">
+            다만 저장해둔 블록 내용은 아직 불러올 수 없어요 — 새 캔버스로 시작해요. 계속하면
+            지금부터 만드는 내용이 저장돼요.
           </p>
-        )}
-      </form>
+          <button
+            type="button"
+            onClick={() => router.push('/experience')}
+            className="inline-flex items-center justify-center rounded-[20px] bg-[#3a1710] px-10 py-5 text-xl text-[#fff9f4] transition-colors duration-150 hover:bg-[#4a2016] focus-visible:ring-2 focus-visible:ring-[#3a1710] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf4ea] focus-visible:outline-none active:bg-[#2e120c]"
+          >
+            새 캔버스로 계속하기
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={handleRestore} className="flex w-full max-w-sm flex-col gap-3">
+          <label htmlFor={inputId} className="sr-only">
+            복구 코드
+          </label>
+          <input
+            id={inputId}
+            type="text"
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+            placeholder="복구 코드 입력"
+            className="w-full rounded-[20px] border border-[#3a1710] bg-transparent px-10 py-5 text-center text-xl text-[#3a1710] placeholder:text-[#bab0a2] focus-visible:ring-2 focus-visible:ring-[#3a1710] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf4ea] focus-visible:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={!code.trim() || restore.isPending}
+            className="inline-flex items-center justify-center gap-3 rounded-[20px] bg-[#3a1710] px-10 py-5 text-xl text-[#fff9f4] transition-colors duration-150 hover:bg-[#4a2016] focus-visible:ring-2 focus-visible:ring-[#3a1710] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf4ea] focus-visible:outline-none active:bg-[#2e120c] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {restore.isPending ? '확인하는 중…' : '이어 체험 하러 가기'}
+          </button>
+          {errorMessage && (
+            <p role="alert" className="text-danger text-sm">
+              {errorMessage}
+            </p>
+          )}
+        </form>
+      )}
     </main>
   );
 }
