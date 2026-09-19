@@ -1,4 +1,4 @@
-export { useSession, useAutoSaveProject } from './api/hooks';
+export { useSession, useAutoSaveProject, useRestoreSession } from './api/hooks';
 export { createSession, restoreSession, saveProject } from './api/sessionApi';
 export { sessionHandlers, __resetSessionMocks } from './api/mocks';
 export {
