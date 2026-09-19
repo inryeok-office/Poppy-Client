@@ -13,10 +13,13 @@ const STATUS_LABEL: Record<SimulationStepStatus, string> = {
   pending: '대기',
 };
 
+// done·failed 는 기존 Block 컴포넌트와 같은 방식(색 배경 + 흰 글자) — 이미 대비를 맞춰 쓰던
+// 조합이다. pending 은 흰 글자를 얹지 않고 외곽선만 그린다 — muted 배경에 흰 숫자를 얹으면
+// 대비가 2.7:1로 부족해진다(코드리뷰에서 success 에 지적된 것과 같은 문제라 미리 피한다).
 const STATUS_BADGE: Record<SimulationStepStatus, string> = {
-  done: 'bg-block-start',
-  failed: 'bg-danger',
-  pending: 'bg-muted',
+  done: 'bg-block-start text-white',
+  failed: 'bg-danger text-white',
+  pending: 'border border-muted text-muted',
 };
 
 type SimulationResultSummaryProps = {
@@ -59,7 +62,7 @@ export function SimulationResultSummary({ result }: SimulationResultSummaryProps
               <span className="flex items-center gap-1.5">
                 <span
                   aria-hidden
-                  className={`flex size-6 shrink-0 items-center justify-center rounded-full text-[13px] text-white ${STATUS_BADGE[step.status]}`}
+                  className={`flex size-6 shrink-0 items-center justify-center rounded-full text-[13px] ${STATUS_BADGE[step.status]}`}
                 >
                   {index + 1}
                 </span>

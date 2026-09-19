@@ -39,9 +39,11 @@
   --color-primary: #ba7448; /* 채워진 강조 버튼 (활성 '시뮬레이션 하기' 등) */
   --color-primary-hover: #a8663d; /* primary 버튼 hover */
   --color-primary-active: #965a35; /* primary 버튼 눌림 */
-  --color-danger: #d96a5c; /* 시뮬레이션 실패 배지·텍스트·경계선 (Figma Slide 6) */
+  /* danger·success — 흰 배경/배지(흰 글자)에서 모두 WCAG AA 4.5:1 이상 나오게 Figma 색보다
+     어둡게 잡았다(코드리뷰: #d96a5c·#9dc88b 원래 값은 흰 배경 대비 3.4:1·1.9:1로 미달). */
+  --color-danger: #b91c1c; /* 시뮬레이션 실패 배지·텍스트·경계선 — 흰 배경 대비 6.5:1 */
   --color-danger-bg: #ffefed; /* 실패 카드 배경 */
-  --color-success: #9dc88b; /* 시뮬레이션 성공 배지·텍스트·경계선 (Figma Slide 7) */
+  --color-success: #166534; /* 시뮬레이션 성공 배지·텍스트·경계선 — 흰 배경 대비 7.1:1 */
   --color-success-bg: #e9ffee; /* 성공 카드 배경 */
 }
 
