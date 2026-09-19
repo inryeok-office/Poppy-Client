@@ -1,11 +1,32 @@
-import Link from 'next/link';
+'use client';
 
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useId, useState, type FormEvent } from 'react';
+
+import { useRestoreSession } from '@/features/session';
 import { PoppyLogo } from '@/shared/ui';
 
-// Figma "뽀샤" 인트로 화면(node 5:2). 프레임의 브라우저 크롬/작업표시줄은 목업 장식이라 제외.
+// Figma "뽀샤" 인트로 화면(node 5:2, 체험하러 가기) + node 227:784·227:909(Slide 8·9, 복구 코드
+// 입력 빈 상태·입력된 상태). 프레임의 브라우저 크롬/작업표시줄은 목업 장식이라 제외.
 // 본문 폰트는 layout.tsx의 그리운 경찰공평체(--font-poppy)를 body에서 상속.
 // 디자인에 hover/press 상태가 없어 브랜드 톤에 맞춰 임의로 정함(명도만 조정 + 화살표 nudge).
+//
+// 복구 코드는 세션 "정체성"만 되돌린다(명세 "세션 복구") — 그 세션에 있던 블록 내용을 서버에서
+// 불러오는 API 는 아직 없어(저장만 가능·조회 불가), 복구해도 캔버스는 새로 시작한다. 후속 필요.
 export function IntroView() {
+  const router = useRouter();
+  const restore = useRestoreSession();
+  const [code, setCode] = useState('');
+  const inputId = useId();
+
+  const handleRestore = (event: FormEvent) => {
+    event.preventDefault();
+    const trimmed = code.trim();
+    if (!trimmed || restore.isPending) return;
+    restore.mutate(trimmed, { onSuccess: () => router.push('/experience') });
+  };
+
   return (
     <main className="flex min-h-full flex-1 flex-col items-center justify-center gap-8 bg-[#fbf4ea] px-6 py-12 text-center">
       <div className="flex flex-col items-center gap-3">
@@ -31,6 +52,33 @@ export function IntroView() {
           />
         </svg>
       </Link>
+
+      {/* 복구 코드로 이어하기 (Figma Slide 8·9). */}
+      <form onSubmit={handleRestore} className="flex w-full max-w-sm flex-col gap-3">
+        <label htmlFor={inputId} className="sr-only">
+          복구 코드
+        </label>
+        <input
+          id={inputId}
+          type="text"
+          value={code}
+          onChange={(event) => setCode(event.target.value)}
+          placeholder="복구 코드 입력"
+          className="w-full rounded-[20px] border border-[#3a1710] bg-transparent px-10 py-5 text-center text-xl text-[#3a1710] placeholder:text-[#bab0a2] focus-visible:ring-2 focus-visible:ring-[#3a1710] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf4ea] focus-visible:outline-none"
+        />
+        <button
+          type="submit"
+          disabled={!code.trim() || restore.isPending}
+          className="inline-flex items-center justify-center gap-3 rounded-[20px] bg-[#3a1710] px-10 py-5 text-xl text-[#fff9f4] transition-colors duration-150 hover:bg-[#4a2016] focus-visible:ring-2 focus-visible:ring-[#3a1710] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf4ea] focus-visible:outline-none active:bg-[#2e120c] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {restore.isPending ? '확인하는 중…' : '이어 체험 하러 가기'}
+        </button>
+        {restore.isError && (
+          <p role="alert" className="text-danger text-sm">
+            복구 코드를 다시 확인해 주세요.
+          </p>
+        )}
+      </form>
     </main>
   );
 }
