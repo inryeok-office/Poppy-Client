@@ -102,6 +102,17 @@ export type SafetyViolation = {
   message: string;
 };
 
+export type SimulationStepStatus = 'done' | 'failed' | 'pending';
+
+/**
+ * 실행순서 한 칸 (Figma Slide 6·7 "실행순서"). repeat 는 실제 반복 횟수만큼 펼쳐진 뒤라
+ * 여기엔 나타나지 않고, 펼쳐진 leaf 명령만 순서대로 담긴다.
+ */
+export type SimulationStep = {
+  node: SerializedBlockNode;
+  status: SimulationStepStatus;
+};
+
 export type SimulationResult = {
   /** 블록 구조·안전 제한 검증을 모두 통과했는지 */
   passed: boolean;
@@ -113,4 +124,6 @@ export type SimulationResult = {
   violations: SafetyViolation[];
   /** 실제 물리 결과와 차이가 있을 수 있음 등 안내 문구 */
   notes: string[];
+  /** 실행순서 — 구조·값이 유효할 때만 채워진다(그 외엔 빈 배열). */
+  steps: SimulationStep[];
 };

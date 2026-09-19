@@ -1,8 +1,10 @@
 import { isCancellableStatus, type ExecutionStatus } from '@/features/execution';
+import type { SimulationResult } from '@/features/simulation';
 
 import { useBlockDrag } from '../lib/useBlockDrag';
 import type { BlockProgram } from '../model/blockProgram';
 import { BlockStack } from './BlockStack';
+import { SimulationResultSummary } from './SimulationResultSummary';
 import { PillButton } from '@/shared/ui';
 
 // Figma node 33:700 (Slide 16:9 - 4) — 조립 완료 + 시뮬레이션 통과.
@@ -36,6 +38,8 @@ type RunReadyWorkspaceProps = {
   onSimulate?: () => void;
   onRun?: () => void;
   onStop?: () => void;
+  /** 방금 받은 시뮬레이션 결과 — 아직 실행을 시작하기 전(executionStatus 없음)에만 보여준다. */
+  result?: SimulationResult;
 };
 
 export function RunReadyWorkspace({
@@ -46,6 +50,7 @@ export function RunReadyWorkspace({
   onSimulate,
   onRun,
   onStop,
+  result,
 }: RunReadyWorkspaceProps) {
   const { registerCanvas, registerStack } = useBlockDrag();
   const inProgress =
@@ -91,6 +96,14 @@ export function RunReadyWorkspace({
           )}
         </div>
       </div>
+
+      {/* 방금 통과한 시뮬레이션 결과(카드·실행순서) — 실행을 시작하면(executionStatus 생김) 사라진다
+          (Figma Slide 7). '실행 블록' 목록은 바로 아래 캔버스가 이미 읽기 전용으로 보여주고 있다. */}
+      {result?.passed && !executionStatus && (
+        <div className="border-line bg-card border-b-[1.5px] px-8 py-4">
+          <SimulationResultSummary result={result} />
+        </div>
+      )}
 
       {/* 조립 캔버스 (Rectangle 7, h763). 완성된 프로그램. 블록은 캔버스 좌상단 기준 x63 y67. */}
       <div

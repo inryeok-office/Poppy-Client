@@ -1,6 +1,6 @@
 import { sumOverBlockTree } from '@/shared/lib/blockTree';
 
-import type { SerializedBlockNode, SerializedBlockProgram } from './types';
+import type { SerializedBlockNode, SerializedBlockProgram, SimulationStep } from './types';
 
 // 서버 측 안전 정책 (명세: "서버 정책이 클라이언트보다 우선한다").
 // 시뮬레이션 mock 과 실행 mock 이 같은 판정을 쓴다. views/experience 의 입력칸 min·max 도
@@ -67,6 +67,39 @@ function totalDistance(nodes: SerializedBlockNode[]): number {
     valueOf: (node) => (node.kind === 'move' || node.kind === 'moveForward' ? node.distanceM : 0),
     bodyOf,
     repeatCountOf: (node) => (node.kind === 'repeat' ? node.count : 1),
+  });
+}
+
+function flattenSteps(nodes: SerializedBlockNode[]): SerializedBlockNode[] {
+  const out: SerializedBlockNode[] = [];
+  for (const node of nodes) {
+    if (node.kind === 'repeat') {
+      for (let i = 0; i < node.count; i++) out.push(...flattenSteps(node.body));
+    } else {
+      out.push(node);
+    }
+  }
+  return out;
+}
+
+/**
+ * 정규화된 명령을 실제 반복 횟수만큼 펼쳐 실행순서를 만들고(Figma Slide 6·7), 누적 이동
+ * 거리가 처음 안전 구역(SAFE_ZONE_M)을 넘는 지점을 찾아 그 앞은 완료, 그 지점은 실패,
+ * 그 뒤는 대기로 표시한다. 구조·값이 유효할 때만 호출한다(evaluateProgram 참고).
+ */
+export function buildSimulationSteps(chain: SerializedBlockNode[]): SimulationStep[] {
+  const flat = flattenSteps(chain);
+  let cumulative = 0;
+  let failedAt = -1;
+
+  return flat.map((node, index) => {
+    if (failedAt === -1) {
+      cumulative += node.kind === 'move' || node.kind === 'moveForward' ? node.distanceM : 0;
+      if (cumulative > SAFE_ZONE_M) failedAt = index;
+    }
+    const status =
+      failedAt === -1 || index < failedAt ? 'done' : index === failedAt ? 'failed' : 'pending';
+    return { node, status };
   });
 }
 

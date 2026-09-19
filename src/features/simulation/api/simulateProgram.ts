@@ -1,7 +1,7 @@
 import { api, sessionAuthHeaders, type ApiResponse } from '@/shared/api';
 import { sumOverBlockTree } from '@/shared/lib/blockTree';
 
-import { evaluateProgram, SAFE_ZONE_M } from '../model/safety';
+import { buildSimulationSteps, evaluateProgram, SAFE_ZONE_M } from '../model/safety';
 import type { SerializedBlockNode, SimulationRequest, SimulationResult } from '../model/types';
 
 function countCommands(nodes: SerializedBlockNode[]): number {
@@ -24,12 +24,17 @@ export async function simulateProgram(request: SimulationRequest): Promise<Simul
           },
         ]
     : [{ code: 'invalid-values' as const, message: '블록 값이 올바르지 않아요.' }];
+  const steps =
+    evaluation.structurallyValid && evaluation.valuesValid
+      ? buildSimulationSteps(request.program.chain)
+      : [];
   return {
     passed: evaluation.runnable,
     normalizedCommandCount: countCommands(request.program.chain),
     totalDistanceM: evaluation.totalDistanceM,
     violations,
     notes: [],
+    steps,
   };
 }
 
