@@ -1,3 +1,5 @@
+import type { SimulationStep } from '@/features/simulation';
+
 // Figma node 21:520 (Dev 모드 좌표 그대로). 격자 박스(Rectangle 19) 기준 상대 좌표:
 //   격자선  Frame 19 세로줄 x=21..229 / Frame 20 가로줄 y=11..167 (둘 다 26px 간격)
 //   로봇 본체 Rectangle 20  x=105 y=89  40×52   (중심 x=125 = 세로 중앙선, top=89 = 가로 중앙선)
@@ -12,23 +14,50 @@ const SUMMARY = { blockCount: 5, estimatedSeconds: 7 } as const;
 type RobotPreviewProps = {
   /** 시뮬레이션이 계산한 총 이동 거리 (m). 실행 전에는 0. */
   estimatedDistanceM?: number;
+  /** 방금 시뮬레이션한 실행순서 — 있을 때만 진행상태 바·성공/실패 배지를 보여준다. */
+  steps?: SimulationStep[];
+  /** steps 와 함께 준다 — 진행상태 문구·배지 색을 결정한다. */
+  passed?: boolean;
 };
 
-export function RobotPreview({ estimatedDistanceM = 0 }: RobotPreviewProps) {
+export function RobotPreview({ estimatedDistanceM = 0, steps, passed }: RobotPreviewProps) {
   const stats = [
     { label: '자세', value: '서있기' },
     { label: '바라보는 방향', value: '정면' },
     { label: '예상 이동 거리', value: `${estimatedDistanceM.toFixed(1)} m` },
   ];
 
+  const hasResult = steps != null && passed != null;
+  const total = steps?.length ?? 0;
+  const doneCount = steps?.filter((s) => s.status === 'done').length ?? 0;
+  const failedIndex = steps?.findIndex((s) => s.status === 'failed') ?? -1;
+  const progressPct = total > 0 ? (doneCount / total) * 100 : 0;
+
   return (
     <aside
       aria-label="로봇 미리보기"
       className="border-line flex w-[313px] shrink-0 flex-col border-l-[1.5px] pt-[18px] pr-8 pl-[30.5px]"
     >
-      {/* 헤더: 제목 + 요약. Figma 텍스트 높이 16 기준이라 leading-none 으로 여백 슬랙 제거 */}
+      {/* 헤더: 제목(+ 성공/실패 배지) + 요약. Figma 텍스트 높이 16 기준이라 leading-none 으로 여백 슬랙 제거 */}
       <div className="flex items-baseline justify-between leading-none">
-        <h2 className="text-ink text-[14px]">로봇 미리보기</h2>
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-ink text-[14px]">로봇 미리보기</h2>
+          {hasResult && (
+            <span
+              className={`flex items-center gap-1 text-[13px] ${passed ? 'text-success' : 'text-danger'}`}
+            >
+              <span
+                aria-hidden
+                className={`flex size-4 items-center justify-center rounded-full text-[9px] text-white ${
+                  passed ? 'bg-success' : 'bg-danger'
+                }`}
+              >
+                {passed ? '✓' : '!'}
+              </span>
+              {passed ? '성공' : '실패'}
+            </span>
+          )}
+        </div>
         <span className="text-muted text-[12px]">
           블록 {SUMMARY.blockCount}개 • 예상 실행 {SUMMARY.estimatedSeconds}초
         </span>
@@ -76,6 +105,24 @@ export function RobotPreview({ estimatedDistanceM = 0 }: RobotPreviewProps) {
           </svg>
         </button>
       </div>
+
+      {/* 진행상태 — 방금 시뮬레이션했을 때만 (Figma Slide 6·7). */}
+      {hasResult && total > 0 && (
+        <div className="mt-8 flex flex-col gap-1">
+          <div className="flex items-baseline justify-between leading-none">
+            <span className="text-muted text-[15px]">진행상태</span>
+            <span className="text-ink text-[16px]">
+              {passed ? `${total}/${total} 단계 성공` : `${failedIndex + 1}번째 블록에서 멈춤`}
+            </span>
+          </div>
+          <div className="bg-line relative mt-2 h-2 w-full overflow-hidden rounded-full">
+            <div
+              className={`h-full rounded-full ${passed ? 'bg-success' : 'bg-danger'}`}
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 스탯 3행 (Frame 24). 격자 박스 아래 32px, 각 행 18px · 행 간격 16 → 34 피치 (Figma) */}
       <dl className="mt-8 flex flex-col gap-4 leading-none">

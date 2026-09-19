@@ -1,10 +1,13 @@
 'use client';
 
+import type { SimulationResult } from '@/features/simulation';
+
 import { useBlockDrag } from '../lib/useBlockDrag';
 import { type BlockError, type BlockProgram } from '../model/blockProgram';
 import { Block, BlockOutline, GhostBlock } from './Block';
 import { BlockStack, type BlockParamPatch } from './BlockStack';
 import { SectionLabel } from './SectionLabel';
+import { SimulationResultSummary } from './SimulationResultSummary';
 import { PillButton } from '@/shared/ui';
 
 // Figma node 21:520 / 33:483 (Slide 2·3) — 블록 조립 워크스페이스, 시뮬레이션 통과 전.
@@ -24,6 +27,8 @@ type BlockWorkspaceProps = {
   simulating?: boolean;
   /** 시뮬레이션이 통과하지 못한 이유 (안전 제한 위반 / 요청 실패). */
   simulationMessage?: string;
+  /** 방금 받은 시뮬레이션 결과 — 실패했으면 튜토리얼 자리에 결과 카드·실행순서를 보여준다. */
+  result?: SimulationResult;
 };
 
 export function BlockWorkspace({
@@ -33,6 +38,7 @@ export function BlockWorkspace({
   onSimulate,
   simulating = false,
   simulationMessage,
+  result,
 }: BlockWorkspaceProps) {
   const { dragging, startDrag, registerStack, registerCanvas, registerTrash } = useBlockDrag();
 
@@ -42,26 +48,33 @@ export function BlockWorkspace({
 
   return (
     <section className="bg-page flex flex-1 flex-col" aria-label="블록 워크스페이스">
-      {/* 튜토리얼 */}
-      <div>
-        <div className="flex items-center justify-between px-8 py-[18px]">
-          <SectionLabel>튜토리얼</SectionLabel>
-          <PillButton>건너뛰기</PillButton>
+      {/* 튜토리얼 — 방금 시뮬레이션이 실패했으면 그 결과(카드·실행순서)를 대신 보여준다
+          (Figma Slide 6). 편집을 시작하면 invalidate() 가 result 를 지워 다시 튜토리얼로 돌아온다. */}
+      {result && !result.passed ? (
+        <div className="border-line bg-card h-[258px] overflow-y-auto border-y-[1.5px] px-8 py-[18px]">
+          <SimulationResultSummary result={result} />
         </div>
-        {/* 목표 블록 예시 (Group 8·9) */}
-        <div className="border-line bg-card dot-grid h-[258px] border-y-[1.5px] px-8 pt-[26px]">
-          <ol className="flex flex-col -space-y-1.5">
-            <li>
-              <Block color="start" variant="hat">
-                시작
-              </Block>
-            </li>
-            <li>
-              <GhostBlock>다음 블록을 붙여주세요</GhostBlock>
-            </li>
-          </ol>
+      ) : (
+        <div>
+          <div className="flex items-center justify-between px-8 py-[18px]">
+            <SectionLabel>튜토리얼</SectionLabel>
+            <PillButton>건너뛰기</PillButton>
+          </div>
+          {/* 목표 블록 예시 (Group 8·9) */}
+          <div className="border-line bg-card dot-grid h-[258px] border-y-[1.5px] px-8 pt-[26px]">
+            <ol className="flex flex-col -space-y-1.5">
+              <li>
+                <Block color="start" variant="hat">
+                  시작
+                </Block>
+              </li>
+              <li>
+                <GhostBlock>다음 블록을 붙여주세요</GhostBlock>
+              </li>
+            </ol>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 안내문(구조 오류 시 오류 메시지) + 실행 버튼. */}
       <div className="flex items-center justify-between gap-4 px-8 py-[18px]">

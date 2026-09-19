@@ -451,6 +451,48 @@ export function validateBlockProgram(program: BlockProgram): BlockError[] {
   return errors;
 }
 
+/**
+ * 실행순서 등 읽기 전용 목록에 쓰는 한 줄 설명 (Figma Slide 6·7). SimulationStep 은 repeat 를
+ * 실제 반복 횟수만큼 펼친 뒤라 leaf 명령만 들어오는데, repeat 자신도 이 함수에선 방어적으로
+ * 처리해둔다.
+ */
+export function describeBlock(node: SerializedBlockNode): string {
+  switch (node.kind) {
+    case 'start':
+      return '시작';
+    case 'end':
+      return '종료';
+    case 'greet':
+      return '인사하기';
+    case 'move':
+      return `뒤로 ${node.distanceM}m 이동`;
+    case 'moveForward':
+      return `앞으로 ${node.distanceM}m 이동`;
+    case 'rotateLeft':
+      return `왼쪽으로 ${node.degrees}° 이동`;
+    case 'rotateRight':
+      return `오른쪽으로 ${node.degrees}° 이동`;
+    case 'wait':
+      return `${node.seconds}초 기다리기`;
+    case 'stop':
+      return '정지';
+    case 'sit':
+      return '앉기';
+    case 'standUp':
+      return '일어서기';
+    case 'heart':
+      return '하트';
+    case 'dance':
+      return '춤추기';
+    case 'roll':
+      return '구르기';
+    case 'attack':
+      return '공격';
+    case 'repeat':
+      return '번 반복하기';
+  }
+}
+
 /** 프로그램이 로봇을 움직이는 총 거리 (m). 명세: "제한을 우회하는 중첩·합산 값도 계산". */
 export function totalTravelDistance(program: BlockProgram): number {
   return sumOverBlockTree(program.stack, {

@@ -231,6 +231,7 @@ export function ExperienceView() {
               onSimulate={runSimulation}
               onRun={requestRun}
               onStop={stopRun}
+              result={simulationResult}
             />
           ) : (
             <BlockWorkspace
@@ -240,9 +241,14 @@ export function ExperienceView() {
               onSimulate={runSimulation}
               simulating={simulation.isPending}
               simulationMessage={simulationMessage}
+              result={simulationResult}
             />
           )}
-          <RobotPreview estimatedDistanceM={estimatedDistanceM} />
+          <RobotPreview
+            estimatedDistanceM={estimatedDistanceM}
+            steps={simulationResult?.steps}
+            passed={simulationResult?.passed}
+          />
         </div>
       </BlockDragProvider>
     </div>

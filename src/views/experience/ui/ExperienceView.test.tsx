@@ -296,9 +296,12 @@ describe('ExperienceView', () => {
     });
     await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
 
-    expect(
-      await screen.findByText(/안전 구역을 벗어나요/, undefined, { timeout: 3000 }),
-    ).toBeInTheDocument();
+    // 안내문(상단 한 줄)과 결과 카드(Figma Slide 6, 튜토리얼 자리) 둘 다에 이유가 뜬다
+    await waitFor(
+      () => expect(screen.getAllByText(/안전 구역을 벗어나요/).length).toBeGreaterThanOrEqual(2),
+      { timeout: 3000 },
+    );
+    expect(screen.getByText('조금만 고치면 돼요!')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /로봇 실행하기/ })).toHaveTextContent('잠김');
     // 예상 이동 거리에 계산 결과가 반영된다
     expect(screen.getByText('4.0 m')).toBeInTheDocument();

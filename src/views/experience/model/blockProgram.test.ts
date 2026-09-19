@@ -4,6 +4,7 @@ import {
   INITIAL_PROGRAM,
   carriedBlocks,
   deleteCarried,
+  describeBlock,
   draftToProgram,
   dropOnCanvas,
   dropOnSlot,
@@ -294,5 +295,20 @@ describe('newBlock — 새 카테고리 블록 기본값', () => {
   it('파라미터가 없는 동작 블록은 id·kind 만 갖는다', () => {
     expect(newBlock('sit')).toMatchObject({ kind: 'sit' });
     expect(newBlock('attack')).toMatchObject({ kind: 'attack' });
+  });
+});
+
+describe('describeBlock — 실행순서 등 읽기 전용 목록에 쓰는 한 줄 설명', () => {
+  it('값 있는 블록은 값을 문구에 넣는다', () => {
+    expect(describeBlock({ id: 'a', kind: 'move', distanceM: 3 })).toBe('뒤로 3m 이동');
+    expect(describeBlock({ id: 'a', kind: 'rotateRight', degrees: 90 })).toBe(
+      '오른쪽으로 90° 이동',
+    );
+    expect(describeBlock({ id: 'a', kind: 'wait', seconds: 5 })).toBe('5초 기다리기');
+  });
+
+  it('값 없는 블록은 이름만 반환한다', () => {
+    expect(describeBlock({ id: 'a', kind: 'start' })).toBe('시작');
+    expect(describeBlock({ id: 'a', kind: 'attack' })).toBe('공격');
   });
 });
