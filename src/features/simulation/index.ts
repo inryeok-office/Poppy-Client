@@ -8,6 +8,8 @@ export type {
   SerializedBlockProgram,
   SimulationRequest,
   SimulationResult,
+  SimulationStep,
+  SimulationStepStatus,
   ServerBlock,
   ServerBlockProgram,
 } from './model/types';

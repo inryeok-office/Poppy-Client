@@ -114,4 +114,51 @@ describe('simulateProgram local evaluation', () => {
     expect(result.passed).toBe(false);
     expect(result.violations[0]?.code).toBe('invalid-values');
   });
+
+  describe('steps (Figma Slide 6·7 실행순서)', () => {
+    it('marks every step done when the program stays inside the safe zone', async () => {
+      const result = await simulateProgram({
+        program: program({
+          chain: [
+            { id: 'start-0', kind: 'start' },
+            { id: 'move-0', kind: 'move', distanceM: 1 },
+            { id: 'end-0', kind: 'end' },
+          ],
+        }),
+      });
+
+      expect(result.steps.map((s) => s.status)).toEqual(['done', 'done', 'done']);
+    });
+
+    it('unrolls repeat by its actual count and marks the step that crosses the safe zone as failed, the rest pending', async () => {
+      const result = await simulateProgram({
+        program: program({
+          chain: [
+            { id: 'start-0', kind: 'start' },
+            repeatNode(3, 1), // 1m × 3회 — 2번째 반복(누적 2m)까지 안전, 3번째(누적 3m)에서 넘는다
+            { id: 'greet-0', kind: 'greet' },
+            { id: 'end-0', kind: 'end' },
+          ],
+        }),
+      });
+
+      // start, move, move, move(초과), greet, end
+      expect(result.steps.map((s) => s.status)).toEqual([
+        'done',
+        'done',
+        'done',
+        'failed',
+        'pending',
+        'pending',
+      ]);
+    });
+
+    it('leaves steps empty when values are invalid (nothing safe to walk)', async () => {
+      const result = await simulateProgram({
+        program: program({ chain: [{ id: 'start-0', kind: 'start' }, repeatNode(-3, 10)] }),
+      });
+
+      expect(result.steps).toEqual([]);
+    });
+  });
 });
