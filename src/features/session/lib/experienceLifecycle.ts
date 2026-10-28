@@ -3,6 +3,7 @@ import { clearSessionCredentials, readSessionCredentials } from '@/shared/api';
 import {
   clearCachedSessionId,
   clearExperienceActivity,
+  clearExperienceFlags,
   clearLocalDraft,
   readCachedSessionId,
   readLastActivityAt,
@@ -24,6 +25,7 @@ export function resetExperienceStorage(): void {
   clearCachedSessionId();
   clearSessionCredentials();
   clearExperienceActivity();
+  clearExperienceFlags();
 }
 
 /**

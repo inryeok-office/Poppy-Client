@@ -149,7 +149,8 @@ describe('ExperienceView', () => {
     renderView();
 
     expect(screen.getByRole('button', { name: '처음으로' })).toBeInTheDocument();
-    expect(screen.getByText('튜토리얼')).toBeInTheDocument();
+    // 반복{이동} — 블록 2개라 단계 안내 3/4
+    expect(screen.getByTestId('guide-step')).toHaveTextContent('3/4');
     expect(screen.getByRole('heading', { name: '로봇 미리보기' })).toBeInTheDocument();
   });
 
@@ -225,7 +226,7 @@ describe('ExperienceView', () => {
     expect(run).toHaveAttribute('aria-disabled');
   });
 
-  it('종료 연결 → 시뮬레이션(mock API) 통과 → 로봇 실행하기 활성 + 튜토리얼 제거', async () => {
+  it('종료 연결 → 시뮬레이션(mock API) 통과 → 로봇 실행하기 활성 + 안내 4/4', async () => {
     const user = userEvent.setup();
     renderView();
 
@@ -234,7 +235,9 @@ describe('ExperienceView', () => {
 
     await waitForRunButton();
     expect(screen.getByRole('button', { name: '로봇 실행하기' })).not.toHaveTextContent('잠김');
-    expect(screen.queryByText('튜토리얼')).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/4\/4 · ‘로봇 실행하기’를 누르면 진짜 로봇이 움직여요!/),
+    ).toBeInTheDocument();
   });
 
   it('시뮬레이션 직전 아직 자동 저장되지 않은 편집이 있으면, 먼저 저장한 최신 버전으로 통과 기록을 남긴다 (코드리뷰: 버전 어긋남 방지)', async () => {
@@ -395,7 +398,7 @@ describe('ExperienceView', () => {
     fireEvent.blur(screen.getByRole('spinbutton', { name: '반복 횟수' }));
     await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
 
-    // 안내문(상단 한 줄)과 결과 카드(Figma Slide 6, 튜토리얼 자리) 둘 다에 이유가 뜬다
+    // 안내 띠와 결과 카드(Figma Slide 6) 둘 다에 이유가 뜬다
     await waitFor(
       () => expect(screen.getAllByText(/안전 구역을 벗어나요/).length).toBeGreaterThanOrEqual(2),
       { timeout: 3000 },

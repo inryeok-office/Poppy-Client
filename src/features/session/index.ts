@@ -16,8 +16,10 @@ export {
   writeLocalDraft,
   clearLocalDraft,
   readCachedSessionId,
+  readExperienceFlag,
   readLastActivityAt,
   touchExperienceActivity,
+  writeExperienceFlag,
 } from './lib/localDraft';
 export type {
   AutoSaveStatus,

@@ -1,14 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect } from 'react';
 
 import type { SimulationResult } from '@/features/simulation';
 
 import { useBlockDrag } from '../lib/useBlockDrag';
 import { type BlockError, type BlockProgram } from '../model/blockProgram';
-import { Block, BlockOutline, GhostBlock } from './Block';
+import type { GuideStep } from '../model/guide';
+import { BlockOutline } from './Block';
 import { BlockStack, type BlockParamPatch } from './BlockStack';
-import { SectionLabel } from './SectionLabel';
+import { DragHint, GuideBar } from './GuideBar';
 import { SimulationResultSummary } from './SimulationResultSummary';
 import { PillButton, Tooltip } from '@/shared/ui';
 
@@ -16,8 +17,7 @@ import { PillButton, Tooltip } from '@/shared/ui';
 //   프로그램에 구조 오류가 있으면(예: '종료' 미연결) '시뮬레이션 하기' 비활성(아웃라인) + 안내문이 오류 메시지.
 //   블록은 팔레트/캔버스에서 끌어 옮긴다. 스택 슬롯에 가까우면 스냅 연결, 아니면 놓은 자리에 그대로 둔다.
 //   잡은 블록 아래에 연결된 블록은 함께 딸려온다 (기명서 "블록 드래그 이동·스냅 연결").
-
-const DEFAULT_HINT = '반드시 ‘종료’ 블록으로 끝내주세요.';
+//   캔버스 위 한 줄 안내 띠(GuideBar)가 단계 안내·오류 안내를 함께 맡는다.
 
 type BlockWorkspaceProps = {
   program: BlockProgram;
@@ -29,8 +29,16 @@ type BlockWorkspaceProps = {
   simulating?: boolean;
   /** 시뮬레이션이 통과하지 못한 이유 (안전 제한 위반 / 요청 실패). */
   simulationMessage?: string;
-  /** 방금 받은 시뮬레이션 결과 — 실패했으면 튜토리얼 자리에 결과 카드·실행순서를 보여준다. */
+  /** 방금 받은 시뮬레이션 결과 — 실패했으면 안내 띠 아래에 결과 카드·실행순서를 보여준다. */
   result?: SimulationResult;
+  guideStep?: GuideStep;
+  guideCollapsed?: boolean;
+  onToggleGuide?: () => void;
+  /** 미션 모드 — 안내 띠에 목표와 힌트를 보여준다. */
+  mission?: { goal: string; composition?: string };
+  /** 첫 진입 끌어오기 손가락 애니메이션을 보여줄지 */
+  showDragHint?: boolean;
+  onDragHintDone?: () => void;
 };
 
 export function BlockWorkspace({
@@ -41,59 +49,38 @@ export function BlockWorkspace({
   simulating = false,
   simulationMessage,
   result,
+  guideStep = 1,
+  guideCollapsed = false,
+  onToggleGuide,
+  mission,
+  showDragHint = false,
+  onDragHintDone,
 }: BlockWorkspaceProps) {
   const { dragging, startDrag, registerStack, registerCanvas, registerTrash } = useBlockDrag();
-  // 튜토리얼 '건너뛰기' — 예시 영역을 접어 캔버스를 넓게 쓴다. 다시 펼칠 수 있다.
-  const [tutorialOpen, setTutorialOpen] = useState(true);
 
   const valid = errors.length === 0;
-  const hint = simulationMessage ?? errors[0]?.message ?? DEFAULT_HINT;
+  const alert = simulationMessage ?? errors[0]?.message;
   const dimIds = dragging?.active ? new Set(dragging.carried.map((b) => b.id)) : undefined;
+
+  // 처음 블록을 끌기 시작하면 끌어오기 안내 손가락을 끝낸다.
+  const dragActive = dragging?.active ?? false;
+  useEffect(() => {
+    if (dragActive && showDragHint) onDragHintDone?.();
+  }, [dragActive, showDragHint, onDragHintDone]);
 
   return (
     <section className="bg-page flex flex-1 flex-col" aria-label="블록 워크스페이스">
-      {/* 튜토리얼 — 방금 시뮬레이션이 실패했으면 그 결과(카드·실행순서)를 대신 보여준다
-          (Figma Slide 6). 편집을 시작하면 invalidate() 가 result 를 지워 다시 튜토리얼로 돌아온다. */}
-      {result && !result.passed ? (
-        <div className="border-line bg-card h-[258px] overflow-y-auto border-y-[1.5px] px-8 py-[18px]">
-          <SimulationResultSummary result={result} />
-        </div>
-      ) : (
-        <div>
-          <div className="flex items-center justify-between px-8 py-[18px]">
-            <SectionLabel>튜토리얼</SectionLabel>
-            <PillButton aria-expanded={tutorialOpen} onClick={() => setTutorialOpen((v) => !v)}>
-              {tutorialOpen ? '건너뛰기' : '튜토리얼 보기'}
-            </PillButton>
-          </div>
-          {/* 목표 블록 예시 (Group 8·9) */}
-          <div
-            hidden={!tutorialOpen}
-            data-testid="tutorial-example"
-            className="border-line bg-card dot-grid h-[258px] border-y-[1.5px] px-8 pt-[26px]"
-          >
-            <ol className="flex flex-col -space-y-1.5">
-              <li>
-                <Block color="start" variant="hat">
-                  시작
-                </Block>
-              </li>
-              <li>
-                <GhostBlock>다음 블록을 붙여주세요</GhostBlock>
-              </li>
-            </ol>
-          </div>
-        </div>
-      )}
-
-      {/* 안내문(구조 오류 시 오류 메시지) + 실행 버튼. */}
-      <div className="flex items-center justify-between gap-4 px-8 py-[18px]">
-        <p className="text-ink flex items-center gap-1.5 text-[14px]" aria-live="polite">
-          <span aria-hidden className="bg-block-start size-3 shrink-0 rounded-full" />
-          {hint}
-        </p>
+      {/* 안내 띠(단계 안내 / 오류 / 미션 목표) + 실행 버튼. */}
+      <div className="flex items-start justify-between gap-4 px-8 py-1">
+        <GuideBar
+          step={guideStep}
+          alert={alert}
+          collapsed={guideCollapsed}
+          onToggle={() => onToggleGuide?.()}
+          mission={mission}
+        />
         {/* primary(상하 12)가 잠김 버튼(상하 11)보다 살짝 커서 center 정렬 (Figma Frame 17). */}
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex min-h-12 shrink-0 items-center gap-2">
           {valid ? (
             <PillButton variant="primary" onClick={onSimulate}>
               {simulating ? '시뮬레이션 중…' : '시뮬레이션 하기'}
@@ -111,6 +98,13 @@ export function BlockWorkspace({
         </div>
       </div>
 
+      {/* 방금 시뮬레이션이 실패했으면 결과 카드·실행순서 (Figma Slide 6). 편집하면 사라진다. */}
+      {result && !result.passed && (
+        <div className="border-line bg-card max-h-[258px] overflow-y-auto border-t-[1.5px] px-8 py-[18px]">
+          <SimulationResultSummary result={result} />
+        </div>
+      )}
+
       {/* 블록 조립 캔버스 (Rectangle 7). */}
       <div
         ref={registerCanvas}
@@ -119,6 +113,7 @@ export function BlockWorkspace({
         role="region"
         aria-label="블록 조립 캔버스"
       >
+        {showDragHint && <DragHint onDone={() => onDragHintDone?.()} />}
         <div className="absolute top-[88px] left-[52px]">
           <BlockStack
             nodes={program.stack}

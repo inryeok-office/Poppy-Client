@@ -5,6 +5,7 @@ import { UNKNOWN_ERROR_MESSAGE } from '@/shared/api';
 import type { SimulationResult } from '@/features/simulation';
 
 import { useBlockDrag } from '../lib/useBlockDrag';
+import { GUIDE_TEXT } from '../model/guide';
 import type { BlockProgram } from '../model/blockProgram';
 import { BlockStack } from './BlockStack';
 import { SimulationResultSummary } from './SimulationResultSummary';
@@ -19,7 +20,8 @@ import { PillButton } from '@/shared/ui';
 // 바뀌는 순간에도 걸쳐 있을 수 있는데, 그때 registerCanvas 가 없으면 드롭 좌표를 잴 곳이
 // 없어 드래그하던 블록이 아무 데도 못 붙고 조용히 사라진다.
 
-const DEFAULT_HINT = '반드시 ‘종료’ 블록으로 끝내주세요.';
+// 시뮬레이션을 통과한 화면 — 안내 띠 4/4 단계 문구 (GuideBar 와 같은 문구).
+const DEFAULT_HINT = `4/4 · ${GUIDE_TEXT[4]}`;
 
 /** 이 시간 넘게 QUEUED 면 로봇이 아직 준비 안 됐다고 안내하고 취소를 강조한다. */
 export const QUEUED_TOO_LONG_MS = 15_000;
