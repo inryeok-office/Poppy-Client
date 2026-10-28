@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+
 import { isCancellableStatus, type ExecutionStatus } from '@/features/execution';
 import type { SimulationResult } from '@/features/simulation';
 
@@ -17,6 +19,11 @@ import { PillButton } from '@/shared/ui';
 // 없어 드래그하던 블록이 아무 데도 못 붙고 조용히 사라진다.
 
 const DEFAULT_HINT = '반드시 ‘종료’ 블록으로 끝내주세요.';
+
+/** 이 시간 넘게 QUEUED 면 로봇이 아직 준비 안 됐다고 안내하고 취소를 강조한다. */
+export const QUEUED_TOO_LONG_MS = 15_000;
+const QUEUED_TOO_LONG_HINT =
+  '로봇이 아직 준비되지 않았어요. 조금 더 기다리거나 실행을 취소해 주세요.';
 
 const EXECUTION_HINT: Record<ExecutionStatus, string> = {
   queued: '실행을 기다리고 있어요…',
@@ -53,6 +60,16 @@ export function RunReadyWorkspace({
   result,
 }: RunReadyWorkspaceProps) {
   const { registerCanvas, registerStack } = useBlockDrag();
+  // QUEUED 가 오래 이어지는지 — 상태가 바뀌면 다시 센다.
+  const [queuedTooLong, setQueuedTooLong] = useState(false);
+  useEffect(() => {
+    if (executionStatus !== 'queued') return;
+    const timer = window.setTimeout(() => setQueuedTooLong(true), QUEUED_TOO_LONG_MS);
+    return () => {
+      window.clearTimeout(timer);
+      setQueuedTooLong(false);
+    };
+  }, [executionStatus]);
   const inProgress =
     executionStatus === 'queued' || executionStatus === 'assigned' || executionStatus === 'running';
   // 명세: 체험자는 QUEUED·ASSIGNED 에서만 취소할 수 있다. RUNNING 이후 중지는 관리자 기능.
@@ -60,9 +77,11 @@ export function RunReadyWorkspace({
   const busy = requesting || inProgress;
   const hint = requesting
     ? '실행을 요청하고 있어요…'
-    : executionStatus
-      ? (executionMessage ?? EXECUTION_HINT[executionStatus])
-      : DEFAULT_HINT;
+    : executionStatus === 'queued' && queuedTooLong
+      ? QUEUED_TOO_LONG_HINT
+      : executionStatus
+        ? (executionMessage ?? EXECUTION_HINT[executionStatus])
+        : DEFAULT_HINT;
 
   return (
     <section className="bg-page flex flex-1 flex-col" aria-label="블록 워크스페이스">
@@ -81,8 +100,16 @@ export function RunReadyWorkspace({
           {requesting ? (
             <PillButton aria-disabled>요청 중…</PillButton>
           ) : cancellable ? (
-            <PillButton variant="primary" onClick={onStop}>
-              실행 중지
+            <PillButton
+              variant="primary"
+              onClick={onStop}
+              className={
+                executionStatus === 'queued' && queuedTooLong
+                  ? 'ring-danger animate-pulse ring-2 ring-offset-2'
+                  : ''
+              }
+            >
+              {executionStatus === 'queued' && queuedTooLong ? '실행 취소하기' : '실행 중지'}
             </PillButton>
           ) : executionStatus === 'running' ? (
             // 명세: RUNNING 이후 중지는 관리자 기능 — 체험자 화면엔 중지 버튼을 보여주지 않는다.
