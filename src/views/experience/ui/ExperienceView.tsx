@@ -11,7 +11,14 @@ import {
   useRequestExecution,
 } from '@/features/execution';
 import { clearSelectedMissionId, readSelectedMissionId, useMission } from '@/features/mission';
-import { readLocalDraft, useAutoSaveProject, useSession } from '@/features/session';
+import {
+  expireIdleExperience,
+  readLocalDraft,
+  resetExperienceStorage,
+  touchExperienceActivity,
+  useAutoSaveProject,
+  useSession,
+} from '@/features/session';
 import { describeError, knownErrorMessage } from '@/shared/api';
 import {
   countProgramBlocks,
@@ -55,6 +62,9 @@ import { RunReadyWorkspace } from './RunReadyWorkspace';
  */
 /** 마운트 시 브라우저 초안이 있으면 그 프로그램으로 시작한다 (명세: 새로고침해도 작업 보존). */
 function initialProgram(): { program: BlockProgram; restoredDirty: boolean } {
+  // 15분 넘게 비어 있던 기록은 이전 체험자의 것 — 버리고 새로 시작한다. 그 안의 새로고침은 이어간다.
+  expireIdleExperience();
+  touchExperienceActivity();
   const draft = readLocalDraft();
   if (draft && isBlockProgramSnapshot(draft.blocks)) {
     return { program: draftToProgram(draft.blocks), restoredDirty: draft.dirty };
@@ -281,9 +291,12 @@ export function ExperienceView() {
     invalidate();
   };
 
-  // 처음으로 — 블록·진행 중 실행을 정리하고 체험 첫 화면으로 돌아간다.
+  // 처음으로·다음 체험자 시작 — 진행 중 실행을 정리하고, 이 브라우저의 블록 초안·세션·미션 선택을
+  // 모두 지운 뒤 체험 첫 화면으로 돌아간다(공용 PC 에서 다음 체험자가 이어받지 않게).
   const restart = () => {
     clearAll();
+    resetExperienceStorage();
+    clearSelectedMissionId();
     router.push('/');
   };
 
@@ -321,6 +334,7 @@ export function ExperienceView() {
               executionStatus={executionStatus}
               executionMessage={executionMessage}
               errorMessage={executionError}
+              onNextVisitor={restart}
               onSimulate={runSimulation}
               onRun={requestRun}
               onStop={stopRun}

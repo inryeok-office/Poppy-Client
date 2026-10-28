@@ -2,31 +2,81 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { SerializedBlockProgram } from '@/features/simulation';
-import { ApiError, describeErrorCode, readSessionCredentials } from '@/shared/api';
-
 import {
+  ApiError,
+  clearSessionCredentials,
+  describeErrorCode,
+  readSessionCredentials,
+} from '@/shared/api';
+
+import { expireIdleExperience, resetExperienceStorage } from '../lib/experienceLifecycle';
+import {
+  clearCachedSessionId,
   clearLocalDraft,
   readCachedSessionId,
+  touchExperienceActivity,
   writeCachedSessionId,
   writeLocalDraft,
 } from '../lib/localDraft';
 import type { AutoSaveStatus, SessionInfo } from '../model/types';
-import { InvalidProgramError, createSession, restoreSession, saveProject } from './sessionApi';
+import {
+  InvalidProgramError,
+  createSession,
+  getSession,
+  restoreSession,
+  saveProject,
+} from './sessionApi';
+
+/** Server 가 "그 세션은 없다"고 답한 상태 — 저장된 credential 을 버리고 새로 만든다. */
+const SESSION_GONE_STATUSES = new Set([401, 404, 410]);
 
 async function ensureSession(): Promise<SessionInfo> {
+  // 마지막 활동 후 15분이 지난 기록은 이전 체험자의 것으로 보고 버린다.
+  expireIdleExperience();
+
   const cachedId = readCachedSessionId();
   const credentials = readSessionCredentials();
   if (cachedId && credentials?.sessionId === cachedId) {
-    return { ...credentials, projectVersion: credentials.currentBlockVersion };
+    try {
+      const current = await getSession(cachedId);
+      if (current.status === 'ACTIVE') {
+        touchExperienceActivity();
+        return { ...credentials, projectVersion: current.blockVersion };
+      }
+    } catch (error) {
+      const gone =
+        error instanceof ApiError &&
+        error.status !== undefined &&
+        SESSION_GONE_STATUSES.has(error.status);
+      // 네트워크 오류 등 — 세션이 사라졌다는 증거가 없으니 그대로 이어서 쓴다(오프라인 보관).
+      if (!gone) return { ...credentials, projectVersion: credentials.currentBlockVersion };
+    }
+    // 만료·삭제된 세션 — 조용히 지우고 새로 만든다. 같은 체험의 블록 초안은 남겨 새 세션에 저장한다.
+    clearSessionCredentials();
+    clearCachedSessionId();
   }
 
   const created = await createSession();
   writeCachedSessionId(created.sessionId);
+  touchExperienceActivity();
   return created;
 }
 
 export function useSession() {
   return useQuery({ queryKey: ['session'], queryFn: ensureSession, staleTime: Infinity });
+}
+
+/**
+ * 새 체험 시작 — 이 브라우저의 블록 초안·세션 credential 을 모두 지우고, 메모리에 남은 세션도 버린다.
+ * 다음에 체험 화면에 들어가면 새 세션이 만들어진다. 화면에서 세션을 쓰는 컴포넌트가 없을 때
+ * (인트로 등) 호출한다 — 체험 화면 안에서는 storage 만 지우고 인트로로 이동한다.
+ */
+export function useStartNewExperience() {
+  const queryClient = useQueryClient();
+  return useCallback(() => {
+    resetExperienceStorage();
+    queryClient.removeQueries({ queryKey: ['session'] });
+  }, [queryClient]);
 }
 
 /**
@@ -41,11 +91,15 @@ export function useSession() {
  * 불러오는 API 는 아직 없어(저장만 가능·조회 불가) 새 캔버스로 시작한다 — 후속 필요.
  */
 export function useRestoreSession() {
+  const queryClient = useQueryClient();
   return useMutation({
+    // 메모리에 남은 이전 세션 대신, 방금 복구한 세션을 다시 읽게 한다.
+    onSuccess: () => queryClient.removeQueries({ queryKey: ['session'] }),
     mutationFn: async (recoveryCode: string) => {
       const session = await restoreSession(recoveryCode);
       writeCachedSessionId(session.sessionId);
       clearLocalDraft();
+      touchExperienceActivity();
       return session;
     },
   });

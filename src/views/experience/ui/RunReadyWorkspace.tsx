@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { isCancellableStatus, type ExecutionStatus } from '@/features/execution';
+import { isCancellableStatus, isTerminalStatus, type ExecutionStatus } from '@/features/execution';
 import { UNKNOWN_ERROR_MESSAGE } from '@/shared/api';
 import type { SimulationResult } from '@/features/simulation';
 
@@ -48,6 +48,8 @@ type RunReadyWorkspaceProps = {
   onSimulate?: () => void;
   onRun?: () => void;
   onStop?: () => void;
+  /** 실행이 끝난 뒤 '다음 체험자 시작' — 기록을 지우고 첫 화면으로 */
+  onNextVisitor?: () => void;
   /** 방금 받은 시뮬레이션 결과 — 아직 실행을 시작하기 전(executionStatus 없음)에만 보여준다. */
   result?: SimulationResult;
 };
@@ -61,6 +63,7 @@ export function RunReadyWorkspace({
   onSimulate,
   onRun,
   onStop,
+  onNextVisitor,
   result,
 }: RunReadyWorkspaceProps) {
   const { registerCanvas, registerStack } = useBlockDrag();
@@ -126,6 +129,10 @@ export function RunReadyWorkspace({
             <PillButton variant="primary" onClick={onRun}>
               로봇 실행하기
             </PillButton>
+          )}
+          {/* 실행이 끝났으면(완료·실패·취소) 다음 체험자를 위해 기록을 지우고 첫 화면으로 */}
+          {isTerminalStatus(executionStatus ?? undefined) && onNextVisitor && (
+            <PillButton onClick={onNextVisitor}>다음 체험자 시작</PillButton>
           )}
         </div>
       </div>

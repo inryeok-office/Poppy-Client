@@ -26,6 +26,19 @@ Node는 `.nvmrc`에 고정되어 있고 패키지 매니저는 **npm**입니다.
 
 PR을 올리기 전에 `npm run verify`를 실행하세요. CI(`.github/workflows/ci.yml`)도 같은 단계에 `format:check`를 추가해 검증합니다.
 
+## 공용 PC 체험 기록 정책
+
+행사장 PC 는 여러 체험자가 이어서 쓰므로, 브라우저(localStorage)에 남는 블록 초안·세션 credential 을
+다음 체험자가 이어받지 않게 한다 (`src/features/session/lib/experienceLifecycle.ts`).
+
+- **새 체험 시작**: 인트로의 `체험하러 가기`·`미션 골라서 도전하기`, 체험 화면의 `처음으로`, 실행 결과의
+  `다음 체험자 시작` 은 초안·세션 ID·credential·미션 선택을 모두 지운다. 이어하기는 인트로의 **복구 코드**로만 한다.
+- **자동 만료**: 마지막 활동(블록 저장·체험 화면 진입) 후 `EXPERIENCE_IDLE_TIMEOUT_MS` = **15분**이 지나면 다음
+  진입 때 기록을 버리고 새 세션으로 시작한다. 활동 시각 없이 남은 이전 버전 기록도 같이 버린다.
+- **새로고침 보존**: 15분 안의 새로고침(F5)은 같은 체험으로 보고 블록을 그대로 복원한다.
+- **세션 확인**: 저장된 세션은 진입 때 `GET /api/v1/sessions/{id}` 로 확인한다. 401·404·410 이거나 `EXPIRED`
+  면 조용히 지우고 새 세션을 만든다(같은 체험의 초안은 새 세션에 저장). 네트워크 오류면 저장된 세션을 그대로 쓴다.
+
 ## 기술 스택
 
 - **핵심**: Next.js (App Router) · TypeScript · Tailwind CSS · TanStack Query · axios · FSD

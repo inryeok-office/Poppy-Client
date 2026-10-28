@@ -42,6 +42,8 @@ const SERVER_COMPATIBLE_PROGRAM = {
 const seedDraft = (draft: Record<string, unknown>) => {
   localStorage.setItem('poppy.experience.sessionId', String(draft.sessionId));
   localStorage.setItem('poppy.experience.draft', JSON.stringify(draft));
+  // 방금까지 체험 중이던 기록 (15분 자동 만료 대상 아님)
+  localStorage.setItem('poppy.experience.lastActivityAt', String(Date.now()));
 };
 
 afterEach(() => vi.restoreAllMocks());
