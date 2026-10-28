@@ -47,14 +47,14 @@ describe('simulateProgram local evaluation', () => {
       program: program({
         chain: [
           { id: 'start-0', kind: 'start' },
-          repeatNode(3, 1),
+          repeatNode(5, 1),
           { id: 'greet-0', kind: 'greet' },
           { id: 'end-0', kind: 'end' },
         ],
       }),
     });
     expect(result.passed).toBe(false);
-    expect(result.totalDistanceM).toBe(3);
+    expect(result.totalDistanceM).toBe(5);
     expect(result.violations[0]?.code).toBe('exceeds-safe-zone');
     expect(result.violations[0]?.message).toContain('안전 구역');
   });
@@ -64,14 +64,14 @@ describe('simulateProgram local evaluation', () => {
       program: program({
         chain: [
           { id: 'start-0', kind: 'start' },
-          repeatNode(2, 1),
+          repeatNode(4, 1),
           { id: 'move-1', kind: 'move', distanceM: 1 },
           { id: 'greet-0', kind: 'greet' },
           { id: 'end-0', kind: 'end' },
         ],
       }),
     });
-    expect(result.totalDistanceM).toBe(3);
+    expect(result.totalDistanceM).toBe(5);
     expect(result.passed).toBe(false);
     expect(result.normalizedCommandCount).toBe(6);
   });
@@ -135,15 +135,17 @@ describe('simulateProgram local evaluation', () => {
         program: program({
           chain: [
             { id: 'start-0', kind: 'start' },
-            repeatNode(3, 1), // 1m × 3회 — 2번째 반복(누적 2m)까지 안전, 3번째(누적 3m)에서 넘는다
+            repeatNode(5, 1), // 1m × 5회 — 4번째 반복(누적 4m)까지 안전, 5번째(누적 5m)에서 넘는다
             { id: 'greet-0', kind: 'greet' },
             { id: 'end-0', kind: 'end' },
           ],
         }),
       });
 
-      // start, move, move, move(초과), greet, end
+      // start, move ×4, move(초과), greet, end
       expect(result.steps.map((s) => s.status)).toEqual([
+        'done',
+        'done',
         'done',
         'done',
         'done',

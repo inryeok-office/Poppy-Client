@@ -43,6 +43,11 @@ export const MOVE_RANGE = LIMITS.moveDistance;
 export const WAIT_RANGE = LIMITS.waitSeconds;
 export const ROTATE_RANGE = LIMITS.rotateDegree;
 
+// 팔레트에서 꺼낸 블록의 기본값 (Notion "블록 타입 및 파라미터 정의" 예시값).
+export const DEFAULT_MOVE_M = 0.5;
+export const DEFAULT_ROTATE_DEG = 90;
+export const DEFAULT_REPEAT_COUNT = 4;
+
 export type BlockNode =
   | { id: string; kind: 'start' }
   | { id: string; kind: 'greet' }
@@ -91,15 +96,15 @@ export function newBlock(kind: BlockKind): BlockNode {
   switch (kind) {
     case 'move':
     case 'moveForward':
-      return { id: nextId(kind), kind, distanceM: MOVE_RANGE.min };
+      return { id: nextId(kind), kind, distanceM: DEFAULT_MOVE_M };
     case 'rotateLeft':
     case 'rotateRight':
-      return { id: nextId(kind), kind, degrees: ROTATE_RANGE.min };
+      return { id: nextId(kind), kind, degrees: DEFAULT_ROTATE_DEG };
     case 'wait':
       return { id: nextId('wait'), kind, seconds: WAIT_RANGE.min };
     case 'repeat':
       // 팔레트에서 갓 꺼낸 반복 블록은 body 가 비어 있다 (팔레트에 보이는 모습 그대로).
-      return { id: nextId('repeat'), kind, count: 2, body: [] };
+      return { id: nextId('repeat'), kind, count: DEFAULT_REPEAT_COUNT, body: [] };
     default:
       return { id: nextId(kind), kind } as BlockNode;
   }

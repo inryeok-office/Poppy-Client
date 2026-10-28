@@ -46,8 +46,30 @@ describe('toServerBlockProgram — Server v1 블록 계약 변환', () => {
     });
   });
 
-  it('Server 계약에 없는 블록은 계속 거부한다', () => {
-    expect(() => program({ id: 'g', kind: 'greet' })).toThrow('GREET');
-    expect(() => program({ id: 's', kind: 'sit' })).toThrow('SIT');
+  it('정지·앉기·일어서기를 STOP·SIT·STAND 로 변환한다', () => {
+    expect(
+      program({ id: 'x', kind: 'stop' }, { id: 's', kind: 'sit' }, { id: 'u', kind: 'standUp' })
+        .blocks,
+    ).toEqual([
+      { id: 'x', type: 'STOP', parameters: {} },
+      { id: 's', type: 'SIT', parameters: {} },
+      { id: 'u', type: 'STAND', parameters: {} },
+    ]);
+  });
+
+  it('인사하기·하트·춤추기를 PRESET 의 HELLO·HEART·DANCE1 로 변환한다', () => {
+    expect(
+      program({ id: 'g', kind: 'greet' }, { id: 'h', kind: 'heart' }, { id: 'd', kind: 'dance' })
+        .blocks,
+    ).toEqual([
+      { id: 'g', type: 'PRESET', parameters: { presetCode: 'HELLO' } },
+      { id: 'h', type: 'PRESET', parameters: { presetCode: 'HEART' } },
+      { id: 'd', type: 'PRESET', parameters: { presetCode: 'DANCE1' } },
+    ]);
+  });
+
+  it('검증된 프리셋이 없는 구르기·공격은 계속 거부한다', () => {
+    expect(() => program({ id: 'r', kind: 'roll' })).toThrow('ROLL');
+    expect(() => program({ id: 'a', kind: 'attack' })).toThrow('ATTACK');
   });
 });

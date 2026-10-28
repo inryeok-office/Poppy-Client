@@ -283,13 +283,17 @@ describe('totalTravelDistance', () => {
 });
 
 describe('newBlock — 새 카테고리 블록 기본값', () => {
-  it('회전 블록은 회전 허용 범위 최소값으로 시작한다', () => {
-    expect(newBlock('rotateLeft')).toMatchObject({ kind: 'rotateLeft', degrees: 1 });
-    expect(newBlock('rotateRight')).toMatchObject({ kind: 'rotateRight', degrees: 1 });
+  it('회전 블록은 기본 90° 로 시작한다', () => {
+    expect(newBlock('rotateLeft')).toMatchObject({ kind: 'rotateLeft', degrees: 90 });
+    expect(newBlock('rotateRight')).toMatchObject({ kind: 'rotateRight', degrees: 90 });
   });
 
-  it("'앞으로 m 이동' 은 이동 허용 범위 최소값으로 시작한다", () => {
-    expect(newBlock('moveForward')).toMatchObject({ kind: 'moveForward', distanceM: 1 });
+  it('반복 블록은 기본 4회로 시작한다', () => {
+    expect(newBlock('repeat')).toMatchObject({ kind: 'repeat', count: 4, body: [] });
+  });
+
+  it("'앞으로 m 이동' 은 기본 0.5 m 로 시작한다", () => {
+    expect(newBlock('moveForward')).toMatchObject({ kind: 'moveForward', distanceM: 0.5 });
   });
 
   it('파라미터가 없는 동작 블록은 id·kind 만 갖는다', () => {
