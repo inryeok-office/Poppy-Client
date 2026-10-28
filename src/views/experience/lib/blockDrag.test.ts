@@ -6,6 +6,7 @@ import {
   movedEnough,
   nearestSlot,
   slotsFromBlockRects,
+  slotsFromLayout,
 } from './blockDrag';
 
 const rect = (top: number, height = 44, left = 60, width = 212): DOMRect =>
@@ -84,5 +85,51 @@ describe('movedEnough', () => {
 
   it('임계를 넘으면 드래그', () => {
     expect(movedEnough({ x: 0, y: 0 }, { x: 20, y: 0 })).toBe(true);
+  });
+});
+
+describe('slotsFromLayout — 스택과 반복 입 슬롯', () => {
+  const block = (id: string, kind: string, parent: string, top: number, left = 60) => ({
+    id,
+    kind,
+    parent,
+    rect: rect(top, 44, left),
+  });
+  // 시작(100) → 반복(146, 입 184) { 이동(184) } → 종료(300)
+  const blocks = [
+    block('s', 'start', 'root', 100),
+    block('r', 'repeat', 'root', 146, 60),
+    block('m', 'move', 'r', 184, 86),
+    block('e', 'end', 'root', 300),
+  ];
+  const mouths = [{ repeatId: 'r', rect: rect(184, 0, 86) }];
+
+  it('스택 슬롯은 시작 다음부터 종료 앞까지만 만든다', () => {
+    const slots = slotsFromLayout(blocks, mouths, false);
+    expect(slots.map((s) => [s.parentId, s.index])).toEqual([
+      [null, 1],
+      [null, 2],
+    ]);
+  });
+
+  it('반복 입 슬롯은 입 맨 위(0)와 각 블록 다음에 만든다', () => {
+    const slots = slotsFromLayout(blocks, mouths, true).filter((s) => s.parentId === 'r');
+    expect(slots.map((s) => s.index)).toEqual([0, 1]);
+    expect(slots[0]).toMatchObject({ top: 184, left: 86 });
+    expect(slots[1]).toMatchObject({ centerY: 228, top: 222 });
+  });
+
+  it('반복을 옮기는 중(중첩 금지)이면 입 슬롯을 만들지 않는다', () => {
+    expect(slotsFromLayout(blocks, mouths, false).some((s) => s.parentId !== null)).toBe(false);
+  });
+
+  it('빈 입에도 맨 위 슬롯 하나가 생긴다', () => {
+    const empty = [
+      block('s', 'start', 'root', 100),
+      block('r', 'repeat', 'root', 146),
+      block('e', 'end', 'root', 260),
+    ];
+    const slots = slotsFromLayout(empty, [{ repeatId: 'r', rect: rect(184, 48, 86) }], true);
+    expect(slots.filter((s) => s.parentId === 'r').map((s) => s.index)).toEqual([0]);
   });
 });

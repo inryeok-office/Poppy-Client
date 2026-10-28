@@ -34,7 +34,17 @@ const rect = (left: number, top: number, width: number, height: number): DOMRect
     toJSON: () => ({}),
   }) as DOMRect;
 
+/** 반복 입(data-mouth) 과 입 안 블록이 놓이는 가짜 위치 — 스택 슬롯과 세로로 겹치지 않게 멀리 둔다. */
+export const MOUTH_TOP = 650;
+export const MOUTH_LEFT = STACK_LEFT + 26;
+
 export function rectFor(this: HTMLElement): DOMRect {
+  if (this.hasAttribute('data-mouth')) return rect(MOUTH_LEFT, MOUTH_TOP, 212, 48);
+  if (this.hasAttribute('data-block') && this.dataset.parent && this.dataset.parent !== 'root') {
+    const siblings = this.parentElement ? Array.from(this.parentElement.children) : [];
+    const idx = Math.max(0, siblings.indexOf(this));
+    return rect(MOUTH_LEFT, MOUTH_TOP + idx * (BLOCK_H + BLOCK_GAP), 212, BLOCK_H);
+  }
   if (this.hasAttribute('data-block')) {
     const siblings = this.parentElement ? Array.from(this.parentElement.children) : [];
     const idx = Math.max(0, siblings.indexOf(this));

@@ -1,17 +1,26 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { server } from '@/shared/api/msw/server';
 
-import { INITIAL_PROGRAM, serializeProgram, setBlockParam } from '../model/blockProgram';
+import { serializeProgram, setBlockParam } from '../model/blockProgram';
 import { ExperienceView } from './ExperienceView';
-import { STACK_X, drag, rectFor, slotCenterY } from './dragTestKit';
+import { rectFor } from './dragTestKit';
 
 const CONNECTED_PROGRAM = {
-  stack: [...INITIAL_PROGRAM.stack, { id: 'end-0', kind: 'end' as const }],
+  stack: [
+    { id: 'start-0', kind: 'start' as const },
+    {
+      id: 'repeat-0',
+      kind: 'repeat' as const,
+      count: 2,
+      body: [{ id: 'move-0', kind: 'move' as const, distanceM: 1 }],
+    },
+    { id: 'end-0', kind: 'end' as const },
+  ],
   floating: [],
 };
 
@@ -58,11 +67,19 @@ function renderView() {
   );
 }
 
-// 떨어진 '종료' 블록을 스택 끝 슬롯으로 끌어 연결한다 (jsdom 레이아웃은 dragTestKit 이 스텁).
+// 블록을 한 번 편집해 자동 저장을 일으킨다 (시작·종료는 고정이라 예전처럼 '종료'를 끌어
+// 연결하는 단계가 없다). 반복 횟수 2 → 4 (총 이동 4 m, 안전 구역 한계 안).
 const connectEndBlock = () => {
-  const region = screen.getByRole('region', { name: '블록 조립 캔버스' });
-  drag(within(region).getByText('종료').closest('li')!, STACK_X, slotCenterY(3));
+  fireEvent.change(screen.getByRole('spinbutton', { name: '반복 횟수' }), {
+    target: { value: '4' },
+  });
 };
+
+/** 캔버스 스택에 시작·종료만 남았는지 (전체 지우기·처음으로 직후 상태). */
+const onlyEntriesLeft = () =>
+  Array.from(
+    screen.getByRole('region', { name: '블록 조립 캔버스' }).querySelector('ol')!.children,
+  ).map((li) => li.getAttribute('data-kind'));
 
 /** 캔버스에 아직 연결 안 된 자유 블록 그룹이 있는지. */
 const hasFloatingBlock = () =>
@@ -75,7 +92,7 @@ const waitForRunButton = () =>
     { timeout: 3000 },
   );
 
-/** 종료 연결 → 시뮬레이션 통과까지 진행한다. */
+/** 편집(자동 저장) → 시뮬레이션 통과까지 진행한다. */
 async function passSimulation(user: ReturnType<typeof userEvent.setup>) {
   connectEndBlock();
   await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
@@ -133,21 +150,30 @@ describe('ExperienceView', () => {
     expect(screen.getByRole('heading', { name: '로봇 미리보기' })).toBeInTheDocument();
   });
 
-  it('종료 블록이 연결되지 않으면 오류 안내와 함께 시뮬레이션이 막힌다', () => {
+  it('연결되지 않은 블록이 있으면 오류 안내와 함께 시뮬레이션이 막힌다', () => {
+    const program = {
+      ...CONNECTED_PROGRAM,
+      floating: [
+        { id: 'f1', x: 400, y: 300, blocks: [{ id: 'w1', kind: 'wait' as const, seconds: 1 }] },
+      ],
+    };
+    seedDraft({
+      sessionId: '',
+      program: serializeProgram(program),
+      blocks: program,
+      projectVersion: 0,
+      dirty: false,
+    });
     renderView();
 
-    expect(
-      screen.getByText((content) => content.includes('종료') && content.includes('끝내')),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/연결되지 않은 블록이 있어요/)).toBeInTheDocument();
     const simulate = screen.getByRole('button', { name: '시뮬레이션 하기' });
     expect(simulate).toHaveAttribute('aria-disabled');
     expect(simulate).not.toHaveClass('bg-primary');
   });
 
-  it('떨어진 종료 블록을 연결하면 시뮬레이션이 활성화된다', () => {
+  it('이전 버전 초안(종료가 떨어져 있음)도 종료가 연결된 상태로 복원돼 바로 시뮬레이션할 수 있다', () => {
     renderView();
-
-    connectEndBlock();
 
     const simulate = screen.getByRole('button', { name: '시뮬레이션 하기' });
     expect(simulate).toHaveClass('bg-primary');
@@ -210,8 +236,8 @@ describe('ExperienceView', () => {
     const user = userEvent.setup();
     renderView();
 
-    connectEndBlock(); // 종료 연결 → 첫 자동 저장 (버전 1, 반복 횟수 2)
-    await waitFor(() => expect(savedRepeatCounts).toEqual([2]), { timeout: 3000 });
+    connectEndBlock(); // 편집 → 첫 자동 저장 (버전 1, 반복 횟수 4)
+    await waitFor(() => expect(savedRepeatCounts).toEqual([4]), { timeout: 3000 });
 
     // 반복 횟수를 1로 바꾼다 — 600ms 디바운스가 끝나기 전에 바로 시뮬레이션한다
     fireEvent.change(screen.getByRole('spinbutton', { name: '반복 횟수' }), {
@@ -221,7 +247,7 @@ describe('ExperienceView', () => {
 
     await waitFor(() => expect(simulationPassVersion).not.toBeNull(), { timeout: 3000 });
     // 디바운스를 기다리지 않고 바로 저장돼, 통과 기록이 방금 편집한(반복 1회) 버전을 가리킨다
-    expect(savedRepeatCounts).toEqual([2, 1]);
+    expect(savedRepeatCounts).toEqual([4, 1]);
     expect(simulationPassVersion).toBe(2);
   });
 
@@ -266,21 +292,21 @@ describe('ExperienceView', () => {
     );
     renderView();
 
-    connectEndBlock(); // 종료 연결 → 첫 자동 저장 (버전 1, 반복 횟수 2)
-    await waitFor(() => expect(savedRepeatCounts).toEqual([2]), { timeout: 3000 });
+    connectEndBlock(); // 편집 → 첫 자동 저장 (버전 1, 반복 횟수 4)
+    await waitFor(() => expect(savedRepeatCounts).toEqual([4]), { timeout: 3000 });
 
     fireEvent.change(screen.getByRole('spinbutton', { name: '반복 횟수' }), {
       target: { value: '1' },
     });
     // 600ms 디바운스가 스스로 저장을 "시작"할 때까지 기다린다 — 응답은 아직 안 왔다(150ms 지연 중).
-    await waitFor(() => expect(savedRepeatCounts).toEqual([2, 1]), { timeout: 3000 });
+    await waitFor(() => expect(savedRepeatCounts).toEqual([4, 1]), { timeout: 3000 });
 
     // 저장이 진행 중인 바로 이 순간 시뮬레이션한다 — fireEvent 로 클릭해 await 없이 바로 이어간다.
     fireEvent.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
 
     await waitFor(() => expect(simulationPassVersion).not.toBeNull(), { timeout: 3000 });
     // 진행 중이던 저장에 올라탔을 뿐, 새로 큐에 넣지 않았다
-    expect(savedRepeatCounts).toEqual([2, 1]);
+    expect(savedRepeatCounts).toEqual([4, 1]);
     // 디바운스가 끝낸 최신 버전(2)을 썼다 — 저장 시작 전의 값(1)이 아니라
     expect(simulationPassVersion).toBe(2);
   });
@@ -440,7 +466,7 @@ describe('ExperienceView', () => {
     await user.click(screen.getByRole('button', { name: '처음으로' }));
 
     await waitFor(() => expect(cancelled).toBe(true), { timeout: 3000 });
-    expect(hasFloatingBlock()).toBe(true);
+    expect(onlyEntriesLeft()).toEqual(['start', 'end']);
   });
 
   it('블록을 바꾸면 헤더에 자동 저장 상태가 뜬다', async () => {
@@ -562,7 +588,7 @@ describe('ExperienceView', () => {
 
     await user.click(screen.getByRole('button', { name: '처음으로' }));
 
-    expect(hasFloatingBlock()).toBe(true);
+    expect(onlyEntriesLeft()).toEqual(['start', 'end']);
     expect(screen.getByRole('button', { name: /로봇 실행하기/ })).toHaveTextContent('잠김');
   });
 });

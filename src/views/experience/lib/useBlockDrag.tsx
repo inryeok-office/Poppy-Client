@@ -14,6 +14,7 @@ import {
 import { createPortal } from 'react-dom';
 
 import {
+  canNestInRepeat,
   carriedBlocks,
   deleteCarried,
   dropOnCanvas,
@@ -21,15 +22,10 @@ import {
   type BlockNode,
   type BlockProgram,
   type DragPick,
+  type DropTarget,
 } from '../model/blockProgram';
 import { BlockStack } from '../ui/BlockStack';
-import {
-  isNearRect,
-  movedEnough,
-  nearestSlot,
-  slotsFromBlockRects,
-  type SlotRect,
-} from './blockDrag';
+import { isNearRect, movedEnough, nearestSlot, slotsFromLayout, type SlotRect } from './blockDrag';
 
 // 블록 드래그의 상태·포인터 배선. 순수 스냅 판정은 blockDrag.ts, 프로그램 변형은 blockProgram.ts.
 //
@@ -55,8 +51,8 @@ type DragState = {
   /** 블록을 잡은 지점의 오프셋 */
   grab: { x: number; y: number };
   active: boolean;
-  /** 스냅될 삽입 인덱스 (없으면 null — 놓은 자리에 그대로 둔다) */
-  slotIndex: number | null;
+  /** 스냅될 자리 (없으면 null — 놓은 자리에 그대로 둔다) */
+  target: DropTarget | null;
   /** 스냅 미리보기 위치 (viewport) — 새 블록이 실제로 놓일 좌상단 */
   slot: { x: number; y: number } | null;
   /** 쓰레기통 삭제 감지 영역 안인지 — true 면 스냅보다 우선해 삭제한다. */
@@ -138,7 +134,7 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
         pointer: start,
         grab: { x: start.x - rect.left, y: start.y - rect.top },
         active: false,
-        slotIndex: null,
+        target: null,
         slot: null,
         overTrash: false,
       });
@@ -157,17 +153,40 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
           // 바뀌니 매 pointermove 마다 다시 재지 않는다. 잡고 있는 블록 자신은 측정에서
           // 뺀다(안 그러면 "자기 자리 안으로 옮기는" 미리보기가 뜨는데, 그 슬롯은 떼어낸
           // 뒤엔 존재하지 않아 조용히 원래 자리로 되돌아간다).
+          // 잡은 반복 블록의 입 안 블록들도 함께 빠지므로 측정에서 뺀다.
           const container = stackRef.current;
-          const rects = container
+          const insideCarried = (el: Element) => {
+            for (let cur: Element | null = el; cur && cur !== container; cur = cur.parentElement) {
+              const id = (cur as HTMLElement).dataset?.block;
+              if (id && carriedIds.has(id)) return true;
+            }
+            return false;
+          };
+          const blocks = container
             ? Array.from(container.querySelectorAll<HTMLElement>('[data-block]'))
-                .filter((el) => !carriedIds.has(el.dataset.block ?? ''))
-                .map((el) => el.getBoundingClientRect())
+                .filter((el) => !insideCarried(el))
+                .map((el) => ({
+                  id: el.dataset.block ?? '',
+                  kind: el.dataset.kind ?? '',
+                  parent: el.dataset.parent ?? 'root',
+                  rect: el.getBoundingClientRect(),
+                }))
             : [];
-          slotsRef.current = slotsFromBlockRects(rects);
+          const mouths = container
+            ? Array.from(container.querySelectorAll<HTMLElement>('[data-mouth]'))
+                .filter((el) => !insideCarried(el))
+                .map((el) => ({
+                  repeatId: el.dataset.mouth ?? '',
+                  rect: el.getBoundingClientRect(),
+                }))
+            : [];
+          slotsRef.current = slotsFromLayout(blocks, mouths, canNestInRepeat(carried));
         }
 
         const hit = nearestSlot(e.clientX, e.clientY, slotsRef.current);
-        const slot = slotsRef.current.find((s) => s.index === hit?.index);
+        const slot = slotsRef.current.find(
+          (s) => s.index === hit?.index && s.parentId === hit?.parentId,
+        );
 
         const trashRect = trashRef.current?.getBoundingClientRect();
         const overTrash = trashRect
@@ -178,7 +197,7 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
           ...cur,
           pointer,
           active: true,
-          slotIndex: hit?.index ?? null,
+          target: hit ? { parentId: hit.parentId, index: hit.index } : null,
           slot: hit && slot ? { x: slot.left, y: slot.top } : null,
           overTrash,
         });
@@ -206,8 +225,8 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
           onChange(deleteCarried(latestProgram, cur.pick));
           return;
         }
-        if (cur.slotIndex != null) {
-          onChange(dropOnSlot(latestProgram, cur.pick, cur.slotIndex));
+        if (cur.target != null) {
+          onChange(dropOnSlot(latestProgram, cur.pick, cur.target));
           return;
         }
 
@@ -246,11 +265,17 @@ export function BlockDragProvider({ children, program, onChange }: BlockDragProv
   useEffect(() => () => teardownRef.current?.(), []);
 
   // 드래그 없이 Enter/Space 로 팔레트 블록을 꺼낼 때 쓰는 경로 — 스냅 위치를 고를 포인터가
-  // 없으니, 항상 스택 맨 끝에 연결한다 (dropOnSlot 이 인덱스를 stack.length 로 clamp).
+  // 없으니, 항상 종료 바로 앞에 연결한다 (dropOnSlot 이 인덱스를 종료 앞으로 clamp).
   const addToStackEnd = useCallback(
     (node: BlockNode) => {
       const current = programRef.current;
-      onChange(dropOnSlot(current, { origin: 'palette', node }, current.stack.length));
+      onChange(
+        dropOnSlot(
+          current,
+          { origin: 'palette', node },
+          { parentId: null, index: current.stack.length },
+        ),
+      );
     },
     [onChange],
   );

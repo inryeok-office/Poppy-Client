@@ -1,15 +1,15 @@
 // 블록 프로그램 모델 (기능명세서 Mission & Block · Simulation).
 //
-//   stack     — 시작 블록에 이어진 하나의 체인 (stack[0] 은 항상 start). 서버로 보내는 프로그램.
-//   floating  — 캔버스에 자유 배치된, 아직 연결되지 않은 블록 체인들 (Figma Slide 2 의 '종료').
+//   stack     — 시작 → 실행 블록들 → 종료. 시작(stack[0])·종료(stack 끝)는 캔버스에 고정된
+//               Entry 라 지우거나 옮길 수 없다. 서버로 보내는 프로그램.
+//   floating  — 캔버스에 자유 배치된, 아직 연결되지 않은 실행 블록 체인들.
 //
 // 드래그 동작 (기명서 "블록 드래그 이동·스냅 연결"):
-//   · 블록을 잡으면 그 아래에 연결된 블록이 함께 딸려온다 (carriedBlocks).
-//   · 연결 가능한 지점(스택 슬롯)에 가까우면 스냅 미리보기 → 스냅 거리 안에서 놓으면 연결 (dropOnSlot).
+//   · 블록을 잡으면 같은 목록에서 그 아래 연결된 블록이 함께 딸려온다 (carriedBlocks).
+//     반복 블록을 잡으면 입(body) 안 블록도 함께 움직인다.
+//   · 연결 가능한 지점(스택 슬롯·반복 입 슬롯)에 가까우면 스냅 미리보기 → 놓으면 연결 (dropOnSlot).
+//   · 반복 안에 반복은 넣을 수 없다 (canNestInRepeat). 빈 반복은 오류로 표시한다.
 //   · 스냅 거리 밖에서 놓으면 연결하지 않고 놓은 자리에 둔다 (dropOnCanvas — floating 그룹).
-//   · '번 반복하기'(repeat) 안쪽으로의 중첩 드롭은 범위 밖이라, body 를 채울 방법이 없다.
-//     INITIAL_PROGRAM(Figma 데모)의 repeat 만 '뒤로 m 이동'으로 미리 채워뒀고, 팔레트에서
-//     새로 꺼낸 repeat 는 body 가 항상 빈 채로 남는다.
 //
 // 서버·시뮬레이션·자동 저장은 블록별 파라미터를 그대로 보존한 SerializedBlockProgram 을 받는다
 // (블록마다 다른 반복 횟수·이동 거리·대기 시간을 가질 수 있어 첫 값만 뽑아 보내면 안 된다) → serializeProgram.
@@ -111,25 +111,21 @@ export function newBlock(kind: BlockKind): BlockNode {
 }
 
 /**
- * Figma Slide 2 상태 — '종료' 블록이 스택 밖(캔버스 x325 y174)에 놓여 있다.
- * 원래 Figma 데모엔 이 다음에 '인사하기'(greet)가 있었지만, 실제 Poppy-Server 블록 계약에
- * greet 가 없어(toServerBlockProgram 이 거부) 그 상태로 기본 프로그램을 두면 첫 자동 저장부터
- * 실패한다(코드리뷰 발견). 서버가 지원할 때까지 기본 프로그램에서는 뺀다.
+ * 처음 화면 — 캔버스에 고정된 시작·종료 Entry 만 있고, 실행 블록은 그 사이(빈 자리)에 끼운다
+ * (Notion "블록 편집기 인터랙션 명세"). 시작·종료는 지우거나 복제할 수 없다.
  */
 export const INITIAL_PROGRAM: BlockProgram = {
   stack: [
     { id: 'start-0', kind: 'start' },
-    {
-      id: 'repeat-0',
-      kind: 'repeat',
-      count: 2,
-      body: [{ id: 'move-0', kind: 'move', distanceM: 1 }],
-    },
+    { id: 'end-0', kind: 'end' },
   ],
-  floating: [{ id: 'float-end-0', x: 325, y: 174, blocks: [{ id: 'end-0', kind: 'end' }] }],
+  floating: [],
 };
 
 // ── 드래그로 집은 블록 체인 ────────────────────────────────────────────────────
+//
+// 시작·종료는 캔버스에 고정된 Entry 라 집을 수 없다. 실행 블록은 둘 사이(스택) 또는 반복 블록의
+// 입(body) 안에만 놓인다. 반복 안에 반복은 넣을 수 없다(중첩 금지).
 
 /** 드래그를 시작한 블록 (팔레트는 새 노드, 나머지는 캔버스에 있는 노드). */
 export type DragPick =
@@ -137,55 +133,117 @@ export type DragPick =
   | { origin: 'stack'; nodeId: string }
   | { origin: 'floating'; nodeId: string };
 
-function stackIndexOf(stack: BlockNode[], id: string): number {
-  return stack.findIndex((n) => n.id === id);
+/** 스냅으로 끼울 자리 — parentId 가 null 이면 스택, 아니면 그 반복 블록의 body. */
+export type DropTarget = { parentId: string | null; index: number };
+
+const isFixedEntry = (node: BlockNode) => node.kind === 'start' || node.kind === 'end';
+
+/**
+ * nodes(와 그 안의 반복 body) 에서 id 를 찾아, 그 블록부터 같은 목록 끝까지를 떼어낸다.
+ * 최상위 스택에서는 고정된 종료를 남긴다. 찾지 못하면 null.
+ */
+function splitAt(
+  nodes: BlockNode[],
+  id: string,
+  keepTrailingEnd: boolean,
+): { remaining: BlockNode[]; carried: BlockNode[] } | null {
+  const index = nodes.findIndex((n) => n.id === id);
+  if (index >= 0) {
+    if (isFixedEntry(nodes[index])) return null;
+    const tail = nodes.slice(index);
+    const end = keepTrailingEnd && tail.at(-1)?.kind === 'end' ? tail.slice(-1) : [];
+    return {
+      remaining: [...nodes.slice(0, index), ...end],
+      carried: end.length > 0 ? tail.slice(0, -1) : tail,
+    };
+  }
+  for (let i = 0; i < nodes.length; i += 1) {
+    const node = nodes[i];
+    if (node.kind !== 'repeat') continue;
+    const inner = splitAt(node.body, id, false);
+    if (inner) {
+      const next = [...nodes];
+      next[i] = { ...node, body: inner.remaining };
+      return { remaining: next, carried: inner.carried };
+    }
+  }
+  return null;
 }
 
 function groupOf(floating: FloatingGroup[], id: string): FloatingGroup | undefined {
-  return floating.find((g) => g.blocks.some((b) => b.id === id));
+  return floating.find((g) => containsId(g.blocks, id));
 }
 
-/** 잡은 블록 + 그 아래 연결된 블록들 (기명서: "아래에 연결된 블록은 함께 이동한다"). */
+/** 잡은 블록 + 같은 목록에서 그 아래 연결된 블록들 (기명서: "아래에 연결된 블록은 함께 이동한다"). */
 export function carriedBlocks(program: BlockProgram, pick: DragPick): BlockNode[] {
   if (pick.origin === 'palette') return [pick.node];
-  if (pick.origin === 'stack') {
-    const i = stackIndexOf(program.stack, pick.nodeId);
-    return i <= 0 ? [] : program.stack.slice(i); // start(0) 는 못 집는다
-  }
+  if (pick.origin === 'stack') return splitAt(program.stack, pick.nodeId, true)?.carried ?? [];
   const group = groupOf(program.floating, pick.nodeId);
-  if (!group) return [];
-  const j = group.blocks.findIndex((b) => b.id === pick.nodeId);
-  return group.blocks.slice(j);
+  return group ? (splitAt(group.blocks, pick.nodeId, false)?.carried ?? []) : [];
 }
 
-/** 집은 블록들을 원래 자리에서 떼어낸다. (스택은 잘라내고, 그룹은 나머지만 남긴다.) */
+/** 집은 블록들을 원래 자리에서 떼어낸다. (스택·반복 body 는 잘라내고, 그룹은 나머지만 남긴다.) */
 function detachCarried(program: BlockProgram, pick: DragPick): BlockProgram {
   if (pick.origin === 'palette') return program;
   if (pick.origin === 'stack') {
-    const i = stackIndexOf(program.stack, pick.nodeId);
-    if (i <= 0) return program;
-    return { ...program, stack: program.stack.slice(0, i) };
+    const split = splitAt(program.stack, pick.nodeId, true);
+    return split ? { ...program, stack: split.remaining } : program;
   }
   const group = groupOf(program.floating, pick.nodeId);
   if (!group) return program;
-  const j = group.blocks.findIndex((b) => b.id === pick.nodeId);
-  const remaining = group.blocks.slice(0, j);
+  const split = splitAt(group.blocks, pick.nodeId, false);
+  if (!split) return program;
   const floating =
-    remaining.length > 0
-      ? program.floating.map((g) => (g.id === group.id ? { ...g, blocks: remaining } : g))
+    split.remaining.length > 0
+      ? program.floating.map((g) => (g.id === group.id ? { ...g, blocks: split.remaining } : g))
       : program.floating.filter((g) => g.id !== group.id);
   return { ...program, floating };
 }
 
-/** 스냅 거리 안에서 놓았다 — 집은 체인을 스택 slotIndex 위치에 연결한다. */
-export function dropOnSlot(program: BlockProgram, pick: DragPick, slotIndex: number): BlockProgram {
+/** 반복 블록 안에 넣을 수 없는 체인인지 (반복 중첩 금지, 시작·종료 불가). */
+export function canNestInRepeat(carried: BlockNode[]): boolean {
+  return carried.every((node) => node.kind !== 'repeat' && !isFixedEntry(node));
+}
+
+function insertIntoRepeat(
+  nodes: BlockNode[],
+  repeatId: string,
+  index: number,
+  carried: BlockNode[],
+): { nodes: BlockNode[]; inserted: boolean } {
+  let inserted = false;
+  const next = nodes.map((node) => {
+    if (inserted || node.kind !== 'repeat') return node;
+    if (node.id === repeatId) {
+      inserted = true;
+      const at = Math.max(0, Math.min(node.body.length, index));
+      return { ...node, body: [...node.body.slice(0, at), ...carried, ...node.body.slice(at)] };
+    }
+    return node;
+  });
+  return { nodes: next, inserted };
+}
+
+/** 스냅 거리 안에서 놓았다 — 집은 체인을 스택 또는 반복 body 의 target 위치에 연결한다. */
+export function dropOnSlot(
+  program: BlockProgram,
+  pick: DragPick,
+  target: DropTarget,
+): BlockProgram {
   const carried = carriedBlocks(program, pick);
   if (carried.length === 0) return program;
+  if (target.parentId !== null && !canNestInRepeat(carried)) return program;
 
   const base = detachCarried(program, pick);
-  const at = Math.max(1, Math.min(base.stack.length, slotIndex));
-  const stack = [...base.stack.slice(0, at), ...carried, ...base.stack.slice(at)];
-  return { ...base, stack };
+  if (target.parentId === null) {
+    // 시작(0) 뒤 ~ 종료 앞까지만 끼울 수 있다.
+    const last = base.stack.at(-1)?.kind === 'end' ? base.stack.length - 1 : base.stack.length;
+    const at = Math.max(1, Math.min(last, target.index));
+    return { ...base, stack: [...base.stack.slice(0, at), ...carried, ...base.stack.slice(at)] };
+  }
+  // 반복 body 는 스택에 연결된 반복에만 넣는다(자유 블록 그룹의 반복은 스냅 대상이 아니다).
+  const result = insertIntoRepeat(base.stack, target.parentId, target.index, carried);
+  return result.inserted ? { ...base, stack: result.nodes } : program;
 }
 
 /** 스냅 거리 밖에서 놓았다 — 집은 체인을 연결 없이 캔버스 (x, y) 에 둔다. */
@@ -219,7 +277,7 @@ export function dropOnCanvas(
 /**
  * 쓰레기통에 드롭 — 잡은 체인을 원래 자리에서 통째로 지운다 (기명서 "블록 삭제":
  * "연결된 블록 묶음을 드래그한 경우에는 함께 이동 중인 하위 연결 블록도 같이 삭제한다").
- * start 는 애초에 못 집으므로(carriedBlocks) 여기서 따로 막을 필요가 없다.
+ * 시작·종료는 애초에 못 집으므로(carriedBlocks) 여기서 따로 막을 필요가 없다.
  */
 export function deleteCarried(program: BlockProgram, pick: DragPick): BlockProgram {
   const carried = carriedBlocks(program, pick);
@@ -362,13 +420,12 @@ export function hasBlockKind(program: BlockProgram, kind: BlockKind): boolean {
   return countKind([...program.stack, ...floatingBlocks], kind) > 0;
 }
 
-/** repeat.body 안에(중첩 어디든) start·end 가 있으면 안 된다 — 중첩 드롭은 지원하지 않는다. */
-function hasNestedStartOrEnd(nodes: BlockNode[]): boolean {
+/** repeat.body 안에는 start·end·repeat 가 들어갈 수 없다 (반복 중첩 금지). */
+function hasInvalidRepeatBody(nodes: BlockNode[]): boolean {
   return nodes.some(
     (node) =>
       node.kind === 'repeat' &&
-      (node.body.some((b) => b.kind === 'start' || b.kind === 'end') ||
-        hasNestedStartOrEnd(node.body)),
+      node.body.some((b) => b.kind === 'start' || b.kind === 'end' || b.kind === 'repeat'),
   );
 }
 
@@ -392,28 +449,43 @@ export function isBlockProgramSnapshot(value: unknown): value is BlockProgram {
   if (stack[0]?.kind !== 'start') return false;
   if (countKind(allNodes, 'start') !== 1) return false;
   if (countKind(allNodes, 'end') > 1) return false;
-  if (hasNestedStartOrEnd(stack) || hasNestedStartOrEnd(floatingBlocks)) return false;
+  if (hasInvalidRepeatBody(stack) || hasInvalidRepeatBody(floatingBlocks)) return false;
 
   return true;
 }
 
 /**
  * 저장된 스냅샷을 프로그램으로 되돌린다.
- * 프로그램 스냅샷이면 그대로, 아니면(구버전 초안 등) 초기 프로그램으로 시작한다.
+ * 프로그램 스냅샷이면 고정 구조(시작 … 종료)로 맞춰서, 아니면 초기 프로그램으로 시작한다.
+ * 이전 버전 초안은 종료가 자유 블록이거나 빠져 있을 수 있어, 종료를 스택 끝으로 옮긴다.
  */
 export function draftToProgram(snapshot: unknown): BlockProgram {
-  return isBlockProgramSnapshot(snapshot)
-    ? { stack: snapshot.stack, floating: snapshot.floating }
-    : INITIAL_PROGRAM;
+  if (!isBlockProgramSnapshot(snapshot)) return INITIAL_PROGRAM;
+  const floatingEnd = snapshot.floating.flatMap((g) => g.blocks).find((b) => b.kind === 'end');
+  const floating = snapshot.floating
+    .map((g) => ({ ...g, blocks: g.blocks.filter((b) => b.kind !== 'end') }))
+    .filter((g) => g.blocks.length > 0);
+  const body = snapshot.stack.filter((n) => n.kind !== 'end');
+  const end =
+    snapshot.stack.find((n) => n.kind === 'end') ??
+    floatingEnd ??
+    ({ id: 'end-0', kind: 'end' } as BlockNode);
+  return { stack: [...body, end], floating };
 }
 
 // ── 검증 · 이동 거리 ──────────────────────────────────────────────────────────
 
-export type BlockErrorCode = 'disconnected-block' | 'missing-end' | 'unsupported-block';
+export type BlockErrorCode =
+  'disconnected-block' | 'missing-end' | 'unsupported-block' | 'empty-repeat';
 
-/** Poppy-Server 블록 계약이 아직 지원하지 않는 종류 (toServerBlockProgram 참고 — greet 는
- *  서버에 대응 타입이 없어 저장 시 거부된다). 여기 없는 종류만 저장·시뮬레이션을 진행한다. */
-const SERVER_UNSUPPORTED_KINDS: readonly BlockKind[] = ['greet'];
+/** Poppy-Server 블록 계약에 대응 타입이 없는 종류 (toServerBlockProgram 참고 — 검증된 프리셋이
+ *  없어 팔레트에서도 숨겼다). 여기 없는 종류만 저장·시뮬레이션을 진행한다. */
+const SERVER_UNSUPPORTED_KINDS: readonly BlockKind[] = ['roll', 'attack'];
+
+/** 입(body)이 빈 반복 블록이 있는지 (반복 중첩은 금지라 한 단계만 본다). */
+export function isEmptyRepeat(node: BlockNode): boolean {
+  return node.kind === 'repeat' && node.body.length === 0;
+}
 
 export type BlockError = {
   code: BlockErrorCode;
@@ -430,7 +502,7 @@ export function validateBlockProgram(program: BlockProgram): BlockError[] {
   const errors: BlockError[] = [];
   const floatingKinds = program.floating.flatMap((g) => g.blocks.map((b) => b.kind));
 
-  if (floatingKinds.some((kind) => kind !== 'end')) {
+  if (floatingKinds.length > 0) {
     errors.push({
       code: 'disconnected-block',
       message: '연결되지 않은 블록이 있어요. 모든 블록을 시작 블록에 이어 주세요.',
@@ -450,6 +522,12 @@ export function validateBlockProgram(program: BlockProgram): BlockError[] {
     errors.push({
       code: 'unsupported-block',
       message: '아직 로봇 실행에서 지원되지 않는 블록이 있어요. 빼주세요.',
+    });
+  }
+  if (program.stack.some(isEmptyRepeat)) {
+    errors.push({
+      code: 'empty-repeat',
+      message: '빈 반복 블록이 있어요. 반복할 블록을 안에 넣어 주세요.',
     });
   }
 
