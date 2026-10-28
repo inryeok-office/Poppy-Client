@@ -348,6 +348,39 @@ describe('ExperienceView', () => {
     expect(simulationPassVersion).toBe(2);
   });
 
+  it('편집 직후 바로 시뮬레이션하면, 남아 있던 자동 저장 타이머가 같은 프로그램을 다시 저장하지 않는다', async () => {
+    let saves = 0;
+    server.use(
+      http.post('*/api/v1/sessions/:sessionId/block-revisions', () => {
+        saves += 1;
+        return HttpResponse.json({
+          success: true,
+          data: { sessionId: 'session-test', blockVersion: saves },
+          error: null,
+        });
+      }),
+      http.post('*/api/v1/sessions/:sessionId/simulation-passes', async ({ request }) => {
+        const body = (await request.json()) as { blockVersion: number };
+        return HttpResponse.json({
+          success: true,
+          data: {
+            sessionId: 'session-test',
+            blockVersion: body.blockVersion,
+            passedAt: new Date().toISOString(),
+          },
+          error: null,
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderView();
+    await passSimulation(user);
+    const savesAfterPass = saves;
+    await new Promise((resolve) => setTimeout(resolve, 800)); // 디바운스(600ms)가 지나도록
+    expect(saves).toBe(savesAfterPass);
+    expect(screen.getByRole('button', { name: '로봇 실행하기' })).not.toHaveTextContent('잠김');
+  });
+
   it('이동 거리를 늘려 안전 구역을 벗어나면 위반 안내가 뜨고 통과하지 못한다', async () => {
     const user = userEvent.setup();
     renderView();

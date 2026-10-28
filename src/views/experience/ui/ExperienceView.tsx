@@ -118,7 +118,10 @@ export function ExperienceView() {
   useEffect(() => {
     if (!session.data) return;
     if (!setBaseVersion(session.data.projectVersion, session.data.sessionId)) return;
-    if (restoredDirty || program !== startProgram) persist(program);
+    if (restoredDirty || program !== startProgram) {
+      savedProgramRef.current = program;
+      persist(program);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.data, setBaseVersion]);
 
@@ -126,6 +129,9 @@ export function ExperienceView() {
   useEffect(() => {
     if (program === savedProgramRef.current) return;
     const timer = window.setTimeout(() => {
+      // 그 사이 시뮬레이션이 같은 프로그램을 이미 저장했으면 다시 저장하지 않는다 — 버전이 하나 더
+      // 올라가면 방금 받은 통과 기록이 이전 버전을 가리키게 돼 '로봇 실행하기'가 다시 잠긴다.
+      if (program === savedProgramRef.current) return;
       savedProgramRef.current = program;
       persist(program);
     }, AUTOSAVE_DEBOUNCE_MS);
