@@ -21,21 +21,23 @@ type ExperienceHeaderProps = {
   onRestart?: () => void;
   /** 프로젝트 자동 저장 상태 (명세 Session "프로젝트 자동 저장"). */
   saveStatus?: AutoSaveStatus;
-  /** rejected 일 때 서버 오류 코드를 바꾼 짧은 한국어 사유 */
-  saveRejectReason?: string | null;
+  /** rejected·invalid 일 때 보여줄 짧은 한국어 사유 */
+  saveReason?: string | null;
 };
 
 export function ExperienceHeader({
   onClearAll,
   onRestart,
   saveStatus = 'idle',
-  saveRejectReason,
+  saveReason,
 }: ExperienceHeaderProps) {
   const baseLabel = SAVE_LABEL[saveStatus];
   const saveLabel =
-    saveStatus === 'rejected' && saveRejectReason
-      ? `${baseLabel} · ${saveRejectReason}`
-      : baseLabel;
+    saveStatus === 'rejected' && saveReason
+      ? `${baseLabel} · ${saveReason}`
+      : saveStatus === 'invalid' && saveReason
+        ? saveReason
+        : baseLabel;
 
   return (
     <header className="border-line bg-page flex h-16 shrink-0 items-center justify-between border-b-[1.5px] pr-8 pl-6">

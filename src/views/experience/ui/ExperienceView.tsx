@@ -20,6 +20,7 @@ import {
   serializeProgram,
   setBlockParam,
   validateBlockProgram,
+  type BlockErrorCode,
   type BlockProgram,
 } from '../model/blockProgram';
 import type { BlockParamPatch } from './BlockStack';
@@ -52,6 +53,15 @@ function initialProgram(): { program: BlockProgram; restoredDirty: boolean } {
 }
 const AUTOSAVE_DEBOUNCE_MS = 600;
 
+/** 구조·값 오류로 서버 저장을 미룰 때 헤더에 보여줄 짧은 사유. */
+const SAVE_BLOCKED_REASON: Record<BlockErrorCode, string> = {
+  'disconnected-block': '블록을 모두 연결하면 저장돼요',
+  'missing-end': '블록을 모두 연결하면 저장돼요',
+  'unsupported-block': '지원하지 않는 블록을 빼면 저장돼요',
+  'empty-repeat': '반복 블록 안을 채우면 저장돼요',
+  'invalid-value': '빨간 칸의 값을 고치면 저장돼요',
+};
+
 export function ExperienceView() {
   const [{ program: startProgram, restoredDirty }] = useState(initialProgram);
   const [program, setProgram] = useState<BlockProgram>(startProgram);
@@ -83,7 +93,9 @@ export function ExperienceView() {
   // 구조 오류(연결 안 된 블록 등)가 있으면 서버에 보내지 않고 브라우저에만 보관한다.
   const persist = useCallback(
     (target: BlockProgram) => {
-      if (validateBlockProgram(target).length > 0) keepLocal(serializeProgram(target), target);
+      const [firstError] = validateBlockProgram(target);
+      if (firstError)
+        keepLocal(serializeProgram(target), target, SAVE_BLOCKED_REASON[firstError.code]);
       else saveProgram(serializeProgram(target), target);
     },
     [keepLocal, saveProgram],
@@ -234,7 +246,7 @@ export function ExperienceView() {
         onClearAll={resetSession}
         onRestart={resetSession}
         saveStatus={autoSave.status}
-        saveRejectReason={autoSave.rejectReason}
+        saveReason={autoSave.rejectReason}
       />
       <BlockDragProvider program={program} onChange={applyDrop}>
         <div className="flex flex-1">

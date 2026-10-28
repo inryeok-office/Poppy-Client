@@ -1,7 +1,15 @@
 export { useRecordSimulationPass, useSimulateProgram } from './api/useSimulateProgram';
 export { recordSimulationPass, simulateProgram } from './api/simulateProgram';
 export { simulationHandlers } from './api/mocks';
-export { evaluateProgram, LIMITS, SAFE_ZONE_M, type ProgramEvaluation } from './model/safety';
+export {
+  evaluateProgram,
+  isBlockValueValid,
+  LIMITS,
+  SAFE_ZONE_M,
+  VALUE_RANGE_TEXT,
+  valueKindOf,
+  type ProgramEvaluation,
+} from './model/safety';
 export type {
   SafetyViolation,
   SerializedBlockNode,

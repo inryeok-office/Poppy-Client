@@ -14,7 +14,7 @@
 // 서버·시뮬레이션·자동 저장은 블록별 파라미터를 그대로 보존한 SerializedBlockProgram 을 받는다
 // (블록마다 다른 반복 횟수·이동 거리·대기 시간을 가질 수 있어 첫 값만 뽑아 보내면 안 된다) → serializeProgram.
 
-import { LIMITS } from '@/features/simulation';
+import { LIMITS, isBlockValueValid } from '@/features/simulation';
 import type { SerializedBlockNode, SerializedBlockProgram } from '@/features/simulation';
 import { sumOverBlockTree } from '@/shared/lib/blockTree';
 
@@ -47,6 +47,7 @@ export const ROTATE_RANGE = LIMITS.rotateDegree;
 export const DEFAULT_MOVE_M = 0.5;
 export const DEFAULT_ROTATE_DEG = 90;
 export const DEFAULT_REPEAT_COUNT = 4;
+export const DEFAULT_WAIT_SECONDS = 1;
 
 export type BlockNode =
   | { id: string; kind: 'start' }
@@ -101,7 +102,7 @@ export function newBlock(kind: BlockKind): BlockNode {
     case 'rotateRight':
       return { id: nextId(kind), kind, degrees: DEFAULT_ROTATE_DEG };
     case 'wait':
-      return { id: nextId('wait'), kind, seconds: WAIT_RANGE.min };
+      return { id: nextId('wait'), kind, seconds: DEFAULT_WAIT_SECONDS };
     case 'repeat':
       // 팔레트에서 갓 꺼낸 반복 블록은 body 가 비어 있다 (팔레트에 보이는 모습 그대로).
       return { id: nextId('repeat'), kind, count: DEFAULT_REPEAT_COUNT, body: [] };
@@ -476,7 +477,7 @@ export function draftToProgram(snapshot: unknown): BlockProgram {
 // ── 검증 · 이동 거리 ──────────────────────────────────────────────────────────
 
 export type BlockErrorCode =
-  'disconnected-block' | 'missing-end' | 'unsupported-block' | 'empty-repeat';
+  'disconnected-block' | 'missing-end' | 'unsupported-block' | 'empty-repeat' | 'invalid-value';
 
 /** Poppy-Server 블록 계약에 대응 타입이 없는 종류 (toServerBlockProgram 참고 — 검증된 프리셋이
  *  없어 팔레트에서도 숨겼다). 여기 없는 종류만 저장·시뮬레이션을 진행한다. */
@@ -522,6 +523,17 @@ export function validateBlockProgram(program: BlockProgram): BlockError[] {
     errors.push({
       code: 'unsupported-block',
       message: '아직 로봇 실행에서 지원되지 않는 블록이 있어요. 빼주세요.',
+    });
+  }
+  const invalidValues = sumOverBlockTree(allNodes, {
+    valueOf: (n) => (isBlockValueValid(n) ? 0 : 1),
+    bodyOf,
+    repeatCountOf: () => 1,
+  });
+  if (invalidValues > 0) {
+    errors.push({
+      code: 'invalid-value',
+      message: '허용 범위를 벗어난 값이 있어요. 빨간 칸을 고쳐 주세요.',
     });
   }
   if (program.stack.some(isEmptyRepeat)) {

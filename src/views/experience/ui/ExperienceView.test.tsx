@@ -73,6 +73,7 @@ const connectEndBlock = () => {
   fireEvent.change(screen.getByRole('spinbutton', { name: '반복 횟수' }), {
     target: { value: '4' },
   });
+  fireEvent.blur(screen.getByRole('spinbutton', { name: '반복 횟수' }));
 };
 
 /** 캔버스 스택에 시작·종료만 남았는지 (전체 지우기·처음으로 직후 상태). */
@@ -276,6 +277,7 @@ describe('ExperienceView', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: '반복 횟수' }), {
       target: { value: '1' },
     });
+    fireEvent.blur(screen.getByRole('spinbutton', { name: '반복 횟수' }));
     await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
 
     await waitFor(() => expect(simulationPassVersion).not.toBeNull(), { timeout: 3000 });
@@ -331,6 +333,8 @@ describe('ExperienceView', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: '반복 횟수' }), {
       target: { value: '1' },
     });
+
+    fireEvent.blur(screen.getByRole('spinbutton', { name: '반복 횟수' }));
     // 600ms 디바운스가 스스로 저장을 "시작"할 때까지 기다린다 — 응답은 아직 안 왔다(150ms 지연 중).
     await waitFor(() => expect(savedRepeatCounts).toEqual([4, 1]), { timeout: 3000 });
 
@@ -353,6 +357,7 @@ describe('ExperienceView', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: '반복 횟수' }), {
       target: { value: '5' },
     });
+    fireEvent.blur(screen.getByRole('spinbutton', { name: '반복 횟수' }));
     await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
 
     // 안내문(상단 한 줄)과 결과 카드(Figma Slide 6, 튜토리얼 자리) 둘 다에 이유가 뜬다
@@ -550,7 +555,7 @@ describe('ExperienceView', () => {
 
     expect(hasFloatingBlock()).toBe(false);
     expect(screen.getByRole('button', { name: '시뮬레이션 하기' })).toHaveClass('bg-primary');
-    expect(screen.getByRole('spinbutton', { name: '반복 횟수' })).toHaveValue(5);
+    expect(screen.getByRole('spinbutton', { name: '반복 횟수' })).toHaveValue('5');
   });
 
   it('재방문 세션은 초안의 버전을 baseVersion 으로 보낸다', async () => {
@@ -605,7 +610,9 @@ describe('ExperienceView', () => {
 
     const repeat = screen.getByRole('spinbutton', { name: '반복 횟수' });
     fireEvent.change(repeat, { target: { value: '3' } });
+    fireEvent.blur(repeat);
     fireEvent.change(repeat, { target: { value: '7' } });
+    fireEvent.blur(repeat);
 
     await waitFor(() => expect(savedRepeatCounts.at(-1)).toBe(7), { timeout: 3000 });
     expect(savedRepeatCounts).not.toContain(3);

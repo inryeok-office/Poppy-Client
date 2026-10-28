@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react';
+'use client';
+
+import { useId, useState, type ReactNode } from 'react';
 
 import type { BlockKind } from '../model/blockProgram';
 
@@ -54,30 +56,57 @@ const SHAPE: Record<BlockVariant, { path: string; w: number; h: number }> = {
 };
 
 const BLOCK_INPUT_CLASS =
-  'bg-page text-ink h-[22px] w-8 shrink-0 rounded-[3px] text-center text-[15px]';
+  'bg-page text-ink h-[22px] shrink-0 rounded-[3px] text-center text-[15px]';
+
+/** 값 길이에 맞춘 입력칸 너비 (최소 40px, 최대 56px). */
+export function blockInputWidth(text: string): number {
+  return Math.min(56, Math.max(40, 14 + text.length * 9));
+}
 
 type BlockInputProps = {
   /** 표시/입력 값. 없으면 빈 자리표시. */
   value?: number;
-  /** 넘기면 숫자 입력 칸이 된다. 없으면 읽기 전용. */
+  /** 넘기면 숫자 입력 칸이 된다. 없으면 읽기 전용. blur·Enter 때 한 번 반영된다. */
   onChange?: (next: number) => void;
   min?: number;
   max?: number;
-  /** 소수 입력 단위(예: 0.1). 없으면 정수로 자른다. */
+  /** 소수 입력 단위(예: 0.1). 없으면 정수 칸. */
   step?: number;
+  /** 값이 허용 범위 밖 — 빨간 테두리. */
+  invalid?: boolean;
+  /** 포커스 시 툴팁으로 보여줄 허용 범위 (예: "0.1~3 m (0.1 단위)"). */
+  rangeHint?: string;
   'aria-label'?: string;
 };
 
 /**
- * 값 입력 칸 (Rectangle 16/17). 32×22, radius 3, Figma 33:914 "2".
- * onChange 를 주면 편집 가능한 숫자 칸, 아니면 값만 표시한다.
+ * 값 입력 칸 (Rectangle 16/17). 높이 22, radius 3, 너비는 값 길이에 맞춰 40~56px.
+ * 입력 중에는 원문 문자열을 그대로 둔다(빈칸·"0." 허용). blur·Enter 때 숫자로 바꿔 반영하고,
+ * 범위 밖이어도 자동으로 고치지 않는다 — invalid 로 빨간 테두리를 그리고 블록 아래 문구로 알린다.
+ * 숫자로 읽을 수 없는 입력(빈칸 등)은 반영하지 않고 이전 값으로 되돌린다. Esc 도 되돌린다.
  */
-export function BlockInput({ value, onChange, min = 1, max = 99, step, ...rest }: BlockInputProps) {
+export function BlockInput({
+  value,
+  onChange,
+  min = 1,
+  max = 99,
+  step,
+  invalid = false,
+  rangeHint,
+  ...rest
+}: BlockInputProps) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [focused, setFocused] = useState(false);
+  const tooltipId = useId();
+  const shown = draft ?? (value == null ? '' : String(value));
+  const width = blockInputWidth(shown);
+
   if (!onChange) {
     return (
       <span
         aria-hidden={value == null ? true : undefined}
         className={`${BLOCK_INPUT_CLASS} inline-flex items-center justify-center`}
+        style={{ width }}
         {...rest}
       >
         {value}
@@ -85,26 +114,55 @@ export function BlockInput({ value, onChange, min = 1, max = 99, step, ...rest }
     );
   }
 
+  const commit = () => {
+    if (draft === null) return;
+    const trimmed = draft.trim();
+    const parsed = Number(trimmed);
+    setDraft(null);
+    if (trimmed === '' || !Number.isFinite(parsed)) return;
+    // 0.1 + 0.2 같은 부동소수 꼬리만 정리한다 — 범위·단위 보정은 하지 않는다.
+    const next = Number(parsed.toFixed(6));
+    if (next !== value) onChange(next);
+  };
+
   return (
-    <input
-      type="number"
-      inputMode={step ? 'decimal' : 'numeric'}
-      value={value ?? min}
-      min={min}
-      max={max}
-      step={step}
-      onChange={(event) => {
-        const next = Number(event.target.value);
-        if (!Number.isFinite(next)) return;
-        // step 단위로 반올림해 0.30000000000000004 같은 부동소수 오차를 남기지 않는다.
-        const snapped = step
-          ? Number((Math.round(next / step) * step).toFixed(6))
-          : Math.trunc(next);
-        onChange(Math.min(max, Math.max(min, snapped)));
-      }}
-      className={`${BLOCK_INPUT_CLASS} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
-      {...rest}
-    />
+    <span className="relative inline-flex">
+      <input
+        type="text"
+        role="spinbutton"
+        inputMode={step ? 'decimal' : 'numeric'}
+        value={shown}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        aria-invalid={invalid || undefined}
+        aria-describedby={rangeHint && focused ? tooltipId : undefined}
+        onFocus={() => setFocused(true)}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => {
+          setFocused(false);
+          commit();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') commit();
+          if (event.key === 'Escape') setDraft(null);
+        }}
+        className={`${BLOCK_INPUT_CLASS} outline-none ${
+          invalid ? 'border-danger border-2' : 'border-2 border-transparent'
+        }`}
+        style={{ width }}
+        {...rest}
+      />
+      {rangeHint && focused && (
+        <span
+          id={tooltipId}
+          role="tooltip"
+          className="bg-ink pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 -translate-x-1/2 rounded px-2 py-1 text-[12px] whitespace-nowrap text-white"
+        >
+          {rangeHint}
+        </span>
+      )}
+    </span>
   );
 }
 

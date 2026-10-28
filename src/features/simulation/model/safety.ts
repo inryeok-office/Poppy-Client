@@ -24,6 +24,39 @@ const inRange = (raw: unknown, { min, max, step }: { min: number; max: number; s
   return Math.abs(value / step - Math.round(value / step)) < 1e-9;
 };
 
+/** 값 블록 종류별 허용 범위 표기 (입력칸 포커스 툴팁)·오류 문구. */
+export const VALUE_RANGE_TEXT = {
+  move: { hint: '0.1~3 m (0.1 단위)', error: '0.1~3 m 사이로 입력해 주세요' },
+  rotate: { hint: '1~360°', error: '1~360° 사이로 입력해 주세요' },
+  wait: { hint: '1~10초', error: '1~10초 사이로 입력해 주세요' },
+  repeat: { hint: '1~10번', error: '1~10번 사이로 입력해 주세요' },
+} as const;
+
+type ValueKind = keyof typeof VALUE_RANGE_TEXT;
+
+/** 값 입력이 있는 블록이면 그 범위 표기 종류, 아니면 null. */
+export function valueKindOf(kind: SerializedBlockNode['kind']): ValueKind | null {
+  switch (kind) {
+    case 'move':
+    case 'moveForward':
+      return 'move';
+    case 'rotateLeft':
+    case 'rotateRight':
+      return 'rotate';
+    case 'wait':
+      return 'wait';
+    case 'repeat':
+      return 'repeat';
+    default:
+      return null;
+  }
+}
+
+/** 블록 하나의 값이 허용 범위 안인지 (값 없는 블록은 true). */
+export function isBlockValueValid(node: SerializedBlockNode): boolean {
+  return isValueValid(node);
+}
+
 function isValueValid(node: SerializedBlockNode): boolean {
   switch (node.kind) {
     case 'move':

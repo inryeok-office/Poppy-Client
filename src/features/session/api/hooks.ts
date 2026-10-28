@@ -200,18 +200,21 @@ export function useAutoSaveProject(sessionId: string | null) {
   );
 
   /** 구조 오류가 있는 프로그램 — 서버에 보내지 않고 브라우저에만 보관한다. */
-  const keepLocal = useCallback((program: SerializedBlockProgram, snapshot?: unknown) => {
-    queuedRef.current = null;
-    writeLocalDraft({
-      sessionId: sessionIdRef.current ?? '',
-      program,
-      blocks: snapshot,
-      projectVersion: versionRef.current,
-      dirty: true,
-    });
-    setRejectReason(null);
-    setStatus('invalid');
-  }, []);
+  const keepLocal = useCallback(
+    (program: SerializedBlockProgram, snapshot?: unknown, reason?: string) => {
+      queuedRef.current = null;
+      writeLocalDraft({
+        sessionId: sessionIdRef.current ?? '',
+        program,
+        blocks: snapshot,
+        projectVersion: versionRef.current,
+        dirty: true,
+      });
+      setRejectReason(reason ?? null);
+      setStatus('invalid');
+    },
+    [],
+  );
 
   return {
     status,

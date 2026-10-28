@@ -1,5 +1,7 @@
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 
+import { VALUE_RANGE_TEXT, isBlockValueValid, valueKindOf } from '@/features/simulation';
+
 import {
   MOVE_RANGE,
   REPEAT_RANGE,
@@ -36,6 +38,8 @@ function measuredBlock({
   onChange,
   range,
   ariaLabel,
+  invalid,
+  rangeHint,
 }: {
   prefix: string;
   suffix: string;
@@ -43,6 +47,8 @@ function measuredBlock({
   onChange?: (value: number) => void;
   range: { min: number; max: number; step?: number };
   ariaLabel: string;
+  invalid: boolean;
+  rangeHint: string;
 }) {
   return (
     <Block color="move">
@@ -53,6 +59,8 @@ function measuredBlock({
         min={range.min}
         max={range.max}
         step={'step' in range ? range.step : undefined}
+        invalid={invalid}
+        rangeHint={rangeHint}
         aria-label={ariaLabel}
       />{' '}
       {suffix}
@@ -64,6 +72,9 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
   const { onParamChange } = options;
   const bind = (patch: (value: number) => BlockParamPatch) =>
     onParamChange ? (value: number) => onParamChange(node.id, patch(value)) : undefined;
+  const invalid = !isBlockValueValid(node);
+  const valueKind = valueKindOf(node.kind);
+  const rangeHint = valueKind ? VALUE_RANGE_TEXT[valueKind].hint : '';
 
   switch (node.kind) {
     case 'start':
@@ -88,6 +99,8 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
             onChange={bind((seconds) => ({ seconds }))}
             min={WAIT_RANGE.min}
             max={WAIT_RANGE.max}
+            invalid={invalid}
+            rangeHint={rangeHint}
             aria-label="기다리는 시간 (초)"
           />
           초 기다리기
@@ -101,6 +114,8 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
         onChange: bind((distanceM) => ({ distanceM })),
         range: MOVE_RANGE,
         ariaLabel: '이동 거리 (미터)',
+        invalid,
+        rangeHint,
       });
     case 'moveForward':
       return measuredBlock({
@@ -110,6 +125,8 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
         onChange: bind((distanceM) => ({ distanceM })),
         range: MOVE_RANGE,
         ariaLabel: '이동 거리 (미터)',
+        invalid,
+        rangeHint,
       });
     case 'rotateRight':
       return measuredBlock({
@@ -119,6 +136,8 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
         onChange: bind((degrees) => ({ degrees })),
         range: ROTATE_RANGE,
         ariaLabel: '회전 각도 (도)',
+        invalid,
+        rangeHint,
       });
     case 'rotateLeft':
       return measuredBlock({
@@ -128,6 +147,8 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
         onChange: bind((degrees) => ({ degrees })),
         range: ROTATE_RANGE,
         ariaLabel: '회전 각도 (도)',
+        invalid,
+        rangeHint,
       });
     case 'stop':
       return <Block color="move">정지</Block>;
@@ -155,6 +176,8 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
                 onChange={bind((count) => ({ count }))}
                 min={REPEAT_RANGE.min}
                 max={REPEAT_RANGE.max}
+                invalid={invalid}
+                rangeHint={rangeHint}
                 aria-label="반복 횟수"
               />
               번 반복하기
@@ -174,6 +197,17 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
         </CBlock>
       );
   }
+}
+
+/** 편집 중인 블록 값이 허용 범위를 벗어났을 때 블록 바로 아래 한 줄 안내. */
+function ValueError({ node, editable }: { node: BlockNode; editable: boolean }) {
+  const valueKind = valueKindOf(node.kind);
+  if (!editable || !valueKind || isBlockValueValid(node)) return null;
+  return (
+    <p role="alert" className="text-danger pt-2 pb-2 pl-8 text-[12px] leading-none">
+      {VALUE_RANGE_TEXT[valueKind].error}
+    </p>
+  );
 }
 
 type BlockListProps = RenderOptions & {
@@ -220,6 +254,7 @@ function BlockList({
             }`}
           >
             {renderNode(node, options)}
+            <ValueError node={node} editable={onParamChange != null} />
           </li>
         );
       })}

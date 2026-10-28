@@ -2,7 +2,14 @@
 
 import { useState, type ReactNode } from 'react';
 
-import { newBlock, type BlockKind } from '../model/blockProgram';
+import {
+  DEFAULT_MOVE_M,
+  DEFAULT_REPEAT_COUNT,
+  DEFAULT_ROTATE_DEG,
+  DEFAULT_WAIT_SECONDS,
+  newBlock,
+  type BlockKind,
+} from '../model/blockProgram';
 import { useBlockDrag } from '../lib/useBlockDrag';
 import { Block, BlockInput, CBlock } from './Block';
 
@@ -97,7 +104,7 @@ export function BlockPalette() {
           <>
             <PaletteItem kind="wait" ariaLabel="초 기다리기 블록 꺼내기">
               <Block color="flow">
-                <BlockInput />초 기다리기
+                <BlockInput value={DEFAULT_WAIT_SECONDS} />초 기다리기
               </Block>
             </PaletteItem>
             <PaletteItem kind="repeat" ariaLabel="번 반복하기 블록 꺼내기">
@@ -105,7 +112,7 @@ export function BlockPalette() {
                 color="flow"
                 header={
                   <>
-                    <BlockInput />번 반복하기
+                    <BlockInput value={DEFAULT_REPEAT_COUNT} />번 반복하기
                   </>
                 }
               />
@@ -117,22 +124,22 @@ export function BlockPalette() {
           <>
             <PaletteItem kind="move" ariaLabel="뒤로 이동 블록 꺼내기">
               <Block color="move">
-                뒤로 <BlockInput /> m 이동
+                뒤로 <BlockInput value={DEFAULT_MOVE_M} /> m 이동
               </Block>
             </PaletteItem>
             <PaletteItem kind="moveForward" ariaLabel="앞으로 이동 블록 꺼내기">
               <Block color="move">
-                앞으로 <BlockInput /> m 이동
+                앞으로 <BlockInput value={DEFAULT_MOVE_M} /> m 이동
               </Block>
             </PaletteItem>
             <PaletteItem kind="rotateRight" ariaLabel="오른쪽으로 회전 블록 꺼내기">
               <Block color="move">
-                오른쪽으로 <BlockInput /> ° 회전
+                오른쪽으로 <BlockInput value={DEFAULT_ROTATE_DEG} /> ° 회전
               </Block>
             </PaletteItem>
             <PaletteItem kind="rotateLeft" ariaLabel="왼쪽으로 회전 블록 꺼내기">
               <Block color="move">
-                왼쪽으로 <BlockInput /> ° 회전
+                왼쪽으로 <BlockInput value={DEFAULT_ROTATE_DEG} /> ° 회전
               </Block>
             </PaletteItem>
             <PaletteItem kind="stop" ariaLabel="정지 블록 꺼내기">
