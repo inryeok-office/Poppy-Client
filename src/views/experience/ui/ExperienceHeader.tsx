@@ -8,7 +8,9 @@ import { PillButton, PoppyLogo } from '@/shared/ui';
 const SAVE_LABEL: Partial<Record<AutoSaveStatus, string>> = {
   saving: '저장 중…',
   saved: '저장됨',
+  invalid: '블록을 모두 연결하면 저장돼요',
   offline: '오프라인 · 이 브라우저에 저장했어요',
+  rejected: '저장하지 못했어요',
   conflict: '다른 곳에서 수정됐어요',
 };
 
@@ -19,14 +21,21 @@ type ExperienceHeaderProps = {
   onRestart?: () => void;
   /** 프로젝트 자동 저장 상태 (명세 Session "프로젝트 자동 저장"). */
   saveStatus?: AutoSaveStatus;
+  /** rejected 일 때 서버 오류 코드를 바꾼 짧은 한국어 사유 */
+  saveRejectReason?: string | null;
 };
 
 export function ExperienceHeader({
   onClearAll,
   onRestart,
   saveStatus = 'idle',
+  saveRejectReason,
 }: ExperienceHeaderProps) {
-  const saveLabel = SAVE_LABEL[saveStatus];
+  const baseLabel = SAVE_LABEL[saveStatus];
+  const saveLabel =
+    saveStatus === 'rejected' && saveRejectReason
+      ? `${baseLabel} · ${saveRejectReason}`
+      : baseLabel;
 
   return (
     <header className="border-line bg-page flex h-16 shrink-0 items-center justify-between border-b-[1.5px] pr-8 pl-6">

@@ -172,6 +172,39 @@ describe('ExperienceView', () => {
     expect(simulate).not.toHaveClass('bg-primary');
   });
 
+  it('연결 안 된 블록이 있으면 서버에 저장하지 않고 헤더에 연결 안내를 보여준다', async () => {
+    let saved = false;
+    server.use(
+      http.post('*/api/v1/sessions/:sessionId/block-revisions', () => {
+        saved = true;
+        return HttpResponse.json({
+          success: true,
+          data: { sessionId: 's', blockVersion: 1 },
+          error: null,
+        });
+      }),
+    );
+    const program = {
+      ...CONNECTED_PROGRAM,
+      floating: [
+        { id: 'f1', x: 400, y: 300, blocks: [{ id: 'w1', kind: 'wait' as const, seconds: 1 }] },
+      ],
+    };
+    seedDraft({
+      sessionId: '',
+      program: serializeProgram(program),
+      blocks: program,
+      projectVersion: 0,
+      dirty: true,
+    });
+    renderView();
+
+    expect(
+      await screen.findByText('블록을 모두 연결하면 저장돼요', undefined, { timeout: 3000 }),
+    ).toBeInTheDocument();
+    expect(saved).toBe(false);
+  });
+
   it('이전 버전 초안(종료가 떨어져 있음)도 종료가 연결된 상태로 복원돼 바로 시뮬레이션할 수 있다', () => {
     renderView();
 

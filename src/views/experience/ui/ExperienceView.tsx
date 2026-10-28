@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   cancelExecution as cancelExecutionApi,
@@ -71,14 +71,30 @@ export function ExperienceView() {
   const blockValid = blockErrors.length === 0;
 
   // ── 자동 저장 (명세 Session "프로젝트 자동 저장") ─────────────────────────────
-  const { save: saveProgram, flush: flushSave, setBaseVersion, projectVersion } = autoSave;
+  const {
+    save: saveProgram,
+    keepLocal,
+    flush: flushSave,
+    setBaseVersion,
+    projectVersion,
+  } = autoSave;
   const savedProgramRef = useRef<BlockProgram>(program);
 
+  // 구조 오류(연결 안 된 블록 등)가 있으면 서버에 보내지 않고 브라우저에만 보관한다.
+  const persist = useCallback(
+    (target: BlockProgram) => {
+      if (validateBlockProgram(target).length > 0) keepLocal(serializeProgram(target), target);
+      else saveProgram(serializeProgram(target), target);
+    },
+    [keepLocal, saveProgram],
+  );
+
   // 세션 확보 시 서버 버전을 맞추고, 세션 준비 전 변경분·미저장 초안을 동기화한다.
+  // 저장 실패 복구로 새로 만든 세션이면(이미 그 세션에 저장함) 다시 하지 않는다.
   useEffect(() => {
     if (!session.data) return;
-    setBaseVersion(session.data.projectVersion);
-    if (restoredDirty || program !== startProgram) saveProgram(serializeProgram(program), program);
+    if (!setBaseVersion(session.data.projectVersion, session.data.sessionId)) return;
+    if (restoredDirty || program !== startProgram) persist(program);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.data, setBaseVersion]);
 
@@ -87,10 +103,10 @@ export function ExperienceView() {
     if (program === savedProgramRef.current) return;
     const timer = window.setTimeout(() => {
       savedProgramRef.current = program;
-      saveProgram(serializeProgram(program), program);
+      persist(program);
     }, AUTOSAVE_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [program, saveProgram]);
+  }, [program, persist]);
   // ────────────────────────────────────────────────────────────────────────
 
   const simulationResult = simulation.data;
@@ -218,6 +234,7 @@ export function ExperienceView() {
         onClearAll={resetSession}
         onRestart={resetSession}
         saveStatus={autoSave.status}
+        saveRejectReason={autoSave.rejectReason}
       />
       <BlockDragProvider program={program} onChange={applyDrop}>
         <div className="flex flex-1">

@@ -1,8 +1,8 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useCallback, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { SerializedBlockProgram } from '@/features/simulation';
-import { ApiError, readSessionCredentials } from '@/shared/api';
+import { ApiError, describeErrorCode, readSessionCredentials } from '@/shared/api';
 
 import {
   clearLocalDraft,
@@ -11,7 +11,7 @@ import {
   writeLocalDraft,
 } from '../lib/localDraft';
 import type { AutoSaveStatus, SessionInfo } from '../model/types';
-import { createSession, restoreSession, saveProject } from './sessionApi';
+import { InvalidProgramError, createSession, restoreSession, saveProject } from './sessionApi';
 
 async function ensureSession(): Promise<SessionInfo> {
   const cachedId = readCachedSessionId();
@@ -53,17 +53,49 @@ export function useRestoreSession() {
 
 type QueuedSave = { program: SerializedBlockProgram; snapshot?: unknown };
 
+/** 세션이 사라졌다는 응답 — 새 세션을 만들어 다시 저장한다. */
+const SESSION_LOST_STATUSES = new Set([401, 404, 410]);
+
+function classifyFailure(error: unknown): { status: AutoSaveStatus; reason: string | null } {
+  if (error instanceof InvalidProgramError) return { status: 'invalid', reason: null };
+  if (error instanceof ApiError && error.status === 409)
+    return { status: 'conflict', reason: null };
+  if (
+    error instanceof ApiError &&
+    error.status !== undefined &&
+    error.status >= 400 &&
+    error.status < 500
+  ) {
+    return { status: 'rejected', reason: describeErrorCode(error.code) };
+  }
+  // 응답 없음(네트워크)·5xx
+  return { status: 'offline', reason: null };
+}
+
 export function useAutoSaveProject(sessionId: string | null) {
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<AutoSaveStatus>('idle');
+  const [rejectReason, setRejectReason] = useState<string | null>(null);
   const [projectVersion, setProjectVersion] = useState(0);
   const versionRef = useRef(0);
   const savingRef = useRef(false);
   const queuedRef = useRef<QueuedSave | null>(null);
   const drainPromiseRef = useRef<Promise<number> | null>(null);
+  const sessionIdRef = useRef(sessionId);
+  // 저장 실패 복구로 이 훅이 직접 만든 세션 — 그 세션의 버전은 이미 알고 있으니 바깥에서
+  // 다시 기준 버전을 덮어쓰지 않게 한다(새 세션 기준 0 으로 되돌아가 409 가 나는 것 방지).
+  const recoveredSessionIdRef = useRef<string | null>(null);
 
-  const setBaseVersion = useCallback((version: number) => {
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  /** 서버가 알려준 기준 버전을 맞춘다. 복구로 만든 세션이면 false(이미 맞춰져 있음). */
+  const setBaseVersion = useCallback((version: number, forSessionId?: string): boolean => {
+    if (forSessionId !== undefined && forSessionId === recoveredSessionIdRef.current) return false;
     versionRef.current = version;
     setProjectVersion(version);
+    return true;
   }, []);
 
   const drain = useCallback((): Promise<number> => {
@@ -74,12 +106,15 @@ export function useAutoSaveProject(sessionId: string | null) {
       savingRef.current = true;
 
       let outcome: AutoSaveStatus = 'saved';
+      let reason: string | null = null;
+      let recovered = false;
       while (queuedRef.current !== null) {
         const { program: target, snapshot } = queuedRef.current;
         queuedRef.current = null;
         setStatus('saving');
+        const currentSessionId = sessionIdRef.current;
 
-        if (!sessionId) {
+        if (!currentSessionId) {
           writeLocalDraft({
             sessionId: '',
             program: target,
@@ -92,33 +127,58 @@ export function useAutoSaveProject(sessionId: string | null) {
         }
 
         try {
-          const result = await saveProject(sessionId, {
+          const result = await saveProject(currentSessionId, {
             program: target,
             baseVersion: versionRef.current,
           });
           versionRef.current = result.blockVersion;
           setProjectVersion(result.blockVersion);
           writeLocalDraft({
-            sessionId,
+            sessionId: currentSessionId,
             program: target,
             blocks: snapshot,
             projectVersion: result.blockVersion,
             dirty: false,
           });
           outcome = 'saved';
+          reason = null;
         } catch (error) {
           writeLocalDraft({
-            sessionId,
+            sessionId: currentSessionId,
             program: target,
             blocks: snapshot,
             projectVersion: versionRef.current,
             dirty: true,
           });
-          outcome = error instanceof ApiError && error.status === 409 ? 'conflict' : 'offline';
+          if (
+            !recovered &&
+            error instanceof ApiError &&
+            error.status !== undefined &&
+            SESSION_LOST_STATUSES.has(error.status)
+          ) {
+            // 세션이 만료·삭제됐다 — 새 세션을 만들고 지금 블록을 그 세션에 다시 저장한다(1회).
+            recovered = true;
+            try {
+              const created = await createSession();
+              writeCachedSessionId(created.sessionId);
+              recoveredSessionIdRef.current = created.sessionId;
+              sessionIdRef.current = created.sessionId;
+              versionRef.current = created.projectVersion;
+              setProjectVersion(created.projectVersion);
+              queryClient.setQueryData(['session'], created);
+              queuedRef.current = queuedRef.current ?? { program: target, snapshot };
+              continue;
+            } catch {
+              outcome = 'offline';
+              break;
+            }
+          }
+          ({ status: outcome, reason } = classifyFailure(error));
           break;
         }
       }
 
+      setRejectReason(outcome === 'rejected' ? reason : null);
       setStatus(outcome);
       savingRef.current = false;
       return versionRef.current;
@@ -129,7 +189,7 @@ export function useAutoSaveProject(sessionId: string | null) {
     });
     drainPromiseRef.current = promise;
     return promise;
-  }, [sessionId]);
+  }, [queryClient]);
 
   const save = useCallback(
     (program: SerializedBlockProgram, snapshot?: unknown) => {
@@ -139,5 +199,27 @@ export function useAutoSaveProject(sessionId: string | null) {
     [drain],
   );
 
-  return { status, save, flush: drain, setBaseVersion, projectVersion };
+  /** 구조 오류가 있는 프로그램 — 서버에 보내지 않고 브라우저에만 보관한다. */
+  const keepLocal = useCallback((program: SerializedBlockProgram, snapshot?: unknown) => {
+    queuedRef.current = null;
+    writeLocalDraft({
+      sessionId: sessionIdRef.current ?? '',
+      program,
+      blocks: snapshot,
+      projectVersion: versionRef.current,
+      dirty: true,
+    });
+    setRejectReason(null);
+    setStatus('invalid');
+  }, []);
+
+  return {
+    status,
+    rejectReason,
+    save,
+    keepLocal,
+    flush: drain,
+    setBaseVersion,
+    projectVersion,
+  };
 }

@@ -31,4 +31,12 @@ export type LocalDraft = {
   dirty: boolean;
 };
 
-export type AutoSaveStatus = 'idle' | 'saving' | 'saved' | 'offline' | 'conflict';
+/**
+ * 자동 저장 상태.
+ *   invalid  — 연결 안 된 블록 등 구조 오류라 서버에 보내지 않았다(브라우저에만 보관)
+ *   offline  — 네트워크 실패·서버 5xx (브라우저에 보관, 다음 편집 때 다시 시도)
+ *   rejected — 서버가 4xx 로 거부 (짧은 한국어 사유를 함께 보여준다)
+ *   conflict — 다른 곳에서 먼저 저장됨(409)
+ */
+export type AutoSaveStatus =
+  'idle' | 'saving' | 'saved' | 'invalid' | 'offline' | 'rejected' | 'conflict';
