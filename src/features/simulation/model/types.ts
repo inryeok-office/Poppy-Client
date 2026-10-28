@@ -108,7 +108,8 @@ export function toServerBlockProgram(program: SerializedBlockProgram): ServerBlo
   return { schemaVersion: 1, blocks: program.chain.map(convert) };
 }
 
-export type SafetyViolationCode = 'exceeds-safe-zone' | 'invalid-values';
+export type SafetyViolationCode =
+  'exceeds-safe-zone' | 'exceeds-time' | 'moves-while-sitting' | 'invalid-values';
 
 export type SafetyViolation = {
   code: SafetyViolationCode;

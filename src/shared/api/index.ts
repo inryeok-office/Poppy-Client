@@ -7,3 +7,9 @@ export {
   writeSessionCredentials,
 } from './sessionCredentials';
 export type { StoredSessionCredentials } from './sessionCredentials';
+export {
+  UNKNOWN_ERROR_MESSAGE,
+  describeError,
+  describeErrorCode,
+  knownErrorMessage,
+} from './errorMessages';

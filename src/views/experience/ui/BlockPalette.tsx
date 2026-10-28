@@ -2,8 +2,17 @@
 
 import { useState, type ReactNode } from 'react';
 
-import { hasBlockKind, newBlock, type BlockKind, type BlockProgram } from '../model/blockProgram';
+import {
+  DEFAULT_MOVE_M,
+  DEFAULT_REPEAT_COUNT,
+  DEFAULT_ROTATE_DEG,
+  DEFAULT_WAIT_SECONDS,
+  newBlock,
+  type BlockKind,
+} from '../model/blockProgram';
 import { useBlockDrag } from '../lib/useBlockDrag';
+import { Tooltip } from '@/shared/ui';
+
 import { Block, BlockInput, CBlock } from './Block';
 
 // Figma node 21:520 — Frame 6(31:292, 카테고리 레일 w54, gap 4), Rectangle 3/4(레일·팔레트 패널),
@@ -13,8 +22,8 @@ import { Block, BlockInput, CBlock } from './Block';
 // 팔레트 블록을 눌러 캔버스로 끌어다 놓는다 (기명서 "블록 드래그 이동·스냅 연결").
 // w-[85px] 같은 정확한 디자인 치수는 임의값으로 둔다.
 
+// 시작·종료는 캔버스에 고정된 Entry 라 팔레트에서 꺼내지 않는다 (Notion 블록 편집기 명세).
 const CATEGORIES = [
-  { label: '시작', color: 'bg-block-start' },
   { label: '흐름', color: 'bg-block-flow' },
   { label: '이동', color: 'bg-block-move' },
   { label: '동작', color: 'bg-block-action' },
@@ -66,15 +75,8 @@ function PaletteItem({
   );
 }
 
-type BlockPaletteProps = {
-  /** 종료가 이미 있는지 확인용 — 쓰레기통으로 지운 뒤 다시 꺼낼 수 있어야 한다(기명서
-   *  "블록 삭제"). 카테고리와 무관하게 하나만 있어야 하는 블록이라 여기서 조건을 건다. */
-  program: BlockProgram;
-};
-
-export function BlockPalette({ program }: BlockPaletteProps) {
+export function BlockPalette() {
   const [category, setCategory] = useState<CategoryLabel>('흐름');
-  const endExists = hasBlockKind(program, 'end');
 
   return (
     <aside className="flex shrink-0" aria-label="블록 팔레트">
@@ -100,38 +102,11 @@ export function BlockPalette({ program }: BlockPaletteProps) {
 
       {/* 선택된 카테고리의 블록. 눌러서 캔버스로 끌어다 놓는다. */}
       <ul className="border-line bg-page flex w-[294px] shrink-0 flex-col gap-4 border-r-[1.5px] px-6 pt-10">
-        {category === '시작' && (
-          <>
-            {/* 시작은 항상 스택 맨 앞에 하나뿐이라 팔레트에서 새로 꺼낼 수 없다 — 모양만 보여준다. */}
-            <PaletteItem ariaLabel="시작 블록 (캔버스에 이미 있음)">
-              <Block color="start" variant="hat">
-                시작
-              </Block>
-            </PaletteItem>
-            {/* 종료도 많아야 하나 — 쓰레기통으로 지운 뒤(기명서 "블록 삭제")에는 다시 꺼낼
-                방법이 있어야 한다. 이미 있으면(스택이든 자유 블록이든) 중복 생성을 막기
-                위해 그림만 보여준다. */}
-            {endExists ? (
-              <PaletteItem ariaLabel="종료 블록 (캔버스에 이미 있음)">
-                <Block color="start" variant="cap">
-                  종료
-                </Block>
-              </PaletteItem>
-            ) : (
-              <PaletteItem kind="end" ariaLabel="종료 블록 꺼내기">
-                <Block color="start" variant="cap">
-                  종료
-                </Block>
-              </PaletteItem>
-            )}
-          </>
-        )}
-
         {category === '흐름' && (
           <>
             <PaletteItem kind="wait" ariaLabel="초 기다리기 블록 꺼내기">
               <Block color="flow">
-                <BlockInput />초 기다리기
+                <BlockInput value={DEFAULT_WAIT_SECONDS} />초 기다리기
               </Block>
             </PaletteItem>
             <PaletteItem kind="repeat" ariaLabel="번 반복하기 블록 꺼내기">
@@ -139,7 +114,7 @@ export function BlockPalette({ program }: BlockPaletteProps) {
                 color="flow"
                 header={
                   <>
-                    <BlockInput />번 반복하기
+                    <BlockInput value={DEFAULT_REPEAT_COUNT} />번 반복하기
                   </>
                 }
               />
@@ -149,28 +124,31 @@ export function BlockPalette({ program }: BlockPaletteProps) {
 
         {category === '이동' && (
           <>
-            <PaletteItem kind="move" ariaLabel="뒤로 이동 블록 꺼내기">
-              <Block color="move">
-                뒤로 <BlockInput /> m 이동
-              </Block>
-            </PaletteItem>
+            {/* 순서: 앞으로 → 뒤로 → 오른쪽 → 왼쪽 → 정지 */}
             <PaletteItem kind="moveForward" ariaLabel="앞으로 이동 블록 꺼내기">
               <Block color="move">
-                앞으로 <BlockInput /> m 이동
+                앞으로 <BlockInput value={DEFAULT_MOVE_M} /> m 이동
+              </Block>
+            </PaletteItem>
+            <PaletteItem kind="move" ariaLabel="뒤로 이동 블록 꺼내기">
+              <Block color="move">
+                뒤로 <BlockInput value={DEFAULT_MOVE_M} /> m 이동
               </Block>
             </PaletteItem>
             <PaletteItem kind="rotateRight" ariaLabel="오른쪽으로 회전 블록 꺼내기">
               <Block color="move">
-                오른쪽으로 <BlockInput /> ° 회전
+                오른쪽으로 <BlockInput value={DEFAULT_ROTATE_DEG} /> ° 회전
               </Block>
             </PaletteItem>
             <PaletteItem kind="rotateLeft" ariaLabel="왼쪽으로 회전 블록 꺼내기">
               <Block color="move">
-                왼쪽으로 <BlockInput /> ° 회전
+                왼쪽으로 <BlockInput value={DEFAULT_ROTATE_DEG} /> ° 회전
               </Block>
             </PaletteItem>
             <PaletteItem kind="stop" ariaLabel="정지 블록 꺼내기">
-              <Block color="move">정지</Block>
+              <Tooltip text="동작을 마치고 멈춰요 (비상정지 아님)">
+                <Block color="move">정지</Block>
+              </Tooltip>
             </PaletteItem>
           </>
         )}

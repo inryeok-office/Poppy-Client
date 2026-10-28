@@ -1,3 +1,5 @@
+import { ApiError } from './axiosInstance';
+
 const STORAGE_KEY = 'poppy.session.credentials';
 
 export type StoredSessionCredentials = {
@@ -99,7 +101,8 @@ export function __resetSessionCredentialsForTests(): void {
 export function sessionAuthHeaders(sessionId?: string): Record<string, string> {
   const credentials = readSessionCredentials();
   if (!credentials || (sessionId && credentials.sessionId !== sessionId)) {
-    throw new Error('An active session credential is required');
+    // 서버의 401(SESSION_TOKEN_INVALID)과 같은 뜻 — 자동 저장이 새 세션으로 복구할 수 있게 같은 모양으로 던진다.
+    throw new ApiError('An active session credential is required', 401, 'SESSION_TOKEN_INVALID');
   }
   return { 'X-Session-Token': credentials.sessionToken };
 }

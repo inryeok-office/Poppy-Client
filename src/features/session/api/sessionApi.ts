@@ -33,11 +33,24 @@ export async function restoreSession(recoveryCode: string): Promise<SessionRecov
   return mapSession(response.data.data);
 }
 
+/** 서버 블록 계약으로 바꿀 수 없는 프로그램(연결 안 된 블록·지원 안 하는 블록) — 요청 전 거부. */
+export class InvalidProgramError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidProgramError';
+  }
+}
+
 export async function saveProject(
   sessionId: string,
   request: SaveProjectRequest,
 ): Promise<SaveProjectResult> {
-  const document = toServerBlockProgram(request.program);
+  let document: ReturnType<typeof toServerBlockProgram>;
+  try {
+    document = toServerBlockProgram(request.program);
+  } catch (error) {
+    throw new InvalidProgramError(error instanceof Error ? error.message : 'invalid program');
+  }
   const response = await api.post<ApiResponse<{ sessionId: string; blockVersion: number }>>(
     `/api/v1/sessions/${sessionId}/block-revisions`,
     { document },

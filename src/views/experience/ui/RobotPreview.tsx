@@ -1,4 +1,9 @@
-import type { SimulationStep } from '@/features/simulation';
+import {
+  SAFE_ZONE_M,
+  describeHeading,
+  type Posture,
+  type SimulationStep,
+} from '@/features/simulation';
 
 // Figma node 21:520 (Dev 모드 좌표 그대로). 격자 박스(Rectangle 19) 기준 상대 좌표:
 //   격자선  Frame 19 세로줄 x=21..229 / Frame 20 가로줄 y=11..167 (둘 다 26px 간격)
@@ -9,10 +14,18 @@ import type { SimulationStep } from '@/features/simulation';
 // 제목/격자박스/스탯 세로 배치: 제목 y18(h16) → 격자박스 y46(h178) → 스탯 y256 (행 18 · 피치 34).
 // 색은 globals.css @theme 팔레트, 폰트는 상위 font-gmarket 상속.
 
-const SUMMARY = { blockCount: 5, estimatedSeconds: 7 } as const;
+const POSTURE_LABEL: Record<Posture, string> = { standing: '서있기', sitting: '앉기' };
 
 type RobotPreviewProps = {
-  /** 시뮬레이션이 계산한 총 이동 거리 (m). 실행 전에는 0. */
+  /** 시작·종료를 뺀 블록 수 (반복은 한 번만 센다). */
+  blockCount?: number;
+  /** 예상 동작 시간 (s) — 이동 0.5 m/s, 회전 45°/s, 자세 3 s, 특수 동작 5 s, 대기값 합산. */
+  estimatedSeconds?: number;
+  /** 프로그램이 끝난 뒤 자세. */
+  finalPosture?: Posture;
+  /** 누적 회전 (오른쪽 +, 0~359°). */
+  headingDegrees?: number;
+  /** 프로그램의 총 이동 거리 (m) — 반복 포함. */
   estimatedDistanceM?: number;
   /** 방금 시뮬레이션한 실행순서 — 있을 때만 진행상태 바·성공/실패 배지를 보여준다. */
   steps?: SimulationStep[];
@@ -20,10 +33,18 @@ type RobotPreviewProps = {
   passed?: boolean;
 };
 
-export function RobotPreview({ estimatedDistanceM = 0, steps, passed }: RobotPreviewProps) {
+export function RobotPreview({
+  blockCount = 0,
+  estimatedSeconds = 0,
+  finalPosture = 'standing',
+  headingDegrees = 0,
+  estimatedDistanceM = 0,
+  steps,
+  passed,
+}: RobotPreviewProps) {
   const stats = [
-    { label: '자세', value: '서있기' },
-    { label: '바라보는 방향', value: '정면' },
+    { label: '자세', value: POSTURE_LABEL[finalPosture] },
+    { label: '바라보는 방향', value: describeHeading(headingDegrees) },
     { label: '예상 이동 거리', value: `${estimatedDistanceM.toFixed(1)} m` },
   ];
 
@@ -59,14 +80,14 @@ export function RobotPreview({ estimatedDistanceM = 0, steps, passed }: RobotPre
           )}
         </div>
         <span className="text-muted text-[12px]">
-          블록 {SUMMARY.blockCount}개 • 예상 실행 {SUMMARY.estimatedSeconds}초
+          블록 {blockCount}개 • 예상 실행 {Math.ceil(estimatedSeconds)}초
         </span>
       </div>
 
       {/* 격자 박스 (Rectangle 19: 249×178 · radius 12). 제목 텍스트(하단 y32) 아래 14px → y46. */}
       <div
         role="img"
-        aria-label="로봇 위치 미리보기 (2m × 2m 안전 구역)"
+        aria-label={`로봇 위치 미리보기 (총 이동 ${SAFE_ZONE_M}m 안전 구역)`}
         className="border-line bg-card relative mt-[14px] h-[178px] w-full overflow-hidden rounded-[12px] border"
       >
         {/* 격자선: Frame 19 세로줄 x=21부터 · Frame 20 가로줄 y=11부터 · 26px 간격 (박스 기준 절대 위치). */}
@@ -75,18 +96,27 @@ export function RobotPreview({ estimatedDistanceM = 0, steps, passed }: RobotPre
           className="absolute inset-0 bg-[linear-gradient(to_right,#e4ddd2_1px,transparent_1px),linear-gradient(to_bottom,#e4ddd2_1px,transparent_1px)] bg-size-[26px_26px] bg-position-[21px_11px] opacity-70"
         />
 
-        <span className="text-muted absolute top-3 left-3 text-[12px]">2m x 2m 안전 구역</span>
+        <span className="text-muted absolute top-3 left-3 text-[12px]">
+          안전 구역 · 총 이동 {SAFE_ZONE_M}m
+        </span>
 
-        {/* 로봇 본체 (Rectangle 20: x=105 y=89 · 40×52). 중심 x=125 = 격자 세로 중앙선. */}
-        <span className="bg-ink absolute top-[89px] left-[105px] h-13 w-10 rounded-t-[18px] rounded-b-[7px]" />
-        {/* 방향 삼각형 (Rectangle 21 벡터: 프레임 x=117 y=65 16×16, 인셋 좌7.71%·상15.45% → x=118.2 y=67.5). */}
-        <svg
-          aria-hidden
-          viewBox="0 -0.6 13.533 14.13"
-          className="absolute top-[67.5px] left-[118.2px] size-[13.5px] fill-[#e58d55]"
+        {/* 로봇 본체·방향 삼각형을 누적 회전만큼 돌린다 (본체 중심 x125 y115 기준). */}
+        <div
+          data-testid="robot-heading"
+          className="absolute inset-0 transition-transform"
+          style={{ transform: `rotate(${headingDegrees}deg)`, transformOrigin: '125px 115px' }}
         >
-          <path d="M2.00258 13.5279H11.5304C13.0172 13.5279 13.9842 11.9632 13.3193 10.6334L8.55537 1.10557C7.81832 -0.368525 5.71471 -0.368523 4.97766 1.10557L0.213726 10.6334C-0.451175 11.9632 0.515817 13.5279 2.00258 13.5279Z" />
-        </svg>
+          {/* 로봇 본체 (Rectangle 20: x=105 y=89 · 40×52). 중심 x=125 = 격자 세로 중앙선. */}
+          <span className="bg-ink absolute top-[89px] left-[105px] h-13 w-10 rounded-t-[18px] rounded-b-[7px]" />
+          {/* 방향 삼각형 (Rectangle 21 벡터: 프레임 x=117 y=65 16×16, 인셋 좌7.71%·상15.45% → x=118.2 y=67.5). */}
+          <svg
+            aria-hidden
+            viewBox="0 -0.6 13.533 14.13"
+            className="absolute top-[67.5px] left-[118.2px] size-[13.5px] fill-[#e58d55]"
+          >
+            <path d="M2.00258 13.5279H11.5304C13.0172 13.5279 13.9842 11.9632 13.3193 10.6334L8.55537 1.10557C7.81832 -0.368525 5.71471 -0.368523 4.97766 1.10557L0.213726 10.6334C-0.451175 11.9632 0.515817 13.5279 2.00258 13.5279Z" />
+          </svg>
+        </div>
 
         <button
           type="button"

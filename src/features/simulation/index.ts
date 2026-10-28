@@ -1,7 +1,24 @@
 export { useRecordSimulationPass, useSimulateProgram } from './api/useSimulateProgram';
 export { recordSimulationPass, simulateProgram } from './api/simulateProgram';
 export { simulationHandlers } from './api/mocks';
-export { evaluateProgram, LIMITS, SAFE_ZONE_M, type ProgramEvaluation } from './model/safety';
+export {
+  MAX_TOTAL_SECONDS,
+  MOTION_TIMING,
+  countProgramBlocks,
+  describeHeading,
+  planMotion,
+  type MotionPlan,
+  type Posture,
+} from './model/motionPlan';
+export {
+  evaluateProgram,
+  isBlockValueValid,
+  LIMITS,
+  SAFE_ZONE_M,
+  VALUE_RANGE_TEXT,
+  valueKindOf,
+  type ProgramEvaluation,
+} from './model/safety';
 export type {
   SafetyViolation,
   SerializedBlockNode,

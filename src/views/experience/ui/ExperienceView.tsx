@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   cancelExecution as cancelExecutionApi,
@@ -10,7 +11,13 @@ import {
   useRequestExecution,
 } from '@/features/execution';
 import { readLocalDraft, useAutoSaveProject, useSession } from '@/features/session';
-import { useRecordSimulationPass, useSimulateProgram } from '@/features/simulation';
+import { describeError, knownErrorMessage } from '@/shared/api';
+import {
+  countProgramBlocks,
+  planMotion,
+  useRecordSimulationPass,
+  useSimulateProgram,
+} from '@/features/simulation';
 
 import { BlockDragProvider } from '../lib/useBlockDrag';
 import {
@@ -20,6 +27,7 @@ import {
   serializeProgram,
   setBlockParam,
   validateBlockProgram,
+  type BlockErrorCode,
   type BlockProgram,
 } from '../model/blockProgram';
 import type { BlockParamPatch } from './BlockStack';
@@ -52,6 +60,15 @@ function initialProgram(): { program: BlockProgram; restoredDirty: boolean } {
 }
 const AUTOSAVE_DEBOUNCE_MS = 600;
 
+/** 구조·값 오류로 서버 저장을 미룰 때 헤더에 보여줄 짧은 사유. */
+const SAVE_BLOCKED_REASON: Record<BlockErrorCode, string> = {
+  'disconnected-block': '블록을 모두 연결하면 저장돼요',
+  'missing-end': '블록을 모두 연결하면 저장돼요',
+  'unsupported-block': '지원하지 않는 블록을 빼면 저장돼요',
+  'empty-repeat': '반복 블록 안을 채우면 저장돼요',
+  'invalid-value': '빨간 칸의 값을 고치면 저장돼요',
+};
+
 export function ExperienceView() {
   const [{ program: startProgram, restoredDirty }] = useState(initialProgram);
   const [program, setProgram] = useState<BlockProgram>(startProgram);
@@ -68,17 +85,43 @@ export function ExperienceView() {
   const execution = useExecutionState(session.data?.sessionId ?? null, executionId);
 
   const blockErrors = useMemo(() => validateBlockProgram(program), [program]);
+  // 로봇 미리보기 — 시뮬레이션을 돌리기 전에도 지금 프로그램으로 계산한다.
+  const preview = useMemo(() => {
+    const chain = serializeProgram(program).chain;
+    return { plan: planMotion(chain), blockCount: countProgramBlocks(chain) };
+  }, [program]);
   const blockValid = blockErrors.length === 0;
 
   // ── 자동 저장 (명세 Session "프로젝트 자동 저장") ─────────────────────────────
-  const { save: saveProgram, flush: flushSave, setBaseVersion, projectVersion } = autoSave;
+  const {
+    save: saveProgram,
+    keepLocal,
+    flush: flushSave,
+    setBaseVersion,
+    projectVersion,
+  } = autoSave;
   const savedProgramRef = useRef<BlockProgram>(program);
 
+  // 구조 오류(연결 안 된 블록 등)가 있으면 서버에 보내지 않고 브라우저에만 보관한다.
+  const persist = useCallback(
+    (target: BlockProgram) => {
+      const [firstError] = validateBlockProgram(target);
+      if (firstError)
+        keepLocal(serializeProgram(target), target, SAVE_BLOCKED_REASON[firstError.code]);
+      else saveProgram(serializeProgram(target), target);
+    },
+    [keepLocal, saveProgram],
+  );
+
   // 세션 확보 시 서버 버전을 맞추고, 세션 준비 전 변경분·미저장 초안을 동기화한다.
+  // 저장 실패 복구로 새로 만든 세션이면(이미 그 세션에 저장함) 다시 하지 않는다.
   useEffect(() => {
     if (!session.data) return;
-    setBaseVersion(session.data.projectVersion);
-    if (restoredDirty || program !== startProgram) saveProgram(serializeProgram(program), program);
+    if (!setBaseVersion(session.data.projectVersion, session.data.sessionId)) return;
+    if (restoredDirty || program !== startProgram) {
+      savedProgramRef.current = program;
+      persist(program);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.data, setBaseVersion]);
 
@@ -86,11 +129,14 @@ export function ExperienceView() {
   useEffect(() => {
     if (program === savedProgramRef.current) return;
     const timer = window.setTimeout(() => {
+      // 그 사이 시뮬레이션이 같은 프로그램을 이미 저장했으면 다시 저장하지 않는다 — 버전이 하나 더
+      // 올라가면 방금 받은 통과 기록이 이전 버전을 가리키게 돼 '로봇 실행하기'가 다시 잠긴다.
+      if (program === savedProgramRef.current) return;
       savedProgramRef.current = program;
-      saveProgram(serializeProgram(program), program);
+      persist(program);
     }, AUTOSAVE_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [program, saveProgram]);
+  }, [program, persist]);
   // ────────────────────────────────────────────────────────────────────────
 
   const simulationResult = simulation.data;
@@ -98,11 +144,11 @@ export function ExperienceView() {
     simulationResult?.passed === true && simulationPass.data?.blockVersion === projectVersion;
   const simulationMessage =
     simulation.isError || simulationPass.isError
-      ? '시뮬레이션에 실패했어요. 잠시 후 다시 시도해 주세요.'
+      ? (knownErrorMessage(simulationPass.error) ??
+        '시뮬레이션에 실패했어요. 잠시 후 다시 시도해 주세요.')
       : simulationResult && !simulationResult.passed
         ? simulationResult.violations[0]?.message
         : undefined;
-  const estimatedDistanceM = simulationResult?.totalDistanceM ?? 0;
 
   useEffect(() => {
     if (
@@ -207,27 +253,44 @@ export function ExperienceView() {
     invalidate();
   };
 
-  const resetSession = () => {
+  const router = useRouter();
+
+  // 전체 지우기 — 시작·종료만 남긴다.
+  const clearAll = () => {
     setProgram(INITIAL_PROGRAM);
     invalidate();
   };
 
+  // 처음으로 — 블록·진행 중 실행을 정리하고 체험 첫 화면으로 돌아간다.
+  const restart = () => {
+    clearAll();
+    router.push('/');
+  };
+
+  const executionError = requestExecution.isError
+    ? describeError(requestExecution.error)
+    : cancelExecution.isError
+      ? describeError(cancelExecution.error)
+      : null;
+
   return (
     <div className="bg-page font-gmarket text-ink flex min-h-full flex-1 flex-col">
       <ExperienceHeader
-        onClearAll={resetSession}
-        onRestart={resetSession}
+        onClearAll={clearAll}
+        onRestart={restart}
         saveStatus={autoSave.status}
+        saveReason={autoSave.rejectReason}
       />
       <BlockDragProvider program={program} onChange={applyDrop}>
         <div className="flex flex-1">
-          <BlockPalette program={program} />
+          <BlockPalette />
           {simulationPassed ? (
             <RunReadyWorkspace
               program={program}
               requesting={requestExecution.isPending}
               executionStatus={executionStatus}
               executionMessage={executionMessage}
+              errorMessage={executionError}
               onSimulate={runSimulation}
               onRun={requestRun}
               onStop={stopRun}
@@ -245,7 +308,11 @@ export function ExperienceView() {
             />
           )}
           <RobotPreview
-            estimatedDistanceM={estimatedDistanceM}
+            blockCount={preview.blockCount}
+            estimatedSeconds={preview.plan.totalSeconds}
+            finalPosture={preview.plan.finalPosture}
+            headingDegrees={preview.plan.headingDegrees}
+            estimatedDistanceM={preview.plan.totalMeters}
             steps={simulationResult?.steps}
             passed={simulationResult?.passed}
           />

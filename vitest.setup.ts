@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
-import { afterAll, afterEach, beforeAll } from 'vitest';
+import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 
 import { server } from '@/shared/api/msw/server';
 
@@ -18,6 +18,12 @@ if (!window.matchMedia) {
       dispatchEvent: () => false,
     }) as MediaQueryList;
 }
+
+// App Router 밖(jsdom)에서 렌더하는 화면용 라우터 대역. 라우팅을 검증하는 테스트는 파일에서 다시 mock 한다.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+  redirect: vi.fn(),
+}));
 
 // 테스트가 정의하지 않은 요청은 명시적으로 실패시켜 놓친 Mock을 바로 드러낸다.
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
