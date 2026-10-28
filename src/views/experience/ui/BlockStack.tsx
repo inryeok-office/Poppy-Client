@@ -38,7 +38,7 @@ function measuredBlock({
   suffix: string;
   value: number;
   onChange?: (value: number) => void;
-  range: { min: number; max: number };
+  range: { min: number; max: number; step?: number };
   ariaLabel: string;
 }) {
   return (
@@ -49,6 +49,7 @@ function measuredBlock({
         onChange={onChange}
         min={range.min}
         max={range.max}
+        step={'step' in range ? range.step : undefined}
         aria-label={ariaLabel}
       />{' '}
       {suffix}

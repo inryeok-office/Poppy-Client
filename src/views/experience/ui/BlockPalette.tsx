@@ -192,12 +192,7 @@ export function BlockPalette({ program }: BlockPaletteProps) {
             <PaletteItem kind="dance" ariaLabel="춤추기 블록 꺼내기">
               <Block color="action">춤추기</Block>
             </PaletteItem>
-            <PaletteItem kind="roll" ariaLabel="구르기 블록 꺼내기">
-              <Block color="action">구르기</Block>
-            </PaletteItem>
-            <PaletteItem kind="attack" ariaLabel="공격 블록 꺼내기">
-              <Block color="action">공격</Block>
-            </PaletteItem>
+            {/* 구르기·공격은 검증된 프리셋이 없어 노출하지 않는다 (Server 계약에도 없음). */}
           </>
         )}
       </ul>

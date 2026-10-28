@@ -48,6 +48,8 @@ type BlockInputProps = {
   onChange?: (next: number) => void;
   min?: number;
   max?: number;
+  /** 소수 입력 단위(예: 0.1). 없으면 정수로 자른다. */
+  step?: number;
   'aria-label'?: string;
 };
 
@@ -55,7 +57,7 @@ type BlockInputProps = {
  * 값 입력 칸 (Rectangle 16/17). 32×22, radius 3, Figma 33:914 "2".
  * onChange 를 주면 편집 가능한 숫자 칸, 아니면 값만 표시한다.
  */
-export function BlockInput({ value, onChange, min = 1, max = 99, ...rest }: BlockInputProps) {
+export function BlockInput({ value, onChange, min = 1, max = 99, step, ...rest }: BlockInputProps) {
   if (!onChange) {
     return (
       <span
@@ -71,14 +73,19 @@ export function BlockInput({ value, onChange, min = 1, max = 99, ...rest }: Bloc
   return (
     <input
       type="number"
-      inputMode="numeric"
+      inputMode={step ? 'decimal' : 'numeric'}
       value={value ?? min}
       min={min}
       max={max}
+      step={step}
       onChange={(event) => {
         const next = Number(event.target.value);
         if (!Number.isFinite(next)) return;
-        onChange(Math.min(max, Math.max(min, Math.trunc(next))));
+        // step 단위로 반올림해 0.30000000000000004 같은 부동소수 오차를 남기지 않는다.
+        const snapped = step
+          ? Number((Math.round(next / step) * step).toFixed(6))
+          : Math.trunc(next);
+        onChange(Math.min(max, Math.max(min, snapped)));
       }}
       className={`${BLOCK_INPUT_CLASS} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
       {...rest}

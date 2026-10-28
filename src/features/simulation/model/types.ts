@@ -81,13 +81,19 @@ export function toServerBlockProgram(program: SerializedBlockProgram): ServerBlo
           parameters: { count: node.count },
           children: node.body.map(convert),
         };
-      case 'greet':
-        throw new Error('The Server block contract does not support the GREET block');
       case 'stop':
+        return { id: node.id, type: 'STOP', parameters: {} };
       case 'sit':
+        return { id: node.id, type: 'SIT', parameters: {} };
       case 'standUp':
+        return { id: node.id, type: 'STAND', parameters: {} };
+      // 특수 동작은 PRESET 으로 보낸다. presetCode 는 Agent allow-list(HELLO·HEART·DANCE1)와 같다.
+      case 'greet':
+        return { id: node.id, type: 'PRESET', parameters: { presetCode: 'HELLO' } };
       case 'heart':
+        return { id: node.id, type: 'PRESET', parameters: { presetCode: 'HEART' } };
       case 'dance':
+        return { id: node.id, type: 'PRESET', parameters: { presetCode: 'DANCE1' } };
       case 'roll':
       case 'attack':
         throw new Error(

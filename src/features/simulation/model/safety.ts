@@ -6,18 +6,22 @@ import type { SerializedBlockNode, SerializedBlockProgram, SimulationStep } from
 // 시뮬레이션 mock 과 실행 mock 이 같은 판정을 쓴다. views/experience 의 입력칸 min·max 도
 // 이 값을 그대로 가져다 쓴다(LIMITS export) — 클라이언트·서버가 서로 다른 범위를 들고 있다가
 // 어긋나는 걸 막는다.
-export const SAFE_ZONE_M = 2;
+// 실행 1회 총 이동 거리 상한 — Agent controlled_motion_open 의 4.0 m 와 같다.
+export const SAFE_ZONE_M = 4;
 
+// step 이 있으면 그 단위의 소수, 없으면 정수만 허용한다.
 export const LIMITS = {
-  repeatCount: { min: 1, max: 20 },
-  moveDistance: { min: 1, max: 10 },
-  waitSeconds: { min: 1, max: 60 },
+  repeatCount: { min: 1, max: 10 },
+  moveDistance: { min: 0.1, max: 3, step: 0.1 },
+  waitSeconds: { min: 1, max: 10 },
   rotateDegree: { min: 1, max: 360 },
 } as const;
 
-const inRange = (raw: unknown, { min, max }: { min: number; max: number }) => {
+const inRange = (raw: unknown, { min, max, step }: { min: number; max: number; step?: number }) => {
   const value = Number(raw);
-  return Number.isInteger(value) && value >= min && value <= max;
+  if (!Number.isFinite(value) || value < min || value > max) return false;
+  if (step === undefined) return Number.isInteger(value);
+  return Math.abs(value / step - Math.round(value / step)) < 1e-9;
 };
 
 function isValueValid(node: SerializedBlockNode): boolean {

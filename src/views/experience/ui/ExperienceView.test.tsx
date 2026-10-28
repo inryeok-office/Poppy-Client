@@ -290,9 +290,9 @@ describe('ExperienceView', () => {
     renderView();
 
     connectEndBlock();
-    // 반복 횟수 2 → 4 (× 이동 1m = 4m > 2m 안전 구역)
+    // 반복 횟수 2 → 5 (× 이동 1m = 5m > 4m 안전 구역)
     fireEvent.change(screen.getByRole('spinbutton', { name: '반복 횟수' }), {
-      target: { value: '4' },
+      target: { value: '5' },
     });
     await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
 
@@ -304,7 +304,7 @@ describe('ExperienceView', () => {
     expect(screen.getByText('조금만 고치면 돼요!')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /로봇 실행하기/ })).toHaveTextContent('잠김');
     // 예상 이동 거리에 계산 결과가 반영된다
-    expect(screen.getByText('4.0 m')).toBeInTheDocument();
+    expect(screen.getByText('5.0 m')).toBeInTheDocument();
   });
 
   it('시뮬레이션 API가 실패하면 오류 안내를 보여주고 로봇 실행은 잠겨 있다', async () => {
