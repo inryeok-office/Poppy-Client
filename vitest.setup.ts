@@ -39,4 +39,20 @@ afterEach(() => {
   }
 });
 
+// 테스트가 끝난 뒤에도 MSW 요청(세션 생성·확인 등)이 남아 있으면, 파일이 끝나 jsdom 이 정리된 다음
+// 응답이 돌아와 `ProgressEvent is not defined` 미처리 예외가 난다 — 테스트마다 진행 중 요청을 비운다.
+let inFlightRequests = 0;
+server.events.on('request:start', () => {
+  inFlightRequests += 1;
+});
+server.events.on('request:end', () => {
+  inFlightRequests = Math.max(0, inFlightRequests - 1);
+});
+afterEach(async () => {
+  const deadline = Date.now() + 2000;
+  while (inFlightRequests > 0 && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+});
+
 afterAll(() => server.close());
