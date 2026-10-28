@@ -10,7 +10,12 @@ import {
   useRequestExecution,
 } from '@/features/execution';
 import { readLocalDraft, useAutoSaveProject, useSession } from '@/features/session';
-import { useRecordSimulationPass, useSimulateProgram } from '@/features/simulation';
+import {
+  countProgramBlocks,
+  planMotion,
+  useRecordSimulationPass,
+  useSimulateProgram,
+} from '@/features/simulation';
 
 import { BlockDragProvider } from '../lib/useBlockDrag';
 import {
@@ -78,6 +83,11 @@ export function ExperienceView() {
   const execution = useExecutionState(session.data?.sessionId ?? null, executionId);
 
   const blockErrors = useMemo(() => validateBlockProgram(program), [program]);
+  // 로봇 미리보기 — 시뮬레이션을 돌리기 전에도 지금 프로그램으로 계산한다.
+  const preview = useMemo(() => {
+    const chain = serializeProgram(program).chain;
+    return { plan: planMotion(chain), blockCount: countProgramBlocks(chain) };
+  }, [program]);
   const blockValid = blockErrors.length === 0;
 
   // ── 자동 저장 (명세 Session "프로젝트 자동 저장") ─────────────────────────────
@@ -130,7 +140,6 @@ export function ExperienceView() {
       : simulationResult && !simulationResult.passed
         ? simulationResult.violations[0]?.message
         : undefined;
-  const estimatedDistanceM = simulationResult?.totalDistanceM ?? 0;
 
   useEffect(() => {
     if (
@@ -274,7 +283,11 @@ export function ExperienceView() {
             />
           )}
           <RobotPreview
-            estimatedDistanceM={estimatedDistanceM}
+            blockCount={preview.blockCount}
+            estimatedSeconds={preview.plan.totalSeconds}
+            finalPosture={preview.plan.finalPosture}
+            headingDegrees={preview.plan.headingDegrees}
+            estimatedDistanceM={preview.plan.totalMeters}
             steps={simulationResult?.steps}
             passed={simulationResult?.passed}
           />

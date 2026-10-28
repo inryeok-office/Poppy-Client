@@ -2,6 +2,15 @@ export { useRecordSimulationPass, useSimulateProgram } from './api/useSimulatePr
 export { recordSimulationPass, simulateProgram } from './api/simulateProgram';
 export { simulationHandlers } from './api/mocks';
 export {
+  MAX_TOTAL_SECONDS,
+  MOTION_TIMING,
+  countProgramBlocks,
+  describeHeading,
+  planMotion,
+  type MotionPlan,
+  type Posture,
+} from './model/motionPlan';
+export {
   evaluateProgram,
   isBlockValueValid,
   LIMITS,
