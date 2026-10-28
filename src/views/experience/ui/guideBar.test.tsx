@@ -162,10 +162,10 @@ describe('미션 모드 — 목표 + 힌트 보기', () => {
 });
 
 describe('미션 권장 구성 — 무대 중앙에서 포즈', () => {
-  it('힌트는 시작·종료를 뺀 7단계', async () => {
+  it('힌트는 시작·종료를 뺀 6단계', async () => {
     const { RECOMMENDED_COMPOSITION } = await import('@/features/mission');
     expect(hintSteps(RECOMMENDED_COMPOSITION['dc7e71a5-236c-4f6e-8ce0-5ad3e2fe2300'])).toHaveLength(
-      7,
+      6,
     );
   });
 });
