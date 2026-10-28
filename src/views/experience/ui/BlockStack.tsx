@@ -110,7 +110,7 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
     case 'rotateRight':
       return measuredBlock({
         prefix: '오른쪽으로',
-        suffix: '° 이동',
+        suffix: '° 회전',
         value: node.degrees,
         onChange: bind((degrees) => ({ degrees })),
         range: ROTATE_RANGE,
@@ -119,7 +119,7 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
     case 'rotateLeft':
       return measuredBlock({
         prefix: '왼쪽으로',
-        suffix: '° 이동',
+        suffix: '° 회전',
         value: node.degrees,
         onChange: bind((degrees) => ({ degrees })),
         range: ROTATE_RANGE,

@@ -469,9 +469,9 @@ export function describeBlock(node: SerializedBlockNode): string {
     case 'moveForward':
       return `앞으로 ${node.distanceM}m 이동`;
     case 'rotateLeft':
-      return `왼쪽으로 ${node.degrees}° 이동`;
+      return `왼쪽으로 ${node.degrees}° 회전`;
     case 'rotateRight':
-      return `오른쪽으로 ${node.degrees}° 이동`;
+      return `오른쪽으로 ${node.degrees}° 회전`;
     case 'wait':
       return `${node.seconds}초 기다리기`;
     case 'stop':
