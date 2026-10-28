@@ -62,15 +62,6 @@ describe('문구·버튼 정리', () => {
     expect(push).not.toHaveBeenCalled();
   });
 
-  it('튜토리얼 건너뛰기를 누르면 예시가 접히고 다시 펼칠 수 있다', () => {
-    renderView();
-    expect(screen.getByTestId('tutorial-example')).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: '건너뛰기' }));
-    expect(screen.getByTestId('tutorial-example')).not.toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: '튜토리얼 보기' }));
-    expect(screen.getByTestId('tutorial-example')).toBeVisible();
-  });
-
   it('이동 블록 순서는 앞으로 → 뒤로 → 오른쪽 → 왼쪽 → 정지', () => {
     renderView();
     fireEvent.click(screen.getByRole('button', { name: '이동' }));

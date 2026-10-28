@@ -58,3 +58,32 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
 }
+
+/* 첫 진입 끌어오기 안내 — 손가락이 팔레트 쪽에서 '시작' 아래로 한 번 미끄러진다 (GuideBar 참고). */
+@keyframes poppy-drag-hint {
+  0% {
+    transform: translate(-120px, 40px);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  80% {
+    transform: translate(40px, 0);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(40px, 0);
+    opacity: 0;
+  }
+}
+
+.poppy-drag-hint {
+  animation: poppy-drag-hint 2.4s ease-in-out 0.4s 1 both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poppy-drag-hint {
+    display: none;
+  }
+}

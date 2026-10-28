@@ -10,14 +10,21 @@ import {
   useExecutionState,
   useRequestExecution,
 } from '@/features/execution';
-import { clearSelectedMissionId, readSelectedMissionId, useMission } from '@/features/mission';
+import {
+  RECOMMENDED_COMPOSITION,
+  clearSelectedMissionId,
+  readSelectedMissionId,
+  useMission,
+} from '@/features/mission';
 import {
   expireIdleExperience,
+  readExperienceFlag,
   readLocalDraft,
   resetExperienceStorage,
   touchExperienceActivity,
   useAutoSaveProject,
   useSession,
+  writeExperienceFlag,
 } from '@/features/session';
 import { describeError, knownErrorMessage } from '@/shared/api';
 import {
@@ -38,6 +45,7 @@ import {
   type BlockErrorCode,
   type BlockProgram,
 } from '../model/blockProgram';
+import { guideStep } from '../model/guide';
 import { kindsForServerTypes } from '../model/missionBlocks';
 import type { BlockParamPatch } from './BlockStack';
 import { MissionBanner } from './MissionBanner';
@@ -72,6 +80,14 @@ function initialProgram(): { program: BlockProgram; restoredDirty: boolean } {
   return { program: INITIAL_PROGRAM, restoredDirty: false };
 }
 const AUTOSAVE_DEBOUNCE_MS = 600;
+
+function prefersReducedMotion(): boolean {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}
 
 /** 구조·값 오류로 서버 저장을 미룰 때 헤더에 보여줄 짧은 사유. */
 const SAVE_BLOCKED_REASON: Record<BlockErrorCode, string> = {
@@ -111,6 +127,22 @@ export function ExperienceView() {
     () => validateBlockProgram(program, allowedKinds),
     [program, allowedKinds],
   );
+
+  // 단계 안내 띠 — 접기 상태와 첫 진입 끌어오기 손가락은 이번 체험 동안만 기억한다(새 체험 시작 때 초기화).
+  const [valueEdited, setValueEdited] = useState(false);
+  const [guideCollapsed, setGuideCollapsed] = useState(() => readExperienceFlag('guideCollapsed'));
+  const [showDragHint, setShowDragHint] = useState(
+    () => !readExperienceFlag('dragHintShown') && !prefersReducedMotion(),
+  );
+  const finishDragHint = useCallback(() => {
+    writeExperienceFlag('dragHintShown', true);
+    setShowDragHint(false);
+  }, []);
+  const toggleGuide = () =>
+    setGuideCollapsed((collapsed) => {
+      writeExperienceFlag('guideCollapsed', !collapsed);
+      return !collapsed;
+    });
   // 로봇 미리보기 — 시뮬레이션을 돌리기 전에도 지금 프로그램으로 계산한다.
   const preview = useMemo(() => {
     const chain = serializeProgram(program).chain;
@@ -273,6 +305,7 @@ export function ExperienceView() {
   };
 
   const changeBlockParam = (id: string, patch: BlockParamPatch) => {
+    setValueEdited(true);
     setProgram((current) => setBlockParam(current, id, patch));
     invalidate();
   };
@@ -287,6 +320,7 @@ export function ExperienceView() {
 
   // 전체 지우기 — 시작·종료만 남긴다.
   const clearAll = () => {
+    setValueEdited(false);
     setProgram(INITIAL_PROGRAM);
     invalidate();
   };
@@ -349,6 +383,23 @@ export function ExperienceView() {
               simulating={simulation.isPending}
               simulationMessage={simulationMessage}
               result={simulationResult}
+              guideStep={guideStep({
+                blockCount: preview.blockCount,
+                valueEdited,
+                simulationPassed,
+              })}
+              guideCollapsed={guideCollapsed}
+              onToggleGuide={toggleGuide}
+              mission={
+                missionDetail
+                  ? {
+                      goal: missionDetail.goal,
+                      composition: RECOMMENDED_COMPOSITION[missionDetail.missionId],
+                    }
+                  : undefined
+              }
+              showDragHint={showDragHint && preview.blockCount === 0}
+              onDragHintDone={finishDragHint}
             />
           )}
           <RobotPreview
