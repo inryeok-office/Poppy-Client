@@ -89,6 +89,32 @@ export const sessionHandlers = [
     });
   }),
 
+  http.get('*/api/v1/sessions/:sessionId', ({ params, request }) => {
+    const sessionId = String(params.sessionId);
+    const session = sessions.get(sessionId);
+    if (!session) {
+      return HttpResponse.json(
+        { success: false, data: null, error: { code: 'SESSION_NOT_FOUND', message: 'not found' } },
+        { status: 404 },
+      );
+    }
+    const authorizedSession = authorized(sessionId, request);
+    if (authorizedSession instanceof Response) return authorizedSession;
+    return HttpResponse.json({
+      success: true,
+      data: {
+        sessionId,
+        mode: null,
+        missionId: null,
+        blockVersion: authorizedSession.currentBlockVersion,
+        status: 'ACTIVE',
+        lastActivityAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      },
+      error: null,
+    });
+  }),
+
   http.post('*/api/v1/sessions/:sessionId/block-revisions', async ({ params, request }) => {
     const sessionId = String(params.sessionId);
     const session = authorized(sessionId, request);

@@ -1,11 +1,13 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 
 import { clearSelectedMissionId } from '@/features/mission';
-import { useRestoreSession } from '@/features/session';
+import { useRestoreSession, useStartNewExperience } from '@/features/session';
+import { readSessionCredentials } from '@/shared/api';
 import { ApiError } from '@/shared/api';
 import { PoppyLogo } from '@/shared/ui';
 
@@ -22,6 +24,19 @@ import { PoppyLogo } from '@/shared/ui';
 export function IntroView() {
   const router = useRouter();
   const restore = useRestoreSession();
+  const startNewExperience = useStartNewExperience();
+  const queryClient = useQueryClient();
+
+  // '처음으로'·'다음 체험자 시작'으로 저장소를 비우고 돌아온 경우, 메모리에 남은 이전 세션도 버린다.
+  useEffect(() => {
+    if (!readSessionCredentials()) queryClient.removeQueries({ queryKey: ['session'] });
+  }, [queryClient]);
+
+  // 새 체험 시작 — 이전 체험자의 블록 초안·세션·미션 선택을 모두 지운다. 이어하기는 복구 코드로만.
+  const startFresh = () => {
+    startNewExperience();
+    clearSelectedMissionId();
+  };
   const [code, setCode] = useState('');
   const inputId = useId();
 
@@ -49,6 +64,7 @@ export function IntroView() {
 
       <Link
         href="/missions"
+        onClick={startFresh}
         className="inline-flex items-center rounded-[20px] border border-[#3a1710] px-10 py-4 text-lg text-[#3a1710] transition-colors duration-150 hover:bg-[#f3e6d6] focus-visible:ring-2 focus-visible:ring-[#3a1710] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf4ea] focus-visible:outline-none"
       >
         미션 골라서 도전하기
@@ -56,7 +72,7 @@ export function IntroView() {
 
       <Link
         href="/experience"
-        onClick={clearSelectedMissionId}
+        onClick={startFresh}
         className="group inline-flex items-center gap-12 rounded-[20px] bg-[#3a1710] px-10 py-5 text-xl text-[#fff9f4] transition-colors duration-150 hover:bg-[#4a2016] focus-visible:ring-2 focus-visible:ring-[#3a1710] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf4ea] focus-visible:outline-none active:bg-[#2e120c]"
       >
         체험하러 가기

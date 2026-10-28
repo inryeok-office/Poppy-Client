@@ -21,6 +21,21 @@ function mapSession(data: ServerSessionResponse): SessionInfo {
   return session;
 }
 
+export type SessionStatusResponse = {
+  sessionId: string;
+  blockVersion: number;
+  status: 'ACTIVE' | 'EXPIRED';
+};
+
+/** 저장된 세션이 Server 에 아직 살아 있는지 확인한다 (GET /api/v1/sessions/{id}). */
+export async function getSession(sessionId: string): Promise<SessionStatusResponse> {
+  const response = await api.get<ApiResponse<SessionStatusResponse>>(
+    `/api/v1/sessions/${sessionId}`,
+    { headers: sessionAuthHeaders(sessionId) },
+  );
+  return response.data.data;
+}
+
 export async function createSession(): Promise<SessionInfo> {
   const response = await api.post<ApiResponse<ServerSessionResponse>>('/api/v1/sessions');
   return mapSession(response.data.data);

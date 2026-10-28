@@ -102,6 +102,7 @@ describe('편집기 — 범위 밖 값 안내와 팔레트 기본값', () => {
       ],
       floating: [],
     };
+    localStorage.setItem('poppy.experience.lastActivityAt', String(Date.now()));
     localStorage.setItem(
       'poppy.experience.draft',
       JSON.stringify({
