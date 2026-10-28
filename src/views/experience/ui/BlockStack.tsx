@@ -19,6 +19,9 @@ export type BlockParamPatch = {
   distanceM?: number;
   seconds?: number;
   degrees?: number;
+  linearVelocityMetersPerSecond?: number;
+  angularVelocityDegreesPerSecond?: number;
+  durationSeconds?: number;
 };
 
 type RenderOptions = {
@@ -125,6 +128,52 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
         range: ROTATE_RANGE,
         ariaLabel: '회전 각도 (도)',
       });
+    case 'velocityMove':
+      return (
+        <Block color="move">
+          v2 속도{' '}
+          <BlockInput
+            value={node.linearVelocityMetersPerSecond}
+            onChange={bind((linearVelocityMetersPerSecond) => ({ linearVelocityMetersPerSecond }))}
+            deferredCommit
+            isValidValue={(value) => value !== 0}
+            aria-label="v2 선속도 (m/s)"
+          />
+          m/s, 시간{' '}
+          <BlockInput
+            value={node.durationSeconds}
+            onChange={bind((durationSeconds) => ({ durationSeconds }))}
+            deferredCommit
+            isValidValue={(value) => value > 0}
+            aria-label="v2 이동 시간 (초)"
+          />
+          초
+        </Block>
+      );
+    case 'velocityTurn':
+      return (
+        <Block color="move">
+          v2 각속도{' '}
+          <BlockInput
+            value={node.angularVelocityDegreesPerSecond}
+            onChange={bind((angularVelocityDegreesPerSecond) => ({
+              angularVelocityDegreesPerSecond,
+            }))}
+            deferredCommit
+            isValidValue={(value) => value !== 0}
+            aria-label="v2 각속도 (deg/s)"
+          />
+          deg/s, 시간{' '}
+          <BlockInput
+            value={node.durationSeconds}
+            onChange={bind((durationSeconds) => ({ durationSeconds }))}
+            deferredCommit
+            isValidValue={(value) => value > 0}
+            aria-label="v2 회전 시간 (초)"
+          />
+          초
+        </Block>
+      );
     case 'stop':
       return <Block color="move">정지</Block>;
     case 'sit':

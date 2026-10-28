@@ -19,6 +19,13 @@ const inRange = (raw: unknown, { min, max }: { min: number; max: number }) => {
   const value = Number(raw);
   return Number.isInteger(value) && value >= min && value <= max;
 };
+const isVelocityDuration = (velocity: unknown, duration: unknown) =>
+  typeof velocity === 'number' &&
+  Number.isFinite(velocity) &&
+  velocity !== 0 &&
+  typeof duration === 'number' &&
+  Number.isFinite(duration) &&
+  duration > 0;
 
 function isValueValid(node: SerializedBlockNode): boolean {
   switch (node.kind) {
@@ -32,6 +39,10 @@ function isValueValid(node: SerializedBlockNode): boolean {
     case 'rotateLeft':
     case 'rotateRight':
       return inRange(node.degrees, LIMITS.rotateDegree);
+    case 'velocityMove':
+      return isVelocityDuration(node.linearVelocityMetersPerSecond, node.durationSeconds);
+    case 'velocityTurn':
+      return isVelocityDuration(node.angularVelocityDegreesPerSecond, node.durationSeconds);
     case 'start':
     case 'greet':
     case 'end':
@@ -64,7 +75,12 @@ function allValuesValid(nodes: SerializedBlockNode[]): boolean {
 /** 반복 중첩까지 포함한 총 이동 거리 (명세: "제한을 우회하는 중첩·합산 값도 계산"). */
 function totalDistance(nodes: SerializedBlockNode[]): number {
   return sumOverBlockTree(nodes, {
-    valueOf: (node) => (node.kind === 'move' || node.kind === 'moveForward' ? node.distanceM : 0),
+    valueOf: (node) =>
+      node.kind === 'move' || node.kind === 'moveForward'
+        ? node.distanceM
+        : node.kind === 'velocityMove'
+          ? Math.abs(node.linearVelocityMetersPerSecond) * node.durationSeconds
+          : 0,
     bodyOf,
     repeatCountOf: (node) => (node.kind === 'repeat' ? node.count : 1),
   });
@@ -94,7 +110,12 @@ export function buildSimulationSteps(chain: SerializedBlockNode[]): SimulationSt
 
   return flat.map((node, index) => {
     if (failedAt === -1) {
-      cumulative += node.kind === 'move' || node.kind === 'moveForward' ? node.distanceM : 0;
+      cumulative +=
+        node.kind === 'move' || node.kind === 'moveForward'
+          ? node.distanceM
+          : node.kind === 'velocityMove'
+            ? Math.abs(node.linearVelocityMetersPerSecond) * node.durationSeconds
+            : 0;
       if (cumulative > SAFE_ZONE_M) failedAt = index;
     }
     const status =

@@ -17,6 +17,7 @@ import {
   type BlockNode,
   type BlockProgram,
 } from './blockProgram';
+import { toServerBlockProgram } from '@/features/simulation';
 
 const node = (
   kind: BlockNode['kind'],
@@ -261,6 +262,44 @@ describe('draftToProgram / isBlockProgramSnapshot', () => {
     };
     // countKind 만 봤다면 'end' 가 총 1개라 통과했을 상태 — 위치까지 봐야 걸러진다
     expect(isBlockProgramSnapshot(broken)).toBe(false);
+  });
+
+  it('v2 속도 블록의 값과 schema는 저장 후 복원·서버 전송까지 보존한다', () => {
+    const program: BlockProgram = {
+      stack: [
+        node('start', 'start-0'),
+        node('velocityMove', 'move-v2', {
+          linearVelocityMetersPerSecond: -0.125,
+          durationSeconds: 1.5,
+        }),
+        node('velocityTurn', 'turn-v2', {
+          angularVelocityDegreesPerSecond: 15,
+          durationSeconds: 2,
+        }),
+        node('end', 'end-0'),
+      ],
+      floating: [],
+    };
+
+    const restored = draftToProgram(JSON.parse(JSON.stringify(program)));
+    expect(restored).toEqual(program);
+    expect(toServerBlockProgram(serializeProgram(restored))).toEqual({
+      schemaVersion: 2,
+      blocks: [
+        { id: 'start-0', type: 'START', parameters: {} },
+        {
+          id: 'move-v2',
+          type: 'MOVE_VELOCITY',
+          parameters: { linearVelocityMetersPerSecond: -0.125, durationSeconds: 1.5 },
+        },
+        {
+          id: 'turn-v2',
+          type: 'TURN_VELOCITY',
+          parameters: { angularVelocityDegreesPerSecond: 15, durationSeconds: 2 },
+        },
+        { id: 'end-0', type: 'END', parameters: {} },
+      ],
+    });
   });
 });
 

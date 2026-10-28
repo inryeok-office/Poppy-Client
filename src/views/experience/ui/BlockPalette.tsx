@@ -159,6 +159,12 @@ export function BlockPalette({ program }: BlockPaletteProps) {
                 앞으로 <BlockInput /> m 이동
               </Block>
             </PaletteItem>
+            <PaletteItem kind="velocityMove" ariaLabel="v2 속도 이동 블록 꺼내기">
+              <Block color="move">v2 속도 이동 (m/s·초)</Block>
+            </PaletteItem>
+            <PaletteItem kind="velocityTurn" ariaLabel="v2 속도 회전 블록 꺼내기">
+              <Block color="move">v2 속도 회전 (°/s·초)</Block>
+            </PaletteItem>
             <PaletteItem kind="rotateRight" ariaLabel="오른쪽으로 회전 블록 꺼내기">
               <Block color="move">
                 오른쪽으로 <BlockInput /> ° 이동

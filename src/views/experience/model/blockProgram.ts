@@ -25,6 +25,8 @@ export type BlockKind =
   | 'moveForward'
   | 'rotateLeft'
   | 'rotateRight'
+  | 'velocityMove'
+  | 'velocityTurn'
   | 'stop'
   | 'greet'
   | 'sit'
@@ -51,6 +53,18 @@ export type BlockNode =
   | { id: string; kind: 'moveForward'; distanceM: number }
   | { id: string; kind: 'rotateLeft'; degrees: number }
   | { id: string; kind: 'rotateRight'; degrees: number }
+  | {
+      id: string;
+      kind: 'velocityMove';
+      linearVelocityMetersPerSecond: number;
+      durationSeconds: number;
+    }
+  | {
+      id: string;
+      kind: 'velocityTurn';
+      angularVelocityDegreesPerSecond: number;
+      durationSeconds: number;
+    }
   | { id: string; kind: 'stop' }
   | { id: string; kind: 'sit' }
   | { id: string; kind: 'standUp' }
@@ -95,6 +109,10 @@ export function newBlock(kind: BlockKind): BlockNode {
     case 'rotateLeft':
     case 'rotateRight':
       return { id: nextId(kind), kind, degrees: ROTATE_RANGE.min };
+    case 'velocityMove':
+      return { id: nextId(kind), kind, linearVelocityMetersPerSecond: 0.1, durationSeconds: 1 };
+    case 'velocityTurn':
+      return { id: nextId(kind), kind, angularVelocityDegreesPerSecond: 15, durationSeconds: 1 };
     case 'wait':
       return { id: nextId('wait'), kind, seconds: WAIT_RANGE.min };
     case 'repeat':
@@ -222,7 +240,15 @@ export function deleteCarried(program: BlockProgram, pick: DragPick): BlockProgr
   return detachCarried(program, pick);
 }
 
-type BlockParamPatch = { count?: number; distanceM?: number; seconds?: number; degrees?: number };
+type BlockParamPatch = {
+  count?: number;
+  distanceM?: number;
+  seconds?: number;
+  degrees?: number;
+  linearVelocityMetersPerSecond?: number;
+  angularVelocityDegreesPerSecond?: number;
+  durationSeconds?: number;
+};
 
 function containsId(nodes: BlockNode[], id: string): boolean {
   return nodes.some(
@@ -286,6 +312,8 @@ const BLOCK_KINDS: readonly BlockKind[] = [
   'moveForward',
   'rotateLeft',
   'rotateRight',
+  'velocityMove',
+  'velocityTurn',
   'stop',
   'greet',
   'sit',
@@ -312,6 +340,15 @@ function isBlockNode(value: unknown): value is BlockNode {
     case 'rotateLeft':
     case 'rotateRight':
       return typeof node.degrees === 'number';
+    case 'velocityMove':
+      return (
+        Number.isFinite(node.linearVelocityMetersPerSecond) && Number.isFinite(node.durationSeconds)
+      );
+    case 'velocityTurn':
+      return (
+        Number.isFinite(node.angularVelocityDegreesPerSecond) &&
+        Number.isFinite(node.durationSeconds)
+      );
     case 'wait':
       return typeof node.seconds === 'number';
     case 'repeat':
@@ -472,6 +509,10 @@ export function describeBlock(node: SerializedBlockNode): string {
       return `왼쪽으로 ${node.degrees}° 이동`;
     case 'rotateRight':
       return `오른쪽으로 ${node.degrees}° 이동`;
+    case 'velocityMove':
+      return `${node.linearVelocityMetersPerSecond}m/s로 ${node.durationSeconds}초 이동 (v2)`;
+    case 'velocityTurn':
+      return `${node.angularVelocityDegreesPerSecond}°/s로 ${node.durationSeconds}초 회전 (v2)`;
     case 'wait':
       return `${node.seconds}초 기다리기`;
     case 'stop':
@@ -496,7 +537,12 @@ export function describeBlock(node: SerializedBlockNode): string {
 /** 프로그램이 로봇을 움직이는 총 거리 (m). 명세: "제한을 우회하는 중첩·합산 값도 계산". */
 export function totalTravelDistance(program: BlockProgram): number {
   return sumOverBlockTree(program.stack, {
-    valueOf: (node) => (node.kind === 'move' || node.kind === 'moveForward' ? node.distanceM : 0),
+    valueOf: (node) =>
+      node.kind === 'move' || node.kind === 'moveForward'
+        ? node.distanceM
+        : node.kind === 'velocityMove'
+          ? Math.abs(node.linearVelocityMetersPerSecond) * node.durationSeconds
+          : 0,
     bodyOf,
     repeatCountOf: (node) => (node.kind === 'repeat' ? node.count : 1),
   });

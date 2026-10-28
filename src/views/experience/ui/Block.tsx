@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import type { BlockKind } from '../model/blockProgram';
 
@@ -48,6 +48,12 @@ type BlockInputProps = {
   onChange?: (next: number) => void;
   min?: number;
   max?: number;
+  /** HTML number input step. v2 속도·시간은 정수로 반올림하면 안 된다. */
+  step?: number | 'any';
+  /** v2 signed decimal처럼 중간 입력 상태를 보존해야 하는 경우 쓴다. */
+  deferredCommit?: boolean;
+  /** deferredCommit일 때 blur 시 허용할 수치 조건. */
+  isValidValue?: (value: number) => boolean;
   'aria-label'?: string;
 };
 
@@ -55,7 +61,22 @@ type BlockInputProps = {
  * 값 입력 칸 (Rectangle 16/17). 32×22, radius 3, Figma 33:914 "2".
  * onChange 를 주면 편집 가능한 숫자 칸, 아니면 값만 표시한다.
  */
-export function BlockInput({ value, onChange, min = 1, max = 99, ...rest }: BlockInputProps) {
+export function BlockInput({
+  value,
+  onChange,
+  min,
+  max,
+  step,
+  deferredCommit = false,
+  isValidValue = () => true,
+  ...rest
+}: BlockInputProps) {
+  const [rawValue, setRawValue] = useState(String(value ?? min ?? 0));
+
+  useEffect(() => {
+    setRawValue(String(value ?? min ?? 0));
+  }, [min, value]);
+
   if (!onChange) {
     return (
       <span
@@ -68,18 +89,51 @@ export function BlockInput({ value, onChange, min = 1, max = 99, ...rest }: Bloc
     );
   }
 
+  const commit = (raw: string) => {
+    const next = Number(raw);
+    if (!Number.isFinite(next) || !isValidValue(next)) {
+      setRawValue(String(value ?? min ?? 0));
+      return;
+    }
+    const lowerBounded = min == null ? next : Math.max(min, next);
+    const bounded = max == null ? lowerBounded : Math.min(max, lowerBounded);
+    onChange(bounded);
+    setRawValue(String(bounded));
+  };
+
   return (
     <input
-      type="number"
-      inputMode="numeric"
-      value={value ?? min}
+      type={deferredCommit ? 'text' : 'number'}
+      inputMode={deferredCommit ? 'decimal' : 'numeric'}
+      value={deferredCommit ? rawValue : (value ?? min ?? 0)}
       min={min}
       max={max}
+      step={step}
       onChange={(event) => {
+        if (deferredCommit) {
+          const raw = event.target.value;
+          setRawValue(raw);
+          // `-`, `-0`, `1.` 같은 입력 도중 상태는 부모 숫자 모델에 반영하지 않는다.
+          // 완성된 유효 숫자만 반영해 signed decimal을 자연스럽게 입력할 수 있게 한다.
+          const next = Number(raw);
+          if (
+            raw.trim() === '' ||
+            raw.endsWith('.') ||
+            !Number.isFinite(next) ||
+            !isValidValue(next)
+          ) {
+            return;
+          }
+          const lowerBounded = min == null ? next : Math.max(min, next);
+          onChange(max == null ? lowerBounded : Math.min(max, lowerBounded));
+          return;
+        }
         const next = Number(event.target.value);
         if (!Number.isFinite(next)) return;
-        onChange(Math.min(max, Math.max(min, Math.trunc(next))));
+        const lowerBounded = min == null ? next : Math.max(min, next);
+        onChange(max == null ? lowerBounded : Math.min(max, lowerBounded));
       }}
+      onBlur={deferredCommit ? (event) => commit(event.target.value) : undefined}
       className={`${BLOCK_INPUT_CLASS} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
       {...rest}
     />
@@ -178,6 +232,8 @@ const OUTLINE_SHAPE: Record<BlockKind, { path: string; w: number; h: number }> =
   moveForward: { path: STATEMENT_PATH, w: 212, h: 48 },
   rotateLeft: { path: STATEMENT_PATH, w: 212, h: 48 },
   rotateRight: { path: STATEMENT_PATH, w: 212, h: 48 },
+  velocityMove: { path: STATEMENT_PATH, w: 212, h: 48 },
+  velocityTurn: { path: STATEMENT_PATH, w: 212, h: 48 },
   stop: { path: STATEMENT_PATH, w: 212, h: 48 },
   wait: { path: STATEMENT_PATH, w: 212, h: 48 },
   greet: { path: STATEMENT_PATH, w: 212, h: 48 },

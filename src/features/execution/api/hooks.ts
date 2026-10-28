@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 
 import { subscribeExecutionState } from '../lib/executionStream';
 import { cancelExecution, getExecutionState, requestExecution } from './executionApi';
+import { isTerminalStatus } from '../model/types';
 
 export function useRequestExecution() {
   return useMutation({ mutationFn: requestExecution });
@@ -26,6 +27,13 @@ export function useExecutionState(sessionId: string | null, executionId: string 
     queryKey: ['execution', sessionId, executionId],
     queryFn: () => getExecutionState(sessionId as string, executionId as string),
     enabled: sessionId !== null && executionId !== null,
+    // SSE is the normal low-latency path.  A very short mock (or a fast real
+    // transition) can finish after the initial REST read but before the stream
+    // subscription is established; the Server then has no active state to send
+    // on subscribe.  Poll only while non-terminal so that this race cannot pin
+    // the user-visible status at ASSIGNED/RUNNING forever.
+    refetchInterval: (query) =>
+      isTerminalStatus(query.state.data?.status) ? false : 1_000,
   });
 
   useEffect(() => {

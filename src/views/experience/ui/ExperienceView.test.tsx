@@ -30,6 +30,26 @@ const SERVER_COMPATIBLE_PROGRAM = {
   ],
 };
 
+const V2_CONNECTED_PROGRAM = {
+  stack: [
+    { id: 'start-0', kind: 'start' as const },
+    {
+      id: 'velocity-move-0',
+      kind: 'velocityMove' as const,
+      linearVelocityMetersPerSecond: 0.1,
+      durationSeconds: 1,
+    },
+    {
+      id: 'velocity-turn-0',
+      kind: 'velocityTurn' as const,
+      angularVelocityDegreesPerSecond: 15,
+      durationSeconds: 1,
+    },
+    { id: 'end-0', kind: 'end' as const },
+  ],
+  floating: [],
+};
+
 const seedDraft = (draft: Record<string, unknown>) => {
   localStorage.setItem('poppy.experience.sessionId', String(draft.sessionId));
   localStorage.setItem('poppy.experience.draft', JSON.stringify(draft));
@@ -564,5 +584,41 @@ describe('ExperienceView', () => {
 
     expect(hasFloatingBlock()).toBe(true);
     expect(screen.getByRole('button', { name: /로봇 실행하기/ })).toHaveTextContent('잠김');
+  });
+
+  it('v2 속도 블록은 signed decimal velocity와 positive decimal duration을 편집한다', async () => {
+    seedDraft({
+      sessionId: '',
+      program: serializeProgram(V2_CONNECTED_PROGRAM),
+      blocks: V2_CONNECTED_PROGRAM,
+      projectVersion: 0,
+      dirty: false,
+    });
+    renderView();
+
+    const velocity = screen.getByRole('textbox', { name: 'v2 선속도 (m/s)' });
+    const duration = screen.getByRole('textbox', { name: 'v2 이동 시간 (초)' });
+
+    expect(velocity).not.toHaveAttribute('min');
+    expect(velocity).toHaveAttribute('inputmode', 'decimal');
+    expect(duration).toHaveAttribute('inputmode', 'decimal');
+
+    fireEvent.change(velocity, { target: { value: '-0.25' } });
+    fireEvent.change(duration, { target: { value: '1.5' } });
+    fireEvent.blur(velocity);
+    fireEvent.blur(duration);
+
+    expect(velocity).toHaveValue('-0.25');
+    expect(duration).toHaveValue('1.5');
+
+    await waitFor(() => {
+      const draft = JSON.parse(localStorage.getItem('poppy.experience.draft') ?? '{}') as {
+        program?: { chain?: Array<Record<string, unknown>> };
+      };
+      expect(draft.program?.chain?.[1]).toMatchObject({
+        linearVelocityMetersPerSecond: -0.25,
+        durationSeconds: 1.5,
+      });
+    });
   });
 });

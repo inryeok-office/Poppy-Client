@@ -14,6 +14,18 @@ export type SerializedBlockNode =
   | { id: string; kind: 'moveForward'; distanceM: number }
   | { id: string; kind: 'rotateLeft'; degrees: number }
   | { id: string; kind: 'rotateRight'; degrees: number }
+  | {
+      id: string;
+      kind: 'velocityMove';
+      linearVelocityMetersPerSecond: number;
+      durationSeconds: number;
+    }
+  | {
+      id: string;
+      kind: 'velocityTurn';
+      angularVelocityDegreesPerSecond: number;
+      durationSeconds: number;
+    }
   | { id: string; kind: 'stop' }
   | { id: string; kind: 'sit' }
   | { id: string; kind: 'standUp' }
@@ -44,11 +56,35 @@ export type ServerBlock = {
 };
 
 export type ServerBlockProgram = {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   blocks: ServerBlock[];
 };
 
 export function toServerBlockProgram(program: SerializedBlockProgram): ServerBlockProgram {
+  const requireVelocityParameters = (velocity: number, durationSeconds: number, label: string) => {
+    if (!Number.isFinite(velocity) || velocity === 0) {
+      throw new Error(`${label} must be a finite non-zero number`);
+    }
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+      throw new Error('durationSeconds must be a positive finite number');
+    }
+  };
+  const containsV2Motion = (nodes: SerializedBlockNode[]): boolean =>
+    nodes.some(
+      (node) =>
+        node.kind === 'velocityMove' ||
+        node.kind === 'velocityTurn' ||
+        (node.kind === 'repeat' && containsV2Motion(node.body)),
+    );
+  const containsV1Motion = (nodes: SerializedBlockNode[]): boolean =>
+    nodes.some(
+      (node) =>
+        ['move', 'moveForward', 'rotateLeft', 'rotateRight'].includes(node.kind) ||
+        (node.kind === 'repeat' && containsV1Motion(node.body)),
+    );
+  const v2 = containsV2Motion(program.chain);
+  if (v2 && containsV1Motion(program.chain))
+    throw new Error('v1과 v2 이동 블록은 함께 전송할 수 없어요.');
   const convert = (node: SerializedBlockNode): ServerBlock => {
     switch (node.kind) {
       case 'start':
@@ -60,6 +96,34 @@ export function toServerBlockProgram(program: SerializedBlockProgram): ServerBlo
           id: node.id,
           type: 'MOVE_FORWARD',
           parameters: { distanceMeters: node.distanceM },
+        };
+      case 'velocityMove':
+        requireVelocityParameters(
+          node.linearVelocityMetersPerSecond,
+          node.durationSeconds,
+          'linearVelocityMetersPerSecond',
+        );
+        return {
+          id: node.id,
+          type: 'MOVE_VELOCITY',
+          parameters: {
+            linearVelocityMetersPerSecond: node.linearVelocityMetersPerSecond,
+            durationSeconds: node.durationSeconds,
+          },
+        };
+      case 'velocityTurn':
+        requireVelocityParameters(
+          node.angularVelocityDegreesPerSecond,
+          node.durationSeconds,
+          'angularVelocityDegreesPerSecond',
+        );
+        return {
+          id: node.id,
+          type: 'TURN_VELOCITY',
+          parameters: {
+            angularVelocityDegreesPerSecond: node.angularVelocityDegreesPerSecond,
+            durationSeconds: node.durationSeconds,
+          },
         };
       case 'wait':
         return { id: node.id, type: 'WAIT', parameters: { durationSeconds: node.seconds } };
@@ -91,7 +155,7 @@ export function toServerBlockProgram(program: SerializedBlockProgram): ServerBlo
   if (program.detached.length > 0) {
     throw new Error('Disconnected blocks must be attached before saving to the Server');
   }
-  return { schemaVersion: 1, blocks: program.chain.map(convert) };
+  return { schemaVersion: v2 ? 2 : 1, blocks: program.chain.map(convert) };
 }
 
 export type SafetyViolationCode = 'exceeds-safe-zone' | 'invalid-values';
