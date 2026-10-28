@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import type { SimulationResult } from '@/features/simulation';
 
 import { useBlockDrag } from '../lib/useBlockDrag';
@@ -8,7 +10,7 @@ import { Block, BlockOutline, GhostBlock } from './Block';
 import { BlockStack, type BlockParamPatch } from './BlockStack';
 import { SectionLabel } from './SectionLabel';
 import { SimulationResultSummary } from './SimulationResultSummary';
-import { PillButton } from '@/shared/ui';
+import { PillButton, Tooltip } from '@/shared/ui';
 
 // Figma node 21:520 / 33:483 (Slide 2·3) — 블록 조립 워크스페이스, 시뮬레이션 통과 전.
 //   프로그램에 구조 오류가 있으면(예: '종료' 미연결) '시뮬레이션 하기' 비활성(아웃라인) + 안내문이 오류 메시지.
@@ -41,6 +43,8 @@ export function BlockWorkspace({
   result,
 }: BlockWorkspaceProps) {
   const { dragging, startDrag, registerStack, registerCanvas, registerTrash } = useBlockDrag();
+  // 튜토리얼 '건너뛰기' — 예시 영역을 접어 캔버스를 넓게 쓴다. 다시 펼칠 수 있다.
+  const [tutorialOpen, setTutorialOpen] = useState(true);
 
   const valid = errors.length === 0;
   const hint = simulationMessage ?? errors[0]?.message ?? DEFAULT_HINT;
@@ -58,10 +62,16 @@ export function BlockWorkspace({
         <div>
           <div className="flex items-center justify-between px-8 py-[18px]">
             <SectionLabel>튜토리얼</SectionLabel>
-            <PillButton>건너뛰기</PillButton>
+            <PillButton aria-expanded={tutorialOpen} onClick={() => setTutorialOpen((v) => !v)}>
+              {tutorialOpen ? '건너뛰기' : '튜토리얼 보기'}
+            </PillButton>
           </div>
           {/* 목표 블록 예시 (Group 8·9) */}
-          <div className="border-line bg-card dot-grid h-[258px] border-y-[1.5px] px-8 pt-[26px]">
+          <div
+            hidden={!tutorialOpen}
+            data-testid="tutorial-example"
+            className="border-line bg-card dot-grid h-[258px] border-y-[1.5px] px-8 pt-[26px]"
+          >
             <ol className="flex flex-col -space-y-1.5">
               <li>
                 <Block color="start" variant="hat">
@@ -93,9 +103,11 @@ export function BlockWorkspace({
             <PillButton aria-disabled>시뮬레이션 하기</PillButton>
           )}
           {/* 시뮬레이션 통과 기록이 없어 잠김 (명세 Execution) */}
-          <PillButton aria-disabled>
-            로봇 실행하기<span className="text-[13px]">• 잠김</span>
-          </PillButton>
+          <Tooltip text="시뮬레이션을 통과하면 열려요">
+            <PillButton aria-disabled title="시뮬레이션을 통과하면 열려요">
+              로봇 실행하기<span className="text-[13px]">• 잠김</span>
+            </PillButton>
+          </Tooltip>
         </div>
       </div>
 

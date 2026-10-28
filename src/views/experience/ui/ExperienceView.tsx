@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -10,6 +11,7 @@ import {
   useRequestExecution,
 } from '@/features/execution';
 import { readLocalDraft, useAutoSaveProject, useSession } from '@/features/session';
+import { describeError, knownErrorMessage } from '@/shared/api';
 import {
   countProgramBlocks,
   planMotion,
@@ -136,7 +138,8 @@ export function ExperienceView() {
     simulationResult?.passed === true && simulationPass.data?.blockVersion === projectVersion;
   const simulationMessage =
     simulation.isError || simulationPass.isError
-      ? '시뮬레이션에 실패했어요. 잠시 후 다시 시도해 주세요.'
+      ? (knownErrorMessage(simulationPass.error) ??
+        '시뮬레이션에 실패했어요. 잠시 후 다시 시도해 주세요.')
       : simulationResult && !simulationResult.passed
         ? simulationResult.violations[0]?.message
         : undefined;
@@ -244,16 +247,31 @@ export function ExperienceView() {
     invalidate();
   };
 
-  const resetSession = () => {
+  const router = useRouter();
+
+  // 전체 지우기 — 시작·종료만 남긴다.
+  const clearAll = () => {
     setProgram(INITIAL_PROGRAM);
     invalidate();
   };
 
+  // 처음으로 — 블록·진행 중 실행을 정리하고 체험 첫 화면으로 돌아간다.
+  const restart = () => {
+    clearAll();
+    router.push('/');
+  };
+
+  const executionError = requestExecution.isError
+    ? describeError(requestExecution.error)
+    : cancelExecution.isError
+      ? describeError(cancelExecution.error)
+      : null;
+
   return (
     <div className="bg-page font-gmarket text-ink flex min-h-full flex-1 flex-col">
       <ExperienceHeader
-        onClearAll={resetSession}
-        onRestart={resetSession}
+        onClearAll={clearAll}
+        onRestart={restart}
         saveStatus={autoSave.status}
         saveReason={autoSave.rejectReason}
       />
@@ -266,6 +284,7 @@ export function ExperienceView() {
               requesting={requestExecution.isPending}
               executionStatus={executionStatus}
               executionMessage={executionMessage}
+              errorMessage={executionError}
               onSimulate={runSimulation}
               onRun={requestRun}
               onStop={stopRun}

@@ -11,6 +11,8 @@ import {
   type BlockKind,
 } from '../model/blockProgram';
 import { useBlockDrag } from '../lib/useBlockDrag';
+import { Tooltip } from '@/shared/ui';
+
 import { Block, BlockInput, CBlock } from './Block';
 
 // Figma node 21:520 — Frame 6(31:292, 카테고리 레일 w54, gap 4), Rectangle 3/4(레일·팔레트 패널),
@@ -122,14 +124,15 @@ export function BlockPalette() {
 
         {category === '이동' && (
           <>
-            <PaletteItem kind="move" ariaLabel="뒤로 이동 블록 꺼내기">
-              <Block color="move">
-                뒤로 <BlockInput value={DEFAULT_MOVE_M} /> m 이동
-              </Block>
-            </PaletteItem>
+            {/* 순서: 앞으로 → 뒤로 → 오른쪽 → 왼쪽 → 정지 */}
             <PaletteItem kind="moveForward" ariaLabel="앞으로 이동 블록 꺼내기">
               <Block color="move">
                 앞으로 <BlockInput value={DEFAULT_MOVE_M} /> m 이동
+              </Block>
+            </PaletteItem>
+            <PaletteItem kind="move" ariaLabel="뒤로 이동 블록 꺼내기">
+              <Block color="move">
+                뒤로 <BlockInput value={DEFAULT_MOVE_M} /> m 이동
               </Block>
             </PaletteItem>
             <PaletteItem kind="rotateRight" ariaLabel="오른쪽으로 회전 블록 꺼내기">
@@ -143,7 +146,9 @@ export function BlockPalette() {
               </Block>
             </PaletteItem>
             <PaletteItem kind="stop" ariaLabel="정지 블록 꺼내기">
-              <Block color="move">정지</Block>
+              <Tooltip text="동작을 마치고 멈춰요 (비상정지 아님)">
+                <Block color="move">정지</Block>
+              </Tooltip>
             </PaletteItem>
           </>
         )}

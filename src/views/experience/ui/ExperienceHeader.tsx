@@ -1,6 +1,6 @@
 import type { AutoSaveStatus } from '@/features/session';
 
-import { PillButton, PoppyLogo } from '@/shared/ui';
+import { PillButton, PoppyLogo, Tooltip } from '@/shared/ui';
 
 // Figma node 21:520 — Rectangle 2(헤더 바 h64, 아래 경계선 1.5px), Group 1(로고 107×40, x=24),
 // Frame 32(우측 버튼 묶음, gap 8, 오른쪽 여백 32).
@@ -15,9 +15,9 @@ const SAVE_LABEL: Partial<Record<AutoSaveStatus, string>> = {
 };
 
 type ExperienceHeaderProps = {
-  /** 전체 지우기 — 블록·진행을 비운다. */
+  /** 전체 지우기 — 시작·종료만 남기고 블록·진행을 비운다. */
   onClearAll?: () => void;
-  /** 처음으로 — 체험 시작 상태로 되돌린다. */
+  /** 처음으로 — 블록·진행을 정리하고 체험 첫 화면(/)으로 돌아간다. */
   onRestart?: () => void;
   /** 프로젝트 자동 저장 상태 (명세 Session "프로젝트 자동 저장"). */
   saveStatus?: AutoSaveStatus;
@@ -50,8 +50,12 @@ export function ExperienceHeader({
           </span>
         )}
         <span className="flex gap-2">
-          <PillButton onClick={onClearAll}>전체 지우기</PillButton>
-          <PillButton onClick={onRestart}>처음으로</PillButton>
+          <Tooltip text="시작·종료만 남기고 블록을 모두 지워요">
+            <PillButton onClick={onClearAll}>전체 지우기</PillButton>
+          </Tooltip>
+          <Tooltip text="체험 첫 화면으로 돌아가요 (블록은 지워져요)">
+            <PillButton onClick={onRestart}>처음으로</PillButton>
+          </Tooltip>
         </span>
       </nav>
     </header>

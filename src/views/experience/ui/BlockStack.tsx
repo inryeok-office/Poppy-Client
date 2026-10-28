@@ -1,6 +1,7 @@
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 
 import { VALUE_RANGE_TEXT, isBlockValueValid, valueKindOf } from '@/features/simulation';
+import { Tooltip } from '@/shared/ui';
 
 import {
   MOVE_RANGE,
@@ -151,7 +152,11 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
         rangeHint,
       });
     case 'stop':
-      return <Block color="move">정지</Block>;
+      return (
+        <Tooltip text="동작을 마치고 멈춰요 (비상정지 아님)">
+          <Block color="move">정지</Block>
+        </Tooltip>
+      );
     case 'sit':
       return <Block color="action">앉기</Block>;
     case 'standUp':

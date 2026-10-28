@@ -29,6 +29,12 @@ export function describeErrorCode(code: string | undefined | null): string {
   return (code && MESSAGES[code]) || UNKNOWN_ERROR_MESSAGE;
 }
 
+/** 알려진 서버 오류 코드일 때만 한국어 문구, 아니면 null (화면별 기본 문구를 쓰게). */
+export function knownErrorMessage(error: unknown): string | null {
+  const code = error instanceof ApiError ? error.code : undefined;
+  return (code && MESSAGES[code]) || null;
+}
+
 /** 임의의 오류(ApiError·네트워크 등)를 체험자용 문구로 바꾼다. */
 export function describeError(error: unknown): string {
   return describeErrorCode(error instanceof ApiError ? error.code : undefined);

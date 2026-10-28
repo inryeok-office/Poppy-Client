@@ -475,7 +475,7 @@ describe('ExperienceView', () => {
     await user.click(screen.getByRole('button', { name: '로봇 실행하기' }));
     await waitFor(() => expect(requestedIds).toHaveLength(2), { timeout: 3000 });
     expect(
-      await screen.findByText(/움직이고 있어요/, undefined, { timeout: 3000 }),
+      await screen.findByText(/움직이는 중이에요/, undefined, { timeout: 3000 }),
     ).toBeInTheDocument();
   });
 
@@ -499,7 +499,7 @@ describe('ExperienceView', () => {
 
     await user.click(screen.getByRole('button', { name: '로봇 실행하기' }));
     // RUNNING 중엔 중지 버튼이 없다 — 진행 중 상태(힌트 문구)로 대기한다.
-    await screen.findByText(/움직이고 있어요/, undefined, { timeout: 3000 });
+    await screen.findByText(/움직이는 중이에요/, undefined, { timeout: 3000 });
 
     await user.click(screen.getByRole('button', { name: '처음으로' }));
 
