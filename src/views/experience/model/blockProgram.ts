@@ -477,7 +477,12 @@ export function draftToProgram(snapshot: unknown): BlockProgram {
 // ── 검증 · 이동 거리 ──────────────────────────────────────────────────────────
 
 export type BlockErrorCode =
-  'disconnected-block' | 'missing-end' | 'unsupported-block' | 'empty-repeat' | 'invalid-value';
+  | 'disconnected-block'
+  | 'missing-end'
+  | 'unsupported-block'
+  | 'empty-repeat'
+  | 'invalid-value'
+  | 'not-allowed-in-mission';
 
 /** Poppy-Server 블록 계약에 대응 타입이 없는 종류 (toServerBlockProgram 참고 — 검증된 프리셋이
  *  없어 팔레트에서도 숨겼다). 여기 없는 종류만 저장·시뮬레이션을 진행한다. */
@@ -499,7 +504,11 @@ export type BlockError = {
  * 오류가 하나라도 있으면 시뮬레이션·실제 실행을 막아야 한다.
  * (속도·거리 등 안전 제한은 서버가 검증한다 — features/simulation)
  */
-export function validateBlockProgram(program: BlockProgram): BlockError[] {
+export function validateBlockProgram(
+  program: BlockProgram,
+  /** 미션 모드면 그 미션이 허용한 블록 종류 (시작·종료 제외) */
+  allowedKinds?: ReadonlySet<BlockKind>,
+): BlockError[] {
   const errors: BlockError[] = [];
   const floatingKinds = program.floating.flatMap((g) => g.blocks.map((b) => b.kind));
 
@@ -535,6 +544,19 @@ export function validateBlockProgram(program: BlockProgram): BlockError[] {
       code: 'invalid-value',
       message: '허용 범위를 벗어난 값이 있어요. 빨간 칸을 고쳐 주세요.',
     });
+  }
+  if (allowedKinds) {
+    const disallowed = sumOverBlockTree(allNodes, {
+      valueOf: (n) => (n.kind === 'start' || n.kind === 'end' || allowedKinds.has(n.kind) ? 0 : 1),
+      bodyOf,
+      repeatCountOf: () => 1,
+    });
+    if (disallowed > 0) {
+      errors.push({
+        code: 'not-allowed-in-mission',
+        message: '이 미션에서 쓸 수 없는 블록이 있어요. 빼 주세요.',
+      });
+    }
   }
   if (program.stack.some(isEmptyRepeat)) {
     errors.push({

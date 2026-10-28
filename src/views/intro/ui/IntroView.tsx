@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useId, useState, type FormEvent } from 'react';
 
+import { clearSelectedMissionId } from '@/features/mission';
 import { useRestoreSession } from '@/features/session';
 import { ApiError } from '@/shared/api';
 import { PoppyLogo } from '@/shared/ui';
@@ -47,7 +48,15 @@ export function IntroView() {
       </div>
 
       <Link
+        href="/missions"
+        className="inline-flex items-center rounded-[20px] border border-[#3a1710] px-10 py-4 text-lg text-[#3a1710] transition-colors duration-150 hover:bg-[#f3e6d6] focus-visible:ring-2 focus-visible:ring-[#3a1710] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf4ea] focus-visible:outline-none"
+      >
+        미션 골라서 도전하기
+      </Link>
+
+      <Link
         href="/experience"
+        onClick={clearSelectedMissionId}
         className="group inline-flex items-center gap-12 rounded-[20px] bg-[#3a1710] px-10 py-5 text-xl text-[#fff9f4] transition-colors duration-150 hover:bg-[#4a2016] focus-visible:ring-2 focus-visible:ring-[#3a1710] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf4ea] focus-visible:outline-none active:bg-[#2e120c]"
       >
         체험하러 가기

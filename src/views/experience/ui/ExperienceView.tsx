@@ -10,6 +10,7 @@ import {
   useExecutionState,
   useRequestExecution,
 } from '@/features/execution';
+import { clearSelectedMissionId, readSelectedMissionId, useMission } from '@/features/mission';
 import { readLocalDraft, useAutoSaveProject, useSession } from '@/features/session';
 import { describeError, knownErrorMessage } from '@/shared/api';
 import {
@@ -30,7 +31,9 @@ import {
   type BlockErrorCode,
   type BlockProgram,
 } from '../model/blockProgram';
+import { kindsForServerTypes } from '../model/missionBlocks';
 import type { BlockParamPatch } from './BlockStack';
+import { MissionBanner } from './MissionBanner';
 import { BlockPalette } from './BlockPalette';
 import { BlockWorkspace } from './BlockWorkspace';
 import { ExperienceHeader } from './ExperienceHeader';
@@ -67,6 +70,7 @@ const SAVE_BLOCKED_REASON: Record<BlockErrorCode, string> = {
   'unsupported-block': '지원하지 않는 블록을 빼면 저장돼요',
   'empty-repeat': '반복 블록 안을 채우면 저장돼요',
   'invalid-value': '빨간 칸의 값을 고치면 저장돼요',
+  'not-allowed-in-mission': '미션에서 쓸 수 없는 블록을 빼면 저장돼요',
 };
 
 export function ExperienceView() {
@@ -84,7 +88,19 @@ export function ExperienceView() {
   const cancelExecution = useCancelExecution();
   const execution = useExecutionState(session.data?.sessionId ?? null, executionId);
 
-  const blockErrors = useMemo(() => validateBlockProgram(program), [program]);
+  // 미션 모드 — 고른 미션의 허용 블록만 팔레트에 보이고 검증한다(세션 API 에 미션 저장 계약이
+  // 없어 브라우저에만 보관). 미션 정보를 못 불러오면 자유 모드처럼 동작한다.
+  const [missionId, setMissionId] = useState<string | null>(readSelectedMissionId);
+  const mission = useMission(missionId);
+  const missionDetail = missionId !== null ? mission.data : undefined;
+  const allowedKinds = useMemo(
+    () => (missionDetail ? kindsForServerTypes(missionDetail.allowedBlocks) : undefined),
+    [missionDetail],
+  );
+  const blockErrors = useMemo(
+    () => validateBlockProgram(program, allowedKinds),
+    [program, allowedKinds],
+  );
   // 로봇 미리보기 — 시뮬레이션을 돌리기 전에도 지금 프로그램으로 계산한다.
   const preview = useMemo(() => {
     const chain = serializeProgram(program).chain;
@@ -165,7 +181,11 @@ export function ExperienceView() {
 
   const executionStatus = executionId !== null ? (execution.data?.status ?? 'queued') : null;
   const executionSettled = isTerminalStatus(executionStatus ?? undefined);
-  const executionMessage = execution.data?.message ?? null;
+  const executionMessage =
+    execution.data?.message ??
+    (missionDetail && executionStatus === 'completed'
+      ? '실행 완료! 미션 목표를 이뤘는지 진행요원과 함께 확인해요.'
+      : null);
 
   const clearExecution = () => {
     // 진행 중인 실행이면 서버에도 취소를 보낸다.
@@ -281,9 +301,19 @@ export function ExperienceView() {
         saveStatus={autoSave.status}
         saveReason={autoSave.rejectReason}
       />
+      {missionDetail && (
+        <MissionBanner
+          mission={missionDetail}
+          onOpenList={() => router.push('/missions')}
+          onLeaveMission={() => {
+            clearSelectedMissionId();
+            setMissionId(null);
+          }}
+        />
+      )}
       <BlockDragProvider program={program} onChange={applyDrop}>
         <div className="flex flex-1">
-          <BlockPalette />
+          <BlockPalette allowedKinds={allowedKinds} />
           {simulationPassed ? (
             <RunReadyWorkspace
               program={program}

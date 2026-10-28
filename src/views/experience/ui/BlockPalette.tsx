@@ -75,8 +75,26 @@ function PaletteItem({
   );
 }
 
-export function BlockPalette() {
-  const [category, setCategory] = useState<CategoryLabel>('흐름');
+// 카테고리별 블록 종류 — 미션 모드에서 허용 블록이 하나도 없는 카테고리는 숨긴다.
+const CATEGORY_KINDS: Record<CategoryLabel, BlockKind[]> = {
+  흐름: ['wait', 'repeat'],
+  이동: ['moveForward', 'move', 'rotateRight', 'rotateLeft', 'stop'],
+  동작: ['sit', 'standUp', 'greet', 'heart', 'dance'],
+};
+
+type BlockPaletteProps = {
+  /** 미션 모드면 그 미션이 허용한 블록 종류만 보인다. 없으면 자유 모드(전부). */
+  allowedKinds?: ReadonlySet<BlockKind>;
+};
+
+export function BlockPalette({ allowedKinds }: BlockPaletteProps = {}) {
+  const shows = (kind: BlockKind) => !allowedKinds || allowedKinds.has(kind);
+  const categories = CATEGORIES.filter((c) => CATEGORY_KINDS[c.label].some(shows));
+  const [picked, setCategory] = useState<CategoryLabel>('흐름');
+  // 고른 카테고리가 이 미션에 없으면 보이는 첫 카테고리를 쓴다.
+  const category = categories.some((c) => c.label === picked)
+    ? picked
+    : (categories[0]?.label ?? picked);
 
   return (
     <aside className="flex shrink-0" aria-label="블록 팔레트">
@@ -84,7 +102,7 @@ export function BlockPalette() {
         className="border-line bg-page flex w-[85px] flex-col items-center gap-1 border-r pt-6"
         aria-label="블록 카테고리"
       >
-        {CATEGORIES.map((c) => (
+        {categories.map((c) => (
           <button
             key={c.label}
             type="button"
@@ -104,72 +122,96 @@ export function BlockPalette() {
       <ul className="border-line bg-page flex w-[294px] shrink-0 flex-col gap-4 border-r-[1.5px] px-6 pt-10">
         {category === '흐름' && (
           <>
-            <PaletteItem kind="wait" ariaLabel="초 기다리기 블록 꺼내기">
-              <Block color="flow">
-                <BlockInput value={DEFAULT_WAIT_SECONDS} />초 기다리기
-              </Block>
-            </PaletteItem>
-            <PaletteItem kind="repeat" ariaLabel="번 반복하기 블록 꺼내기">
-              <CBlock
-                color="flow"
-                header={
-                  <>
-                    <BlockInput value={DEFAULT_REPEAT_COUNT} />번 반복하기
-                  </>
-                }
-              />
-            </PaletteItem>
+            {shows('wait') && (
+              <PaletteItem kind="wait" ariaLabel="초 기다리기 블록 꺼내기">
+                <Block color="flow">
+                  <BlockInput value={DEFAULT_WAIT_SECONDS} />초 기다리기
+                </Block>
+              </PaletteItem>
+            )}
+            {shows('repeat') && (
+              <PaletteItem kind="repeat" ariaLabel="번 반복하기 블록 꺼내기">
+                <CBlock
+                  color="flow"
+                  header={
+                    <>
+                      <BlockInput value={DEFAULT_REPEAT_COUNT} />번 반복하기
+                    </>
+                  }
+                />
+              </PaletteItem>
+            )}
           </>
         )}
 
         {category === '이동' && (
           <>
             {/* 순서: 앞으로 → 뒤로 → 오른쪽 → 왼쪽 → 정지 */}
-            <PaletteItem kind="moveForward" ariaLabel="앞으로 이동 블록 꺼내기">
-              <Block color="move">
-                앞으로 <BlockInput value={DEFAULT_MOVE_M} /> m 이동
-              </Block>
-            </PaletteItem>
-            <PaletteItem kind="move" ariaLabel="뒤로 이동 블록 꺼내기">
-              <Block color="move">
-                뒤로 <BlockInput value={DEFAULT_MOVE_M} /> m 이동
-              </Block>
-            </PaletteItem>
-            <PaletteItem kind="rotateRight" ariaLabel="오른쪽으로 회전 블록 꺼내기">
-              <Block color="move">
-                오른쪽으로 <BlockInput value={DEFAULT_ROTATE_DEG} /> ° 회전
-              </Block>
-            </PaletteItem>
-            <PaletteItem kind="rotateLeft" ariaLabel="왼쪽으로 회전 블록 꺼내기">
-              <Block color="move">
-                왼쪽으로 <BlockInput value={DEFAULT_ROTATE_DEG} /> ° 회전
-              </Block>
-            </PaletteItem>
-            <PaletteItem kind="stop" ariaLabel="정지 블록 꺼내기">
-              <Tooltip text="동작을 마치고 멈춰요 (비상정지 아님)">
-                <Block color="move">정지</Block>
-              </Tooltip>
-            </PaletteItem>
+            {shows('moveForward') && (
+              <PaletteItem kind="moveForward" ariaLabel="앞으로 이동 블록 꺼내기">
+                <Block color="move">
+                  앞으로 <BlockInput value={DEFAULT_MOVE_M} /> m 이동
+                </Block>
+              </PaletteItem>
+            )}
+            {shows('move') && (
+              <PaletteItem kind="move" ariaLabel="뒤로 이동 블록 꺼내기">
+                <Block color="move">
+                  뒤로 <BlockInput value={DEFAULT_MOVE_M} /> m 이동
+                </Block>
+              </PaletteItem>
+            )}
+            {shows('rotateRight') && (
+              <PaletteItem kind="rotateRight" ariaLabel="오른쪽으로 회전 블록 꺼내기">
+                <Block color="move">
+                  오른쪽으로 <BlockInput value={DEFAULT_ROTATE_DEG} /> ° 회전
+                </Block>
+              </PaletteItem>
+            )}
+            {shows('rotateLeft') && (
+              <PaletteItem kind="rotateLeft" ariaLabel="왼쪽으로 회전 블록 꺼내기">
+                <Block color="move">
+                  왼쪽으로 <BlockInput value={DEFAULT_ROTATE_DEG} /> ° 회전
+                </Block>
+              </PaletteItem>
+            )}
+            {shows('stop') && (
+              <PaletteItem kind="stop" ariaLabel="정지 블록 꺼내기">
+                <Tooltip text="동작을 마치고 멈춰요 (비상정지 아님)">
+                  <Block color="move">정지</Block>
+                </Tooltip>
+              </PaletteItem>
+            )}
           </>
         )}
 
         {category === '동작' && (
           <>
-            <PaletteItem kind="sit" ariaLabel="앉기 블록 꺼내기">
-              <Block color="action">앉기</Block>
-            </PaletteItem>
-            <PaletteItem kind="standUp" ariaLabel="일어서기 블록 꺼내기">
-              <Block color="action">일어서기</Block>
-            </PaletteItem>
-            <PaletteItem kind="greet" ariaLabel="인사하기 블록 꺼내기">
-              <Block color="action">인사하기</Block>
-            </PaletteItem>
-            <PaletteItem kind="heart" ariaLabel="하트 블록 꺼내기">
-              <Block color="action">하트</Block>
-            </PaletteItem>
-            <PaletteItem kind="dance" ariaLabel="춤추기 블록 꺼내기">
-              <Block color="action">춤추기</Block>
-            </PaletteItem>
+            {shows('sit') && (
+              <PaletteItem kind="sit" ariaLabel="앉기 블록 꺼내기">
+                <Block color="action">앉기</Block>
+              </PaletteItem>
+            )}
+            {shows('standUp') && (
+              <PaletteItem kind="standUp" ariaLabel="일어서기 블록 꺼내기">
+                <Block color="action">일어서기</Block>
+              </PaletteItem>
+            )}
+            {shows('greet') && (
+              <PaletteItem kind="greet" ariaLabel="인사하기 블록 꺼내기">
+                <Block color="action">인사하기</Block>
+              </PaletteItem>
+            )}
+            {shows('heart') && (
+              <PaletteItem kind="heart" ariaLabel="하트 블록 꺼내기">
+                <Block color="action">하트</Block>
+              </PaletteItem>
+            )}
+            {shows('dance') && (
+              <PaletteItem kind="dance" ariaLabel="춤추기 블록 꺼내기">
+                <Block color="action">춤추기</Block>
+              </PaletteItem>
+            )}
             {/* 구르기·공격은 검증된 프리셋이 없어 노출하지 않는다 (Server 계약에도 없음). */}
           </>
         )}
