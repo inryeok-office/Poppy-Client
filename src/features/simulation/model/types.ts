@@ -56,11 +56,22 @@ export function toServerBlockProgram(program: SerializedBlockProgram): ServerBlo
       case 'end':
         return { id: node.id, type: 'END', parameters: {} };
       case 'move':
+        // 'move' 블록은 "뒤로 m 이동" 이다.
+        return {
+          id: node.id,
+          type: 'MOVE_BACKWARD',
+          parameters: { distanceMeters: node.distanceM },
+        };
+      case 'moveForward':
         return {
           id: node.id,
           type: 'MOVE_FORWARD',
           parameters: { distanceMeters: node.distanceM },
         };
+      case 'rotateLeft':
+        return { id: node.id, type: 'TURN_LEFT', parameters: { angleDegrees: node.degrees } };
+      case 'rotateRight':
+        return { id: node.id, type: 'TURN_RIGHT', parameters: { angleDegrees: node.degrees } };
       case 'wait':
         return { id: node.id, type: 'WAIT', parameters: { durationSeconds: node.seconds } };
       case 'repeat':
@@ -72,9 +83,6 @@ export function toServerBlockProgram(program: SerializedBlockProgram): ServerBlo
         };
       case 'greet':
         throw new Error('The Server block contract does not support the GREET block');
-      case 'moveForward':
-      case 'rotateLeft':
-      case 'rotateRight':
       case 'stop':
       case 'sit':
       case 'standUp':

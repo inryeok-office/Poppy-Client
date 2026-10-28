@@ -302,7 +302,7 @@ describe('describeBlock — 실행순서 등 읽기 전용 목록에 쓰는 한 
   it('값 있는 블록은 값을 문구에 넣는다', () => {
     expect(describeBlock({ id: 'a', kind: 'move', distanceM: 3 })).toBe('뒤로 3m 이동');
     expect(describeBlock({ id: 'a', kind: 'rotateRight', degrees: 90 })).toBe(
-      '오른쪽으로 90° 이동',
+      '오른쪽으로 90° 회전',
     );
     expect(describeBlock({ id: 'a', kind: 'wait', seconds: 5 })).toBe('5초 기다리기');
   });
