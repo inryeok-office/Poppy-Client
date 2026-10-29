@@ -32,6 +32,10 @@ export function useExecutionState(sessionId: string | null, executionId: string 
     if (sessionId === null || executionId === null) return;
     return subscribeExecutionState(sessionId, executionId, (state) => {
       queryClient.setQueryData(['execution', sessionId, executionId], state);
+      // SSE 이벤트엔 missionResult 가 없다 — 완료되면 상태 조회로 판정 결과를 다시 읽는다.
+      if (state.status === 'completed') {
+        void queryClient.invalidateQueries({ queryKey: ['execution', sessionId, executionId] });
+      }
     });
   }, [executionId, queryClient, sessionId]);
 

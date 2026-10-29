@@ -227,10 +227,19 @@ export function ExperienceView() {
 
   const executionStatus = executionId !== null ? (execution.data?.status ?? 'queued') : null;
   const executionSettled = isTerminalStatus(executionStatus ?? undefined);
+  // Server 가 미션 판정(missionResult)을 주면 그 결과로, 아직 없는 Server 면 진행요원 확인 안내.
+  const missionResult =
+    missionDetail && executionStatus === 'completed'
+      ? (execution.data?.missionResult ?? null)
+      : null;
   const executionMessage =
     execution.data?.message ??
     (missionDetail && executionStatus === 'completed'
-      ? '실행 완료! 미션 목표를 이뤘는지 진행요원과 함께 확인해요.'
+      ? missionResult
+        ? missionResult.passed
+          ? '미션 성공! 🎉'
+          : '로봇은 끝까지 움직였어요. 미션 조건을 다시 확인해 봐요.'
+        : '실행 완료! 미션 목표를 이뤘는지 진행요원과 함께 확인해요.'
       : null);
 
   const clearExecution = () => {
@@ -377,6 +386,7 @@ export function ExperienceView() {
               onRun={requestRun}
               onStop={stopRun}
               result={simulationResult}
+              missionResult={missionResult}
               robotBadge={robotBadge}
             />
           ) : (

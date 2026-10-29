@@ -14,6 +14,7 @@ function mapState(data: ExecutionStatusResponseDto): ExecutionState {
     ...data,
     status: mapExecutionStatus(data.status),
     missionCleared: data.status === 'COMPLETED' ? true : null,
+    missionResult: data.missionResult ?? null,
     elapsedSec:
       data.startedAt && data.finishedAt
         ? Math.max(0, (Date.parse(data.finishedAt) - Date.parse(data.startedAt)) / 1000)
@@ -73,6 +74,7 @@ export async function cancelExecution(
     executionId: response.data.data.executionId,
     status: mapExecutionStatus(response.data.data.status),
     missionCleared: null,
+    missionResult: null,
     elapsedSec: null,
     message: null,
   };

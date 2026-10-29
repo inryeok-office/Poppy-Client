@@ -32,6 +32,21 @@ export type RequestExecutionResult = {
   queuedAt: string;
 };
 
+/** 미션 실행이 COMPLETED 일 때만 Server 가 채우는 블록 구성 기준 판정 (Server #126). */
+export type MissionResultCode =
+  | 'MISSING_REQUIRED_BLOCK'
+  | 'FORBIDDEN_BLOCK'
+  | 'ORDER_NOT_SATISFIED'
+  | 'TOO_FEW_EXECUTIONS'
+  | 'LAST_ACTION_MISMATCH'
+  | 'TOO_MANY_BLOCKS';
+
+export type MissionResult = {
+  missionId: string;
+  passed: boolean;
+  reasons: { code: MissionResultCode | string; detail: string }[];
+};
+
 export type ExecutionStatusResponseDto = {
   executionId: string;
   sessionId: string | null;
@@ -42,11 +57,13 @@ export type ExecutionStatusResponseDto = {
   queuedAt: string | null;
   startedAt: string | null;
   finishedAt: string | null;
+  /** 이 필드가 없는 Server 도 있다(미배포). */
+  missionResult?: MissionResult | null;
 };
 
 export type ExecutionSseEventDto = Omit<
   ExecutionStatusResponseDto,
-  'sessionId' | 'blockVersion' | 'queuedAt'
+  'sessionId' | 'blockVersion' | 'queuedAt' | 'missionResult'
 > & {
   queuePosition: number | null;
 };
@@ -63,6 +80,7 @@ export type ExecutionState = {
   startedAt?: string | null;
   finishedAt?: string | null;
   missionCleared: boolean | null;
+  missionResult: MissionResult | null;
   elapsedSec: number | null;
   message: string | null;
 };
