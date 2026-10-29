@@ -26,6 +26,7 @@ import {
   useSession,
   writeExperienceFlag,
 } from '@/features/session';
+import { robotBadgeKind, useRobotAvailability } from '@/features/robot';
 import { describeError, knownErrorMessage } from '@/shared/api';
 import {
   countProgramBlocks,
@@ -200,6 +201,9 @@ export function ExperienceView() {
   const simulationResult = simulation.data;
   const simulationPassed =
     simulationResult?.passed === true && simulationPass.data?.blockVersion === projectVersion;
+  // 실행 화면에서만 10초마다 로봇 상태를 묻는다. Server 에 API 가 없으면(404) data 가 null 이라 배지를 숨긴다.
+  const robotAvailability = useRobotAvailability(simulationPassed);
+  const robotBadge = robotAvailability.data ? robotBadgeKind(robotAvailability.data) : null;
   const simulationMessage =
     simulation.isError || simulationPass.isError
       ? (knownErrorMessage(simulationPass.error) ??
@@ -373,6 +377,7 @@ export function ExperienceView() {
               onRun={requestRun}
               onStop={stopRun}
               result={simulationResult}
+              robotBadge={robotBadge}
             />
           ) : (
             <BlockWorkspace
