@@ -6,6 +6,7 @@ import {
   type ExecutionStatus,
   type MissionResult,
 } from '@/features/execution';
+import type { RobotBadgeKind } from '@/features/robot';
 import { UNKNOWN_ERROR_MESSAGE } from '@/shared/api';
 import type { SimulationResult } from '@/features/simulation';
 
@@ -14,6 +15,7 @@ import { GUIDE_TEXT } from '../model/guide';
 import type { BlockProgram } from '../model/blockProgram';
 import { BlockStack } from './BlockStack';
 import { MissionResultCard } from './MissionResultCard';
+import { ROBOT_NOT_READY_HINT, RobotBadge } from './RobotBadge';
 import { SimulationResultSummary } from './SimulationResultSummary';
 import { PillButton } from '@/shared/ui';
 
@@ -62,6 +64,8 @@ type RunReadyWorkspaceProps = {
   result?: SimulationResult;
   /** 미션 실행이 완료됐을 때 Server 판정 결과 (없으면 카드 없음). */
   missionResult?: MissionResult | null;
+  /** 로봇 가용 상태 배지 — null 이면(API 없음·조회 실패) 숨긴다. */
+  robotBadge?: RobotBadgeKind | null;
 };
 
 export function RunReadyWorkspace({
@@ -76,6 +80,7 @@ export function RunReadyWorkspace({
   onNextVisitor,
   result,
   missionResult = null,
+  robotBadge = null,
 }: RunReadyWorkspaceProps) {
   const { registerCanvas, registerStack } = useBlockDrag();
   // QUEUED 가 오래 이어지는지 — 상태가 바뀌면 다시 센다.
@@ -93,6 +98,11 @@ export function RunReadyWorkspace({
   // 명세: 체험자는 QUEUED·ASSIGNED 에서만 취소할 수 있다. RUNNING 이후 중지는 관리자 기능.
   const cancellable = isCancellableStatus(executionStatus ?? undefined);
   const busy = requesting || inProgress;
+  const showRunButton = !requesting && !cancellable && executionStatus === null;
+  const robotNotReadyHint =
+    showRunButton && robotBadge !== null && robotBadge !== 'ready'
+      ? ROBOT_NOT_READY_HINT[robotBadge]
+      : null;
   const hint = requesting
     ? '실행을 요청하고 있어요…'
     : errorMessage
@@ -112,6 +122,16 @@ export function RunReadyWorkspace({
           {hint}
         </p>
         <div className="flex items-center gap-2">
+          {robotBadge && <RobotBadge kind={robotBadge} />}
+          {robotNotReadyHint && (
+            <span
+              data-testid="robot-not-ready"
+              className="text-muted text-[12px]"
+              aria-live="polite"
+            >
+              {robotNotReadyHint}
+            </span>
+          )}
           {!busy && executionStatus !== 'completed' && (
             <PillButton variant="primary" onClick={onSimulate}>
               시뮬레이션 하기

@@ -49,3 +49,52 @@ describe('RunReadyWorkspace — QUEUED 15초 초과 안내', () => {
     expect(screen.getByText('로봇에 배정됐어요.')).toBeInTheDocument();
   });
 });
+
+describe('RunReadyWorkspace — 로봇 상태 배지', () => {
+  function renderWithBadge(
+    robotBadge: 'ready' | 'busy' | 'offline' | null,
+    status: ExecutionStatus | null = null,
+  ) {
+    return render(
+      <BlockDragProvider program={INITIAL_PROGRAM} onChange={() => {}}>
+        <RunReadyWorkspace
+          program={INITIAL_PROGRAM}
+          executionStatus={status}
+          robotBadge={robotBadge}
+        />
+      </BlockDragProvider>,
+    );
+  }
+
+  it('준비됨이면 배지만 보이고 안내는 없다', () => {
+    renderWithBadge('ready');
+    expect(screen.getByTestId('robot-badge')).toHaveTextContent('로봇 준비됨');
+    expect(screen.queryByTestId('robot-not-ready')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '로봇 실행하기' })).toBeInTheDocument();
+  });
+
+  it('사용 중이면 실행 버튼 옆에 순서 안내', () => {
+    renderWithBadge('busy');
+    expect(screen.getByTestId('robot-badge')).toHaveTextContent('로봇 사용 중');
+    expect(screen.getByTestId('robot-not-ready')).toHaveTextContent('순서를 기다려요');
+    expect(screen.getByRole('button', { name: '로봇 실행하기' })).toBeInTheDocument();
+  });
+
+  it('연결 안 됨이면 진행요원 안내', () => {
+    renderWithBadge('offline');
+    expect(screen.getByTestId('robot-badge')).toHaveTextContent('로봇 연결 안 됨');
+    expect(screen.getByTestId('robot-not-ready')).toHaveTextContent('진행요원');
+  });
+
+  it('API 가 없으면(null) 배지와 안내를 숨긴다', () => {
+    renderWithBadge(null);
+    expect(screen.queryByTestId('robot-badge')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('robot-not-ready')).not.toBeInTheDocument();
+  });
+
+  it('실행이 시작되면 준비 안 됨 안내는 사라진다', () => {
+    renderWithBadge('busy', 'queued');
+    expect(screen.getByTestId('robot-badge')).toBeInTheDocument();
+    expect(screen.queryByTestId('robot-not-ready')).not.toBeInTheDocument();
+  });
+});
