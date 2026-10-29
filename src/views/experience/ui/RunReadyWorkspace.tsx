@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 
-import { isCancellableStatus, isTerminalStatus, type ExecutionStatus } from '@/features/execution';
+import {
+  isCancellableStatus,
+  isTerminalStatus,
+  type ExecutionStatus,
+  type MissionResult,
+} from '@/features/execution';
 import { UNKNOWN_ERROR_MESSAGE } from '@/shared/api';
 import type { SimulationResult } from '@/features/simulation';
 
@@ -8,6 +13,7 @@ import { useBlockDrag } from '../lib/useBlockDrag';
 import { GUIDE_TEXT } from '../model/guide';
 import type { BlockProgram } from '../model/blockProgram';
 import { BlockStack } from './BlockStack';
+import { MissionResultCard } from './MissionResultCard';
 import { SimulationResultSummary } from './SimulationResultSummary';
 import { PillButton } from '@/shared/ui';
 
@@ -54,6 +60,8 @@ type RunReadyWorkspaceProps = {
   onNextVisitor?: () => void;
   /** 방금 받은 시뮬레이션 결과 — 아직 실행을 시작하기 전(executionStatus 없음)에만 보여준다. */
   result?: SimulationResult;
+  /** 미션 실행이 완료됐을 때 Server 판정 결과 (없으면 카드 없음). */
+  missionResult?: MissionResult | null;
 };
 
 export function RunReadyWorkspace({
@@ -67,6 +75,7 @@ export function RunReadyWorkspace({
   onStop,
   onNextVisitor,
   result,
+  missionResult = null,
 }: RunReadyWorkspaceProps) {
   const { registerCanvas, registerStack } = useBlockDrag();
   // QUEUED 가 오래 이어지는지 — 상태가 바뀌면 다시 센다.
@@ -141,6 +150,12 @@ export function RunReadyWorkspace({
 
       {/* 방금 통과한 시뮬레이션 결과(카드·실행순서) — 실행을 시작하면(executionStatus 생김) 사라진다
           (Figma Slide 7). '실행 블록' 목록은 바로 아래 캔버스가 이미 읽기 전용으로 보여주고 있다. */}
+      {executionStatus === 'completed' && missionResult && (
+        <div className="border-line bg-card border-b-[1.5px] px-8 py-4">
+          <MissionResultCard result={missionResult} />
+        </div>
+      )}
+
       {result?.passed && !executionStatus && (
         <div className="border-line bg-card border-b-[1.5px] px-8 py-4">
           <SimulationResultSummary result={result} />

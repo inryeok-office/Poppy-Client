@@ -12,6 +12,8 @@ export {
   type ExecutionSseEventDto,
   type ExecutionStatusResponseDto,
   type ExecutionStatus,
+  type MissionResult,
+  type MissionResultCode,
   type RequestExecutionRequest,
   type RequestExecutionResult,
 } from './model/types';
