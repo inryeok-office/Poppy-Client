@@ -47,17 +47,17 @@ describe('simulateProgram local evaluation', () => {
       program: program({
         chain: [
           { id: 'start-0', kind: 'start' },
-          repeatNode(5, 1),
+          repeatNode(7, 1),
           { id: 'greet-0', kind: 'greet' },
           { id: 'end-0', kind: 'end' },
         ],
       }),
     });
     expect(result.passed).toBe(false);
-    expect(result.totalDistanceM).toBe(5);
+    expect(result.totalDistanceM).toBe(7);
     expect(result.violations[0]?.code).toBe('exceeds-safe-zone');
     expect(result.violations[0]?.message).toBe(
-      '5번째 블록에서 안전 구역(4m×4m) 밖으로 나가요. 거리를 줄이거나 방향을 바꿔 주세요.',
+      '7번째 블록에서 안전 구역(6m×6m) 밖으로 나가요. 거리를 줄이거나 방향을 바꿔 주세요.',
     );
   });
 
@@ -66,14 +66,14 @@ describe('simulateProgram local evaluation', () => {
       program: program({
         chain: [
           { id: 'start-0', kind: 'start' },
-          repeatNode(4, 1),
+          repeatNode(5, 1),
           { id: 'move-1', kind: 'moveForward', distanceM: 1 },
           { id: 'greet-0', kind: 'greet' },
           { id: 'end-0', kind: 'end' },
         ],
       }),
     });
-    expect(result.totalDistanceM).toBe(5);
+    expect(result.totalDistanceM).toBe(6);
     expect(result.passed).toBe(false);
     expect(result.normalizedCommandCount).toBe(6);
   });
@@ -137,15 +137,17 @@ describe('simulateProgram local evaluation', () => {
         program: program({
           chain: [
             { id: 'start-0', kind: 'start' },
-            repeatNode(5, 1), // 1m × 5회 — 3번째 반복(y=3.4)까지 안전, 4번째(y=4.4)에서 벗어난다
+            repeatNode(7, 1), // 1m × 7회 — 5번째 반복(y=5.4)까지 안전, 6번째(y=6.4)에서 벗어난다
             { id: 'greet-0', kind: 'greet' },
             { id: 'end-0', kind: 'end' },
           ],
         }),
       });
 
-      // start, move ×3, move(이탈), move, greet, end
+      // start, move ×5, move(이탈), move, greet, end
       expect(result.steps.map((s) => s.status)).toEqual([
+        'done',
+        'done',
         'done',
         'done',
         'done',

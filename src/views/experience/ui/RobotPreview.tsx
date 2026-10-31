@@ -13,10 +13,10 @@ import {
 // 제목/격자박스/스탯 세로 배치: 제목 y18(h16) → 격자박스 y46(h178) → 스탯 y256 (행 18 · 피치 34).
 // 색은 globals.css @theme 팔레트, 폰트는 상위 font-gmarket 상속.
 
-// 격자 박스 안 공간 그림: 왼쪽 위 (12, 9) 부터 1 m = 40 px. 오른쪽에는 안내 문구와 전체화면 버튼이 있다.
+// 격자 박스 안 공간 그림: 왼쪽 위 (12, 9) 부터 공간 전체를 160 px 정사각형으로 그린다. 오른쪽에는 안내 문구와 전체화면 버튼이 있다.
 const ARENA_LEFT_PX = 12;
 const ARENA_TOP_PX = 9;
-const PX_PER_M = 40;
+const PX_PER_M = 160 / ARENA.widthM;
 const toPx = ({ xM, yM }: ArenaPoint) => ({
   x: ARENA_LEFT_PX + xM * PX_PER_M,
   y: ARENA_TOP_PX + (ARENA.depthM - yM) * PX_PER_M,

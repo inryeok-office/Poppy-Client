@@ -45,17 +45,17 @@ describe('LIMITS — controlled_motion_open 시험 기준', () => {
         { id: 't', kind: 'rotateRight', degrees: 90 },
       ],
     });
-    expect(evaluate(patrol(9)).runnable).toBe(true); // 네모를 돌아 공간 안, 총 4.5 m
+    expect(evaluate(patrol(9)).runnable).toBe(false); // 오른쪽으로 먼저 돌면 벽 여유 밖
     const straight: SerializedBlockNode = {
       id: 'r',
       kind: 'repeat',
       count: 8,
-      body: [{ id: 'm', kind: 'moveForward', distanceM: 0.5 }],
+      body: [{ id: 'm', kind: 'moveForward', distanceM: 1 }],
     };
     expect(evaluate(straight)).toMatchObject({
       runnable: false,
       violation: 'exceeds-safe-zone',
-      violationIndex: 7,
+      violationIndex: 6,
     });
   });
 });
