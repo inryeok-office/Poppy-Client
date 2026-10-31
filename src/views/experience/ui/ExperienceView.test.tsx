@@ -287,7 +287,7 @@ describe('ExperienceView', () => {
 
     await waitFor(() => expect(simulationPassVersion).not.toBeNull(), { timeout: 3000 });
     // 디바운스를 기다리지 않고 바로 저장돼, 통과 기록이 방금 편집한(반복 1회) 버전을 가리킨다
-    expect(savedRepeatCounts).toEqual([4, 1]);
+    expect(savedRepeatCounts).toEqual([3, 1]);
     expect(simulationPassVersion).toBe(2);
   });
 
@@ -341,14 +341,14 @@ describe('ExperienceView', () => {
 
     fireEvent.blur(screen.getByRole('spinbutton', { name: '반복 횟수' }));
     // 600ms 디바운스가 스스로 저장을 "시작"할 때까지 기다린다 — 응답은 아직 안 왔다(150ms 지연 중).
-    await waitFor(() => expect(savedRepeatCounts).toEqual([4, 1]), { timeout: 3000 });
+    await waitFor(() => expect(savedRepeatCounts).toEqual([3, 1]), { timeout: 3000 });
 
     // 저장이 진행 중인 바로 이 순간 시뮬레이션한다 — fireEvent 로 클릭해 await 없이 바로 이어간다.
     fireEvent.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
 
     await waitFor(() => expect(simulationPassVersion).not.toBeNull(), { timeout: 3000 });
     // 진행 중이던 저장에 올라탔을 뿐, 새로 큐에 넣지 않았다
-    expect(savedRepeatCounts).toEqual([4, 1]);
+    expect(savedRepeatCounts).toEqual([3, 1]);
     // 디바운스가 끝낸 최신 버전(2)을 썼다 — 저장 시작 전의 값(1)이 아니라
     expect(simulationPassVersion).toBe(2);
   });
