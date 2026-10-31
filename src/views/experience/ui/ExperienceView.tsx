@@ -423,6 +423,8 @@ export function ExperienceView() {
             finalPosture={preview.plan.finalPosture}
             headingDegrees={preview.plan.headingDegrees}
             estimatedDistanceM={preview.plan.totalMeters}
+            path={preview.plan.path}
+            failurePoint={preview.plan.failurePoint}
             steps={simulationResult?.steps}
             passed={simulationResult?.passed}
           />

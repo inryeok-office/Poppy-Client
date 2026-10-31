@@ -7,7 +7,7 @@ const repeatNode = (count: number, distanceM: number): SerializedBlockNode => ({
   id: 'repeat-0',
   kind: 'repeat',
   count,
-  body: [{ id: 'move-0', kind: 'move', distanceM }],
+  body: [{ id: 'move-0', kind: 'moveForward', distanceM }],
 });
 
 const program = (over: Partial<SerializedBlockProgram> = {}): SerializedBlockProgram => ({
@@ -56,7 +56,9 @@ describe('simulateProgram local evaluation', () => {
     expect(result.passed).toBe(false);
     expect(result.totalDistanceM).toBe(5);
     expect(result.violations[0]?.code).toBe('exceeds-safe-zone');
-    expect(result.violations[0]?.message).toContain('안전 구역');
+    expect(result.violations[0]?.message).toBe(
+      '5번째 블록에서 안전 구역(4m×4m) 밖으로 나가요. 거리를 줄이거나 방향을 바꿔 주세요.',
+    );
   });
 
   it('keeps repeated and standalone movement in the total', async () => {
@@ -65,7 +67,7 @@ describe('simulateProgram local evaluation', () => {
         chain: [
           { id: 'start-0', kind: 'start' },
           repeatNode(4, 1),
-          { id: 'move-1', kind: 'move', distanceM: 1 },
+          { id: 'move-1', kind: 'moveForward', distanceM: 1 },
           { id: 'greet-0', kind: 'greet' },
           { id: 'end-0', kind: 'end' },
         ],
@@ -90,7 +92,7 @@ describe('simulateProgram local evaluation', () => {
       program: program({
         chain: [
           { id: 'start-0', kind: 'start' },
-          { id: 'move-0', kind: 'move', distanceM: 1 },
+          { id: 'move-0', kind: 'moveForward', distanceM: 1 },
           { id: 'moveForward-0', kind: 'moveForward', distanceM: 1 },
           { id: 'end-0', kind: 'end' },
         ],
@@ -121,7 +123,7 @@ describe('simulateProgram local evaluation', () => {
         program: program({
           chain: [
             { id: 'start-0', kind: 'start' },
-            { id: 'move-0', kind: 'move', distanceM: 1 },
+            { id: 'move-0', kind: 'moveForward', distanceM: 1 },
             { id: 'end-0', kind: 'end' },
           ],
         }),
@@ -135,21 +137,21 @@ describe('simulateProgram local evaluation', () => {
         program: program({
           chain: [
             { id: 'start-0', kind: 'start' },
-            repeatNode(5, 1), // 1m × 5회 — 4번째 반복(누적 4m)까지 안전, 5번째(누적 5m)에서 넘는다
+            repeatNode(5, 1), // 1m × 5회 — 3번째 반복(y=3.4)까지 안전, 4번째(y=4.4)에서 벗어난다
             { id: 'greet-0', kind: 'greet' },
             { id: 'end-0', kind: 'end' },
           ],
         }),
       });
 
-      // start, move ×4, move(초과), greet, end
+      // start, move ×3, move(이탈), move, greet, end
       expect(result.steps.map((s) => s.status)).toEqual([
         'done',
         'done',
         'done',
         'done',
-        'done',
         'failed',
+        'pending',
         'pending',
         'pending',
       ]);

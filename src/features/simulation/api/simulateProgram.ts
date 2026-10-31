@@ -1,8 +1,8 @@
 import { api, sessionAuthHeaders, type ApiResponse } from '@/shared/api';
 import { sumOverBlockTree } from '@/shared/lib/blockTree';
 
-import { MAX_TOTAL_SECONDS, type MotionViolationCode } from '../model/motionPlan';
-import { buildSimulationSteps, evaluateProgram, SAFE_ZONE_M } from '../model/safety';
+import { ARENA, MAX_TOTAL_SECONDS, type MotionViolationCode } from '../model/motionPlan';
+import { buildSimulationSteps, evaluateProgram } from '../model/safety';
 import type { SerializedBlockNode, SimulationRequest, SimulationResult } from '../model/types';
 
 function countCommands(nodes: SerializedBlockNode[]): number {
@@ -14,10 +14,15 @@ function countCommands(nodes: SerializedBlockNode[]): number {
 }
 
 /** 실행 규칙 위반 안내 (Agent controlled_motion_open 과 같은 규칙). */
-const VIOLATION_MESSAGE: Record<MotionViolationCode, string> = {
-  'exceeds-safe-zone': `안전 구역을 벗어나요. 한 번에 움직일 수 있는 거리는 ${SAFE_ZONE_M}m예요. 이동 거리를 줄여주세요.`,
-  'exceeds-time': `동작 시간이 너무 길어요. 한 번에 ${MAX_TOTAL_SECONDS}초까지 움직일 수 있어요. 블록이나 반복 횟수를 줄여주세요.`,
-  'moves-while-sitting': '앉은 상태에서는 움직일 수 없어요. 먼저 ‘일어서기’ 블록을 넣어 주세요.',
+const violationMessage = (code: MotionViolationCode, index: number): string => {
+  switch (code) {
+    case 'exceeds-safe-zone':
+      return `${index + 1}번째 블록에서 안전 구역(${ARENA.widthM}m×${ARENA.depthM}m) 밖으로 나가요. 거리를 줄이거나 방향을 바꿔 주세요.`;
+    case 'exceeds-time':
+      return `동작 시간이 너무 길어요. 한 번에 ${MAX_TOTAL_SECONDS}초까지 움직일 수 있어요. 블록이나 반복 횟수를 줄여주세요.`;
+    case 'moves-while-sitting':
+      return '앉은 상태에서는 움직일 수 없어요. 먼저 ‘일어서기’ 블록을 넣어 주세요.';
+  }
 };
 
 export async function simulateProgram(request: SimulationRequest): Promise<SimulationResult> {
@@ -25,7 +30,12 @@ export async function simulateProgram(request: SimulationRequest): Promise<Simul
   const violations = !evaluation.valuesValid
     ? [{ code: 'invalid-values' as const, message: '블록 값이 올바르지 않아요.' }]
     : evaluation.violation
-      ? [{ code: evaluation.violation, message: VIOLATION_MESSAGE[evaluation.violation] }]
+      ? [
+          {
+            code: evaluation.violation,
+            message: violationMessage(evaluation.violation, evaluation.violationIndex ?? 0),
+          },
+        ]
       : [];
   const steps =
     evaluation.structurallyValid && evaluation.valuesValid
