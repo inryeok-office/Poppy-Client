@@ -400,7 +400,10 @@ describe('ExperienceView', () => {
 
     // 안내 띠와 결과 카드(Figma Slide 6) 둘 다에 이유가 뜬다
     await waitFor(
-      () => expect(screen.getAllByText(/안전 구역\(4m×4m\) 밖으로 나가요/).length).toBeGreaterThanOrEqual(2),
+      () =>
+        expect(
+          screen.getAllByText(/안전 구역\(4m×4m\) 밖으로 나가요/).length,
+        ).toBeGreaterThanOrEqual(2),
       { timeout: 3000 },
     );
     expect(screen.getByText('조금만 고치면 돼요!')).toBeInTheDocument();
