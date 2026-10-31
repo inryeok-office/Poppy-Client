@@ -391,9 +391,9 @@ describe('ExperienceView', () => {
     renderView();
 
     connectEndBlock();
-    // 반복 횟수 2 → 5 (앞으로 1m × 5 = 위쪽 벽 여유 밖)
+    // 반복 횟수 2 → 6 (앞으로 1m × 6 = 위쪽 벽 여유 밖)
     fireEvent.change(screen.getByRole('spinbutton', { name: '반복 횟수' }), {
-      target: { value: '5' },
+      target: { value: '6' },
     });
     fireEvent.blur(screen.getByRole('spinbutton', { name: '반복 횟수' }));
     await user.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
@@ -402,14 +402,14 @@ describe('ExperienceView', () => {
     await waitFor(
       () =>
         expect(
-          screen.getAllByText(/안전 구역\(4m×4m\) 밖으로 나가요/).length,
+          screen.getAllByText(/안전 구역\(6m×6m\) 밖으로 나가요/).length,
         ).toBeGreaterThanOrEqual(2),
       { timeout: 3000 },
     );
     expect(screen.getByText('조금만 고치면 돼요!')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /로봇 실행하기/ })).toHaveTextContent('잠김');
     // 예상 이동 거리에 계산 결과가 반영된다
-    expect(screen.getByText('5.0 m')).toBeInTheDocument();
+    expect(screen.getByText('6.0 m')).toBeInTheDocument();
   });
 
   it('시뮬레이션 API가 실패하면 오류 안내를 보여주고 로봇 실행은 잠겨 있다', async () => {

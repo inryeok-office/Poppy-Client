@@ -19,7 +19,7 @@ export const MOTION_TIMING = {
  * 체험 공간과 출발 자세 — Agent 의 POPPY_PHYSICAL_ARENA_* · POPPY_PHYSICAL_START_* 와 같은 값이다.
  * 좌표는 m, 원점은 왼쪽 아래 모서리, 출발 시 +y 방향을 본다.
  */
-export const ARENA = { widthM: 4, depthM: 4, marginM: 0.4, startXM: 2, startYM: 0.4 } as const;
+export const ARENA = { widthM: 6, depthM: 6, marginM: 0.4, startXM: 5.6, startYM: 0.4 } as const;
 
 /** 실행 1회 총 동작 시간 상한 (s) — Agent 와 같다. */
 export const MAX_TOTAL_SECONDS = 120;
