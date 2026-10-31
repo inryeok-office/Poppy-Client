@@ -7,8 +7,6 @@ import type { SerializedBlockNode, SerializedBlockProgram, SimulationStep } from
 // 시뮬레이션 mock 과 실행 mock 이 같은 판정을 쓴다. views/experience 의 입력칸 min·max 도
 // 이 값을 그대로 가져다 쓴다(LIMITS export) — 클라이언트·서버가 서로 다른 범위를 들고 있다가
 // 어긋나는 걸 막는다.
-// 실행 1회 총 이동 거리 상한 — Agent controlled_motion_open 의 4.0 m 와 같다.
-export const SAFE_ZONE_M = 4;
 
 // step 이 있으면 그 단위의 소수, 없으면 정수만 허용한다.
 export const LIMITS = {
@@ -109,8 +107,8 @@ function totalDistance(nodes: SerializedBlockNode[]): number {
 }
 
 /**
- * 실행 순서(Figma Slide 6·7)를 만들고, 처음 규칙을 어긴 지점(총 이동 SAFE_ZONE_M 초과·총 시간
- * 초과·앉은 상태 이동)을 실패, 그 앞은 완료, 그 뒤는 대기로 표시한다. 구조·값이 유효할 때만
+ * 실행 순서(Figma Slide 6·7)를 만들고, 처음 규칙을 어긴 지점(안전 구역 이탈·총 시간 초과·
+ * 앉은 상태 이동)을 실패, 그 앞은 완료, 그 뒤는 대기로 표시한다. 구조·값이 유효할 때만
  * 호출한다(evaluateProgram 참고).
  */
 export function buildSimulationSteps(chain: SerializedBlockNode[]): SimulationStep[] {
@@ -132,6 +130,8 @@ export type ProgramEvaluation = {
   withinSafeZone: boolean;
   /** 처음 어긴 실행 규칙 (값이 유효할 때만 계산) */
   violation: MotionViolationCode | null;
+  /** violation 이 일어난 실행 순서 위치 (0부터, steps 와 같은 기준) */
+  violationIndex: number | null;
   /** 시뮬레이션·실제 실행을 모두 진행할 수 있는 상태인지 */
   runnable: boolean;
 };
@@ -151,6 +151,7 @@ export function evaluateProgram(program: SerializedBlockProgram): ProgramEvaluat
     totalSeconds: plan?.totalSeconds ?? 0,
     withinSafeZone,
     violation,
+    violationIndex: plan?.violation?.index ?? null,
     runnable: structurallyValid && valuesValid && violation === null,
   };
 }

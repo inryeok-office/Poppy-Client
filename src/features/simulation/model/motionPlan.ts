@@ -1,4 +1,3 @@
-import { SAFE_ZONE_M } from './safety';
 import type { SerializedBlockNode } from './types';
 
 // 블록 프로그램을 실제 실행 순서대로 펼쳐 이동 거리·동작 시간·자세·방향을 계산한다.
@@ -16,11 +15,19 @@ export const MOTION_TIMING = {
   presetSettleSeconds: 5,
 } as const;
 
+/**
+ * 체험 공간과 출발 자세 — Agent 의 POPPY_PHYSICAL_ARENA_* · POPPY_PHYSICAL_START_* 와 같은 값이다.
+ * 좌표는 m, 원점은 왼쪽 아래 모서리, 출발 시 +y 방향을 본다.
+ */
+export const ARENA = { widthM: 4, depthM: 4, marginM: 0.4, startXM: 2, startYM: 0.4 } as const;
+
 /** 실행 1회 총 동작 시간 상한 (s) — Agent 와 같다. */
 export const MAX_TOTAL_SECONDS = 120;
 
 export type MotionViolationCode = 'exceeds-safe-zone' | 'exceeds-time' | 'moves-while-sitting';
 export type Posture = 'standing' | 'sitting';
+
+export type ArenaPoint = { xM: number; yM: number };
 
 export type PlannedStep = {
   node: SerializedBlockNode;
@@ -38,9 +45,40 @@ export type MotionPlan = {
   finalPosture: Posture;
   /** 누적 회전 (오른쪽 +, 0~359°) */
   headingDegrees: number;
+  /** 출발점부터 이동 구간 끝점들. 벽 여유를 처음 벗어나면 그 지점에서 끝난다 */
+  path: ArenaPoint[];
+  /** 안전 구역을 벗어난 지점 (없으면 null) */
+  failurePoint: ArenaPoint | null;
   /** 처음 규칙을 어긴 단계 (없으면 null) */
   violation: { index: number; code: MotionViolationCode } | null;
 };
+
+const EDGE_EPSILON = 1e-9;
+
+function insideArena({ xM, yM }: ArenaPoint): boolean {
+  const { widthM, depthM, marginM } = ARENA;
+  return (
+    xM >= marginM - EDGE_EPSILON &&
+    xM <= widthM - marginM + EDGE_EPSILON &&
+    yM >= marginM - EDGE_EPSILON &&
+    yM <= depthM - marginM + EDGE_EPSILON
+  );
+}
+
+/** 영역 안 from 에서 영역 밖 to 로 가는 구간이 허용 영역 경계를 처음 넘는 지점. */
+function exitPoint(from: ArenaPoint, to: ArenaPoint): ArenaPoint {
+  const { widthM, depthM, marginM } = ARENA;
+  const axisLimit = (start: number, end: number, low: number, high: number) => {
+    if (end > high) return (high - start) / (end - start);
+    if (end < low) return (low - start) / (end - start);
+    return 1;
+  };
+  const t = Math.min(
+    axisLimit(from.xM, to.xM, marginM, widthM - marginM),
+    axisLimit(from.yM, to.yM, marginM, depthM - marginM),
+  );
+  return { xM: from.xM + (to.xM - from.xM) * t, yM: from.yM + (to.yM - from.yM) * t };
+}
 
 const PRESET_KINDS = new Set<SerializedBlockNode['kind']>(['greet', 'heart', 'dance']);
 
@@ -54,6 +92,13 @@ function flatten(nodes: SerializedBlockNode[]): SerializedBlockNode[] {
     }
   }
   return out;
+}
+
+/** 앞(+)·뒤(-) 직선 이동량. 'move' 블록은 뒤로 이동이다. */
+function signedMeters(node: SerializedBlockNode): number {
+  if (node.kind === 'moveForward') return node.distanceM;
+  if (node.kind === 'move') return -node.distanceM;
+  return 0;
 }
 
 /** 블록 하나가 더하는 이동 거리·시간. */
@@ -101,6 +146,10 @@ export function planMotion(chain: SerializedBlockNode[]): MotionPlan {
   let seconds = 0;
   let posture: Posture = 'standing';
   let heading = 0;
+  let position: ArenaPoint = { xM: ARENA.startXM, yM: ARENA.startYM };
+  let leftArena = false;
+  let failurePoint: ArenaPoint | null = null;
+  const path = [position];
   let violation: MotionPlan['violation'] = null;
   const steps = executed.map((node, index) => {
     const cost = costOf(node);
@@ -113,8 +162,25 @@ export function planMotion(chain: SerializedBlockNode[]): MotionPlan {
     if (node.kind === 'standUp') posture = 'standing';
     if (node.kind === 'rotateRight') heading += node.degrees;
     if (node.kind === 'rotateLeft') heading -= node.degrees;
-    if (violation === null && meters > SAFE_ZONE_M + 1e-9) {
-      violation = { index, code: 'exceeds-safe-zone' };
+    const moved = signedMeters(node);
+    if (Number.isFinite(moved) && moved !== 0 && !leftArena) {
+      const radians = (heading * Math.PI) / 180;
+      const next = {
+        xM: position.xM + moved * Math.sin(radians),
+        yM: position.yM + moved * Math.cos(radians),
+      };
+      // 허용 영역은 볼록하고 구간 시작점이 그 안이므로, 끝점이 안이면 구간 전체가 안이다.
+      if (insideArena(next)) {
+        position = next;
+      } else {
+        leftArena = true;
+        position = exitPoint(position, next);
+        if (violation === null) {
+          violation = { index, code: 'exceeds-safe-zone' };
+          failurePoint = position;
+        }
+      }
+      path.push(position);
     }
     if (violation === null && seconds > MAX_TOTAL_SECONDS + 1e-9) {
       violation = { index, code: 'exceeds-time' };
@@ -128,6 +194,8 @@ export function planMotion(chain: SerializedBlockNode[]): MotionPlan {
     totalSeconds: seconds,
     finalPosture: posture,
     headingDegrees: ((Math.round(heading) % 360) + 360) % 360,
+    path,
+    failurePoint,
     violation,
   };
 }

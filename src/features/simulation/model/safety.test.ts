@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { evaluateProgram, LIMITS, SAFE_ZONE_M } from './safety';
+import { evaluateProgram, LIMITS } from './safety';
 import type { SerializedBlockNode } from './types';
 
 const evaluate = (...body: SerializedBlockNode[]) =>
@@ -17,7 +17,6 @@ describe('LIMITS — controlled_motion_open 시험 기준', () => {
       waitSeconds: { min: 1, max: 10 },
       rotateDegree: { min: 1, max: 360 },
     });
-    expect(SAFE_ZONE_M).toBe(4);
   });
 
   it('0.1 단위 소수 이동 거리는 허용하고 그 밖은 거부한다', () => {
@@ -36,7 +35,7 @@ describe('LIMITS — controlled_motion_open 시험 기준', () => {
     expect(evaluate({ id: 'r', kind: 'repeat', count: 11, body: [] }).valuesValid).toBe(false);
   });
 
-  it('반복으로 합산한 총 이동이 4 m 를 넘으면 실행할 수 없다', () => {
+  it('반복은 펼쳐서 위치로 계산한다', () => {
     const patrol = (count: number): SerializedBlockNode => ({
       id: 'r',
       kind: 'repeat',
@@ -46,7 +45,17 @@ describe('LIMITS — controlled_motion_open 시험 기준', () => {
         { id: 't', kind: 'rotateRight', degrees: 90 },
       ],
     });
-    expect(evaluate(patrol(8)).runnable).toBe(true); // 4.0 m
-    expect(evaluate(patrol(9)).runnable).toBe(false); // 4.5 m
+    expect(evaluate(patrol(9)).runnable).toBe(true); // 네모를 돌아 공간 안, 총 4.5 m
+    const straight: SerializedBlockNode = {
+      id: 'r',
+      kind: 'repeat',
+      count: 8,
+      body: [{ id: 'm', kind: 'moveForward', distanceM: 0.5 }],
+    };
+    expect(evaluate(straight)).toMatchObject({
+      runnable: false,
+      violation: 'exceeds-safe-zone',
+      violationIndex: 7,
+    });
   });
 });

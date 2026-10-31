@@ -1,18 +1,26 @@
 import {
-  SAFE_ZONE_M,
+  ARENA,
   describeHeading,
+  type ArenaPoint,
   type Posture,
   type SimulationStep,
 } from '@/features/simulation';
 
 // Figma node 21:520 (Dev 모드 좌표 그대로). 격자 박스(Rectangle 19) 기준 상대 좌표:
 //   격자선  Frame 19 세로줄 x=21..229 / Frame 20 가로줄 y=11..167 (둘 다 26px 간격)
-//   로봇 본체 Rectangle 20  x=105 y=89  40×52   (중심 x=125 = 세로 중앙선, top=89 = 가로 중앙선)
-//   삼각형   Rectangle 21  x=117 y=65  16×16 프레임, 실제 벡터는 13.5×13.5 (좌 7.71% · 상 15.45% 인셋)
 //   전체화면 아이콘 x=213 y=142 24×24 → 우/하 12px
 // 패널: 폭 313(좌측 구분선 1.5 + 좌패딩 30.5 + 콘텐츠 249 + 우패딩 32), 상패딩 18.
 // 제목/격자박스/스탯 세로 배치: 제목 y18(h16) → 격자박스 y46(h178) → 스탯 y256 (행 18 · 피치 34).
 // 색은 globals.css @theme 팔레트, 폰트는 상위 font-gmarket 상속.
+
+// 격자 박스 안 공간 그림: 왼쪽 위 (12, 9) 부터 1 m = 40 px. 오른쪽에는 안내 문구와 전체화면 버튼이 있다.
+const ARENA_LEFT_PX = 12;
+const ARENA_TOP_PX = 9;
+const PX_PER_M = 40;
+const toPx = ({ xM, yM }: ArenaPoint) => ({
+  x: ARENA_LEFT_PX + xM * PX_PER_M,
+  y: ARENA_TOP_PX + (ARENA.depthM - yM) * PX_PER_M,
+});
 
 const POSTURE_LABEL: Record<Posture, string> = { standing: '서있기', sitting: '앉기' };
 
@@ -27,6 +35,10 @@ type RobotPreviewProps = {
   headingDegrees?: number;
   /** 프로그램의 총 이동 거리 (m) — 반복 포함. */
   estimatedDistanceM?: number;
+  /** 출발점부터 이동 구간 끝점들 (m). 마지막 점이 최종 위치다. */
+  path?: ArenaPoint[];
+  /** 안전 구역을 벗어난 지점 (m). */
+  failurePoint?: ArenaPoint | null;
   /** 방금 시뮬레이션한 실행순서 — 있을 때만 진행상태 바·성공/실패 배지를 보여준다. */
   steps?: SimulationStep[];
   /** steps 와 함께 준다 — 진행상태 문구·배지 색을 결정한다. */
@@ -39,6 +51,8 @@ export function RobotPreview({
   finalPosture = 'standing',
   headingDegrees = 0,
   estimatedDistanceM = 0,
+  path = [{ xM: ARENA.startXM, yM: ARENA.startYM }],
+  failurePoint = null,
   steps,
   passed,
 }: RobotPreviewProps) {
@@ -53,6 +67,10 @@ export function RobotPreview({
   const doneCount = steps?.filter((s) => s.status === 'done').length ?? 0;
   const failedIndex = steps?.findIndex((s) => s.status === 'failed') ?? -1;
   const progressPct = total > 0 ? (doneCount / total) * 100 : 0;
+  const zoneLabel = `안전 구역 ${ARENA.widthM}m × ${ARENA.depthM}m`;
+  const pathPx = path.map(toPx);
+  const finalPx = pathPx[pathPx.length - 1];
+  const failurePx = failurePoint ? toPx(failurePoint) : null;
 
   return (
     <aside
@@ -87,7 +105,7 @@ export function RobotPreview({
       {/* 격자 박스 (Rectangle 19: 249×178 · radius 12). 제목 텍스트(하단 y32) 아래 14px → y46. */}
       <div
         role="img"
-        aria-label={`로봇 위치 미리보기 (총 이동 ${SAFE_ZONE_M}m 안전 구역)`}
+        aria-label={`로봇 위치 미리보기 (${zoneLabel})`}
         className="border-line bg-card relative mt-[14px] h-[178px] w-full overflow-hidden rounded-[12px] border"
       >
         {/* 격자선: Frame 19 세로줄 x=21부터 · Frame 20 가로줄 y=11부터 · 26px 간격 (박스 기준 절대 위치). */}
@@ -96,27 +114,50 @@ export function RobotPreview({
           className="absolute inset-0 bg-[linear-gradient(to_right,#e4ddd2_1px,transparent_1px),linear-gradient(to_bottom,#e4ddd2_1px,transparent_1px)] bg-size-[26px_26px] bg-position-[21px_11px] opacity-70"
         />
 
-        <span className="text-muted absolute top-3 left-3 text-[12px]">
-          안전 구역 · 총 이동 {SAFE_ZONE_M}m
+        <span className="text-muted absolute top-3 right-3 w-[60px] text-right text-[12px] leading-tight">
+          {zoneLabel}
         </span>
 
-        {/* 로봇 본체·방향 삼각형을 누적 회전만큼 돌린다 (본체 중심 x125 y115 기준). */}
-        <div
-          data-testid="robot-heading"
-          className="absolute inset-0 transition-transform"
-          style={{ transform: `rotate(${headingDegrees}deg)`, transformOrigin: '125px 115px' }}
-        >
-          {/* 로봇 본체 (Rectangle 20: x=105 y=89 · 40×52). 중심 x=125 = 격자 세로 중앙선. */}
-          <span className="bg-ink absolute top-[89px] left-[105px] h-13 w-10 rounded-t-[18px] rounded-b-[7px]" />
-          {/* 방향 삼각형 (Rectangle 21 벡터: 프레임 x=117 y=65 16×16, 인셋 좌7.71%·상15.45% → x=118.2 y=67.5). */}
-          <svg
-            aria-hidden
-            viewBox="0 -0.6 13.533 14.13"
-            className="absolute top-[67.5px] left-[118.2px] size-[13.5px] fill-[#e58d55]"
-          >
-            <path d="M2.00258 13.5279H11.5304C13.0172 13.5279 13.9842 11.9632 13.3193 10.6334L8.55537 1.10557C7.81832 -0.368525 5.71471 -0.368523 4.97766 1.10557L0.213726 10.6334C-0.451175 11.9632 0.515817 13.5279 2.00258 13.5279Z" />
-          </svg>
-        </div>
+        {/* 공간 경계·벽 여유·경로·최종 위치와 방향·실패 지점. */}
+        <svg aria-hidden viewBox="0 0 249 178" className="absolute inset-0 size-full">
+          <rect
+            x={ARENA_LEFT_PX}
+            y={ARENA_TOP_PX}
+            width={ARENA.widthM * PX_PER_M}
+            height={ARENA.depthM * PX_PER_M}
+            className="stroke-ink fill-none"
+          />
+          <rect
+            x={ARENA_LEFT_PX + ARENA.marginM * PX_PER_M}
+            y={ARENA_TOP_PX + ARENA.marginM * PX_PER_M}
+            width={(ARENA.widthM - 2 * ARENA.marginM) * PX_PER_M}
+            height={(ARENA.depthM - 2 * ARENA.marginM) * PX_PER_M}
+            strokeDasharray="4 3"
+            className="stroke-muted fill-none"
+          />
+          <polyline
+            data-testid="robot-path"
+            points={pathPx.map(({ x, y }) => `${x},${y}`).join(' ')}
+            strokeWidth={2}
+            strokeLinejoin="round"
+            className="stroke-ink fill-none"
+          />
+          <path
+            data-testid="robot-heading"
+            d="M0 -9 L6.5 6 L0 3 L-6.5 6 Z"
+            transform={`translate(${finalPx.x} ${finalPx.y}) rotate(${headingDegrees})`}
+            className="fill-[#e58d55]"
+          />
+          {failurePx && (
+            <circle
+              data-testid="robot-failure-point"
+              cx={failurePx.x}
+              cy={failurePx.y}
+              r={5}
+              className="fill-danger"
+            />
+          )}
+        </svg>
 
         <button
           type="button"

@@ -17,7 +17,7 @@ const CONNECTED_PROGRAM = {
       id: 'repeat-0',
       kind: 'repeat' as const,
       count: 2,
-      body: [{ id: 'move-0', kind: 'move' as const, distanceM: 1 }],
+      body: [{ id: 'move-0', kind: 'moveForward' as const, distanceM: 1 }],
     },
     { id: 'end-0', kind: 'end' as const },
   ],
@@ -31,7 +31,7 @@ const SERVER_COMPATIBLE_PROGRAM = {
       id: 'repeat-0',
       kind: 'repeat' as const,
       count: 2,
-      body: [{ id: 'move-0', kind: 'move' as const, distanceM: 1 }],
+      body: [{ id: 'move-0', kind: 'moveForward' as const, distanceM: 1 }],
     },
   ],
   floating: [
@@ -70,10 +70,10 @@ function renderView() {
 }
 
 // 블록을 한 번 편집해 자동 저장을 일으킨다 (시작·종료는 고정이라 예전처럼 '종료'를 끌어
-// 연결하는 단계가 없다). 반복 횟수 2 → 4 (총 이동 4 m, 안전 구역 한계 안).
+// 연결하는 단계가 없다). 반복 횟수 2 → 3 (앞으로 3 m, 안전 구역 안).
 const connectEndBlock = () => {
   fireEvent.change(screen.getByRole('spinbutton', { name: '반복 횟수' }), {
-    target: { value: '4' },
+    target: { value: '3' },
   });
   fireEvent.blur(screen.getByRole('spinbutton', { name: '반복 횟수' }));
 };
@@ -276,7 +276,7 @@ describe('ExperienceView', () => {
     renderView();
 
     connectEndBlock(); // 편집 → 첫 자동 저장 (버전 1, 반복 횟수 4)
-    await waitFor(() => expect(savedRepeatCounts).toEqual([4]), { timeout: 3000 });
+    await waitFor(() => expect(savedRepeatCounts).toEqual([3]), { timeout: 3000 });
 
     // 반복 횟수를 1로 바꾼다 — 600ms 디바운스가 끝나기 전에 바로 시뮬레이션한다
     fireEvent.change(screen.getByRole('spinbutton', { name: '반복 횟수' }), {
@@ -287,7 +287,7 @@ describe('ExperienceView', () => {
 
     await waitFor(() => expect(simulationPassVersion).not.toBeNull(), { timeout: 3000 });
     // 디바운스를 기다리지 않고 바로 저장돼, 통과 기록이 방금 편집한(반복 1회) 버전을 가리킨다
-    expect(savedRepeatCounts).toEqual([4, 1]);
+    expect(savedRepeatCounts).toEqual([3, 1]);
     expect(simulationPassVersion).toBe(2);
   });
 
@@ -333,7 +333,7 @@ describe('ExperienceView', () => {
     renderView();
 
     connectEndBlock(); // 편집 → 첫 자동 저장 (버전 1, 반복 횟수 4)
-    await waitFor(() => expect(savedRepeatCounts).toEqual([4]), { timeout: 3000 });
+    await waitFor(() => expect(savedRepeatCounts).toEqual([3]), { timeout: 3000 });
 
     fireEvent.change(screen.getByRole('spinbutton', { name: '반복 횟수' }), {
       target: { value: '1' },
@@ -341,14 +341,14 @@ describe('ExperienceView', () => {
 
     fireEvent.blur(screen.getByRole('spinbutton', { name: '반복 횟수' }));
     // 600ms 디바운스가 스스로 저장을 "시작"할 때까지 기다린다 — 응답은 아직 안 왔다(150ms 지연 중).
-    await waitFor(() => expect(savedRepeatCounts).toEqual([4, 1]), { timeout: 3000 });
+    await waitFor(() => expect(savedRepeatCounts).toEqual([3, 1]), { timeout: 3000 });
 
     // 저장이 진행 중인 바로 이 순간 시뮬레이션한다 — fireEvent 로 클릭해 await 없이 바로 이어간다.
     fireEvent.click(screen.getByRole('button', { name: '시뮬레이션 하기' }));
 
     await waitFor(() => expect(simulationPassVersion).not.toBeNull(), { timeout: 3000 });
     // 진행 중이던 저장에 올라탔을 뿐, 새로 큐에 넣지 않았다
-    expect(savedRepeatCounts).toEqual([4, 1]);
+    expect(savedRepeatCounts).toEqual([3, 1]);
     // 디바운스가 끝낸 최신 버전(2)을 썼다 — 저장 시작 전의 값(1)이 아니라
     expect(simulationPassVersion).toBe(2);
   });
@@ -391,7 +391,7 @@ describe('ExperienceView', () => {
     renderView();
 
     connectEndBlock();
-    // 반복 횟수 2 → 5 (× 이동 1m = 5m > 4m 안전 구역)
+    // 반복 횟수 2 → 5 (앞으로 1m × 5 = 위쪽 벽 여유 밖)
     fireEvent.change(screen.getByRole('spinbutton', { name: '반복 횟수' }), {
       target: { value: '5' },
     });
@@ -400,7 +400,10 @@ describe('ExperienceView', () => {
 
     // 안내 띠와 결과 카드(Figma Slide 6) 둘 다에 이유가 뜬다
     await waitFor(
-      () => expect(screen.getAllByText(/안전 구역을 벗어나요/).length).toBeGreaterThanOrEqual(2),
+      () =>
+        expect(
+          screen.getAllByText(/안전 구역\(4m×4m\) 밖으로 나가요/).length,
+        ).toBeGreaterThanOrEqual(2),
       { timeout: 3000 },
     );
     expect(screen.getByText('조금만 고치면 돼요!')).toBeInTheDocument();
@@ -647,13 +650,13 @@ describe('ExperienceView', () => {
     await screen.findByText('저장됨', undefined, { timeout: 3000 });
 
     const repeat = screen.getByRole('spinbutton', { name: '반복 횟수' });
-    fireEvent.change(repeat, { target: { value: '3' } });
+    fireEvent.change(repeat, { target: { value: '2' } });
     fireEvent.blur(repeat);
     fireEvent.change(repeat, { target: { value: '7' } });
     fireEvent.blur(repeat);
 
     await waitFor(() => expect(savedRepeatCounts.at(-1)).toBe(7), { timeout: 3000 });
-    expect(savedRepeatCounts).not.toContain(3);
+    expect(savedRepeatCounts).not.toContain(2);
   });
 
   it('처음으로를 누르면 블록·통과 기록이 초기화된다', async () => {
