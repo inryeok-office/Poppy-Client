@@ -48,6 +48,7 @@ import {
 } from '../model/blockProgram';
 import { guideStep } from '../model/guide';
 import { kindsForServerTypes } from '../model/missionBlocks';
+import { applyQuickStartTemplate, type QuickStartTemplateId } from '../model/quickStart';
 import type { BlockParamPatch } from './BlockStack';
 import { MissionBanner } from './MissionBanner';
 import { BlockPalette } from './BlockPalette';
@@ -329,6 +330,14 @@ export function ExperienceView() {
     invalidate();
   };
 
+  // 빠른 시작 템플릿 — 시작·종료는 유지하고 그 사이·떠 있는 블록을 템플릿으로 바꾼다
+  // (체험 시간 단축). 다른 블록 변경과 같은 흐름대로 invalidate 한다.
+  const applyQuickStart = (templateId: QuickStartTemplateId) => {
+    setValueEdited(true);
+    setProgram((current) => applyQuickStartTemplate(current, templateId));
+    invalidate();
+  };
+
   const router = useRouter();
 
   // 전체 지우기 — 시작·종료만 남긴다.
@@ -415,6 +424,7 @@ export function ExperienceView() {
               }
               showDragHint={showDragHint && preview.blockCount === 0}
               onDragHintDone={finishDragHint}
+              onQuickStart={applyQuickStart}
             />
           )}
           <RobotPreview
