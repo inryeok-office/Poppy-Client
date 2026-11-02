@@ -36,14 +36,20 @@ describe('getRobotAvailability', () => {
     await expect(getRobotAvailability()).resolves.toBeNull();
   });
 
-  it('그 밖의 오류는 그대로 던진다', async () => {
+  it('운영에서 보는 500 등 그 밖의 오류도 조용히 null — 배지를 숨긴다', async () => {
     server.use(
       http.get('*/api/v1/robots/availability', () =>
         HttpResponse.json({ success: false, data: null, error: null }, { status: 500 }),
       ),
     );
 
-    await expect(getRobotAvailability()).rejects.toMatchObject({ status: 500 });
+    await expect(getRobotAvailability()).resolves.toBeNull();
+  });
+
+  it('네트워크 오류(서버 응답 없음)도 조용히 null', async () => {
+    server.use(http.get('*/api/v1/robots/availability', () => HttpResponse.error()));
+
+    await expect(getRobotAvailability()).resolves.toBeNull();
   });
 
   it('10초마다 다시 묻는다', () => {
