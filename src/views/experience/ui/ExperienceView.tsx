@@ -35,7 +35,10 @@ import {
   useSimulateProgram,
 } from '@/features/simulation';
 
+import type { AiProgramDraft } from '@/features/ai';
+
 import { BlockDragProvider } from '../lib/useBlockDrag';
+import { applyAiDraft, buildAiHintRequest } from '../model/aiDraft';
 import {
   INITIAL_PROGRAM,
   draftToProgram,
@@ -49,6 +52,7 @@ import {
 import { guideStep } from '../model/guide';
 import { kindsForServerTypes } from '../model/missionBlocks';
 import type { BlockParamPatch } from './BlockStack';
+import { AiAssistant } from './AiAssistant';
 import { MissionBanner } from './MissionBanner';
 import { BlockPalette } from './BlockPalette';
 import { BlockWorkspace } from './BlockWorkspace';
@@ -329,6 +333,14 @@ export function ExperienceView() {
     invalidate();
   };
 
+  // AI 도우미 "캔버스에 넣기" — 시작·종료는 유지하고 그 사이·떠 있는 블록을 초안으로 바꾼다.
+  // 기존 블록 변경과 같은 흐름으로 invalidate 해 시뮬레이션부터 다시 거친다.
+  const applyAiDraftToProgram = (draft: AiProgramDraft) => {
+    setValueEdited(true);
+    setProgram((current) => applyAiDraft(current, draft));
+    invalidate();
+  };
+
   const router = useRouter();
 
   // 전체 지우기 — 시작·종료만 남긴다.
@@ -430,6 +442,13 @@ export function ExperienceView() {
           />
         </div>
       </BlockDragProvider>
+      <AiAssistant
+        hideForRun={simulationPassed}
+        hintRequest={
+          simulationResult && !simulationResult.passed ? buildAiHintRequest(simulationResult) : null
+        }
+        onApplyDraft={applyAiDraftToProgram}
+      />
     </div>
   );
 }
