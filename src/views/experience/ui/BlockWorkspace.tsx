@@ -7,9 +7,11 @@ import type { SimulationResult } from '@/features/simulation';
 import { useBlockDrag } from '../lib/useBlockDrag';
 import { type BlockError, type BlockProgram } from '../model/blockProgram';
 import type { GuideStep } from '../model/guide';
+import type { QuickStartTemplateId } from '../model/quickStart';
 import { BlockOutline } from './Block';
 import { BlockStack, type BlockParamPatch } from './BlockStack';
 import { DragHint, GuideBar } from './GuideBar';
+import { QuickStartBar } from './QuickStartBar';
 import { SimulationResultSummary } from './SimulationResultSummary';
 import { PillButton, Tooltip } from '@/shared/ui';
 
@@ -39,6 +41,8 @@ type BlockWorkspaceProps = {
   /** 첫 진입 끌어오기 손가락 애니메이션을 보여줄지 */
   showDragHint?: boolean;
   onDragHintDone?: () => void;
+  /** 빠른 시작 템플릿 적용 (체험 시간 단축). 주면 캔버스 위에 템플릿 버튼을 보여준다. */
+  onQuickStart?: (templateId: QuickStartTemplateId) => void;
 };
 
 export function BlockWorkspace({
@@ -55,6 +59,7 @@ export function BlockWorkspace({
   mission,
   showDragHint = false,
   onDragHintDone,
+  onQuickStart,
 }: BlockWorkspaceProps) {
   const { dragging, startDrag, registerStack, registerCanvas, registerTrash } = useBlockDrag();
 
@@ -70,6 +75,7 @@ export function BlockWorkspace({
 
   return (
     <section className="bg-page flex flex-1 flex-col" aria-label="블록 워크스페이스">
+      {onQuickStart && <QuickStartBar onApply={onQuickStart} />}
       {/* 안내 띠(단계 안내 / 오류 / 미션 목표) + 실행 버튼. */}
       <div className="flex items-start justify-between gap-4 px-8 py-1">
         <GuideBar
