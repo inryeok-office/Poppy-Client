@@ -13,6 +13,7 @@ import {
 import {
   RECOMMENDED_COMPOSITION,
   clearSelectedMissionId,
+  isMissionsEnabled,
   readSelectedMissionId,
   useMission,
 } from '@/features/mission';
@@ -122,7 +123,10 @@ export function ExperienceView() {
 
   // 미션 모드 — 고른 미션의 허용 블록만 팔레트에 보이고 검증한다(세션 API 에 미션 저장 계약이
   // 없어 브라우저에만 보관). 미션 정보를 못 불러오면 자유 모드처럼 동작한다.
-  const [missionId, setMissionId] = useState<string | null>(readSelectedMissionId);
+  // 미션 기능이 꺼져 있으면(행사 회고 — 현재 작동하지 않음) 저장된 선택을 무시하고 자유 체험으로 연다.
+  const [missionId, setMissionId] = useState<string | null>(() =>
+    isMissionsEnabled() ? readSelectedMissionId() : null,
+  );
   const mission = useMission(missionId);
   const missionDetail = missionId !== null ? mission.data : undefined;
   const allowedKinds = useMemo(

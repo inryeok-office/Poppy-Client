@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useId, useState, type FormEvent } from 'react';
 
-import { clearSelectedMissionId } from '@/features/mission';
+import { clearSelectedMissionId, isMissionsEnabled } from '@/features/mission';
 import { useRestoreSession, useStartNewExperience } from '@/features/session';
 import { readSessionCredentials } from '@/shared/api';
 import { ApiError } from '@/shared/api';
@@ -62,13 +62,15 @@ export function IntroView() {
         <PoppyLogo className="h-auto w-60 max-w-full" />
       </div>
 
-      <Link
-        href="/missions"
-        onClick={startFresh}
-        className="inline-flex items-center rounded-[20px] border border-[#3a1710] px-10 py-4 text-lg text-[#3a1710] transition-colors duration-150 hover:bg-[#f3e6d6] focus-visible:ring-2 focus-visible:ring-[#3a1710] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf4ea] focus-visible:outline-none"
-      >
-        미션 골라서 도전하기
-      </Link>
+      {isMissionsEnabled() && (
+        <Link
+          href="/missions"
+          onClick={startFresh}
+          className="inline-flex items-center rounded-[20px] border border-[#3a1710] px-10 py-4 text-lg text-[#3a1710] transition-colors duration-150 hover:bg-[#f3e6d6] focus-visible:ring-2 focus-visible:ring-[#3a1710] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbf4ea] focus-visible:outline-none"
+        >
+          미션 골라서 도전하기
+        </Link>
+      )}
 
       <Link
         href="/experience"
