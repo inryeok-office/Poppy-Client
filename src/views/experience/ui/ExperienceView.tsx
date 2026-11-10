@@ -102,6 +102,7 @@ const SAVE_BLOCKED_REASON: Record<BlockErrorCode, string> = {
   'empty-repeat': '반복 블록 안을 채우면 저장돼요',
   'invalid-value': '빨간 칸의 값을 고치면 저장돼요',
   'not-allowed-in-mission': '미션에서 쓸 수 없는 블록을 빼면 저장돼요',
+  'sit-disabled': '앉기 블록을 빼면 저장돼요',
 };
 
 export function ExperienceView() {
