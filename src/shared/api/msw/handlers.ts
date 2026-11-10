@@ -1,5 +1,6 @@
 import type { HttpHandler } from 'msw';
 
+import { aiHandlers } from '@/features/ai';
 import { executionHandlers } from '@/features/execution';
 import { missionHandlers } from '@/features/mission';
 import { robotHandlers } from '@/features/robot';
@@ -13,4 +14,5 @@ export const handlers: HttpHandler[] = [
   ...sessionHandlers,
   ...missionHandlers,
   ...robotHandlers,
+  ...aiHandlers,
 ];
