@@ -22,16 +22,26 @@ export type AiStep =
 /** 초안·힌트가 로컬 규칙 기반인지, 원격(Server LLM) 응답인지. */
 export type AiSource = 'local' | 'remote';
 
+/** remote 모드에서 원격을 쓰지 못하고 local 로 대신한 이유(화면 표시·디버깅용).
+ *  - unavailable: Server 503(AI_UNAVAILABLE)·5xx·네트워크 오류·타임아웃
+ *  - rejected: Server 400(AI_INPUT_INVALID / AI_INPUT_REJECTED)
+ *  - invalid-response: 200 이지만 응답이 validateAiSteps·형식 검증을 통과하지 못함 */
+export type AiFallbackReason = 'unavailable' | 'rejected' | 'invalid-response';
+
 export type AiProgramDraft = {
   steps: AiStep[];
   /** 아이에게 보여줄 한 줄 설명(범위를 맞춘 이유 등을 덧붙인다). */
   explanation: string;
   source: AiSource;
+  /** remote 모드에서 local 로 대신했을 때만 있다. */
+  fallback?: AiFallbackReason;
 };
 
 export type AiHint = {
   message: string;
   source: AiSource;
+  /** remote 모드에서 local 로 대신했을 때만 있다. */
+  fallback?: AiFallbackReason;
 };
 
 export type AiHintRequest = {

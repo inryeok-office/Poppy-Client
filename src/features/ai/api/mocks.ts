@@ -1,5 +1,6 @@
 // MSW dev mock — remote 모드를 로컬에서 테스트해 볼 수 있게, Server 가 없을 때 같은 계약으로
-// planner/hint 결과를 돌려준다. 실제 Server LLM 이 생기면 이 핸들러만 걷어낸다.
+// planner/hint 결과를 돌려준다. 못 알아들은 문장은 계약(AI_API.md §3)대로 503 AI_UNAVAILABLE.
+// 실제 Server LLM 이 생기면 이 핸들러만 걷어낸다.
 
 import { HttpResponse, http } from 'msw';
 
@@ -17,9 +18,9 @@ export const aiHandlers = [
         {
           success: false,
           data: null,
-          error: { code: 'AI_UNRECOGNIZED', message: result.reason, fieldErrors: null },
+          error: { code: 'AI_UNAVAILABLE', message: result.reason, fieldErrors: [] },
         },
-        { status: 422 },
+        { status: 503 },
       );
     }
     return HttpResponse.json({
