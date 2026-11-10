@@ -52,6 +52,7 @@ import {
 } from '../model/blockProgram';
 import { guideStep } from '../model/guide';
 import { kindsForServerTypes } from '../model/missionBlocks';
+import { applyQuickStartTemplate, type QuickStartTemplateId } from '../model/quickStart';
 import type { BlockParamPatch } from './BlockStack';
 import { AiAssistant } from './AiAssistant';
 import { MissionBanner } from './MissionBanner';
@@ -338,6 +339,14 @@ export function ExperienceView() {
     invalidate();
   };
 
+  // 빠른 시작 템플릿 — 시작·종료는 유지하고 그 사이·떠 있는 블록을 템플릿으로 바꾼다
+  // (체험 시간 단축). 다른 블록 변경과 같은 흐름대로 invalidate 한다.
+  const applyQuickStart = (templateId: QuickStartTemplateId) => {
+    setValueEdited(true);
+    setProgram((current) => applyQuickStartTemplate(current, templateId));
+    invalidate();
+  };
+
   // AI 도우미 "캔버스에 넣기" — 시작·종료는 유지하고 그 사이·떠 있는 블록을 초안으로 바꾼다.
   // 기존 블록 변경과 같은 흐름으로 invalidate 해 시뮬레이션부터 다시 거친다.
   const applyAiDraftToProgram = (draft: AiProgramDraft) => {
@@ -432,6 +441,7 @@ export function ExperienceView() {
               }
               showDragHint={showDragHint && preview.blockCount === 0}
               onDragHintDone={finishDragHint}
+              onQuickStart={applyQuickStart}
             />
           )}
           <RobotPreview
