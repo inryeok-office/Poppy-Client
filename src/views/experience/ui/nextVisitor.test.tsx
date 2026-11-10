@@ -20,6 +20,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 afterEach(() => {
   push.mockReset();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 function seedPreviousVisitor() {
@@ -118,6 +119,8 @@ describe('공용 PC 기록 초기화', () => {
   it.each(['체험하러 가기', '미션 골라서 도전하기'])(
     '인트로 "%s"는 새 체험으로 시작한다',
     (name) => {
+      // 미션 진입점은 NEXT_PUBLIC_MISSIONS_ENABLED=true 일 때만 보인다.
+      vi.stubEnv('NEXT_PUBLIC_MISSIONS_ENABLED', 'true');
       seedPreviousVisitor();
       withQuery(<IntroView />);
       fireEvent.click(screen.getByRole('link', { name: new RegExp(name) }));

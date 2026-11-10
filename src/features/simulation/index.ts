@@ -22,6 +22,7 @@ export {
 } from './model/safety';
 export type {
   SafetyViolation,
+  SafetyViolationCode,
   SerializedBlockNode,
   SerializedBlockProgram,
   SimulationRequest,

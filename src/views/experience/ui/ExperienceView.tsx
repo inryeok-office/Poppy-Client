@@ -13,6 +13,7 @@ import {
 import {
   RECOMMENDED_COMPOSITION,
   clearSelectedMissionId,
+  isMissionsEnabled,
   readSelectedMissionId,
   useMission,
 } from '@/features/mission';
@@ -35,7 +36,10 @@ import {
   useSimulateProgram,
 } from '@/features/simulation';
 
+import type { AiProgramDraft } from '@/features/ai';
+
 import { BlockDragProvider } from '../lib/useBlockDrag';
+import { applyAiDraft, buildAiHintRequest } from '../model/aiDraft';
 import {
   INITIAL_PROGRAM,
   draftToProgram,
@@ -49,6 +53,7 @@ import {
 import { guideStep } from '../model/guide';
 import { kindsForServerTypes } from '../model/missionBlocks';
 import type { BlockParamPatch } from './BlockStack';
+import { AiAssistant } from './AiAssistant';
 import { MissionBanner } from './MissionBanner';
 import { BlockPalette } from './BlockPalette';
 import { BlockWorkspace } from './BlockWorkspace';
@@ -98,6 +103,7 @@ const SAVE_BLOCKED_REASON: Record<BlockErrorCode, string> = {
   'empty-repeat': '반복 블록 안을 채우면 저장돼요',
   'invalid-value': '빨간 칸의 값을 고치면 저장돼요',
   'not-allowed-in-mission': '미션에서 쓸 수 없는 블록을 빼면 저장돼요',
+  'sit-disabled': '앉기 블록을 빼면 저장돼요',
 };
 
 export function ExperienceView() {
@@ -117,7 +123,10 @@ export function ExperienceView() {
 
   // 미션 모드 — 고른 미션의 허용 블록만 팔레트에 보이고 검증한다(세션 API 에 미션 저장 계약이
   // 없어 브라우저에만 보관). 미션 정보를 못 불러오면 자유 모드처럼 동작한다.
-  const [missionId, setMissionId] = useState<string | null>(readSelectedMissionId);
+  // 미션 기능이 꺼져 있으면(행사 회고 — 현재 작동하지 않음) 저장된 선택을 무시하고 자유 체험으로 연다.
+  const [missionId, setMissionId] = useState<string | null>(() =>
+    isMissionsEnabled() ? readSelectedMissionId() : null,
+  );
   const mission = useMission(missionId);
   const missionDetail = missionId !== null ? mission.data : undefined;
   const allowedKinds = useMemo(
@@ -329,6 +338,14 @@ export function ExperienceView() {
     invalidate();
   };
 
+  // AI 도우미 "캔버스에 넣기" — 시작·종료는 유지하고 그 사이·떠 있는 블록을 초안으로 바꾼다.
+  // 기존 블록 변경과 같은 흐름으로 invalidate 해 시뮬레이션부터 다시 거친다.
+  const applyAiDraftToProgram = (draft: AiProgramDraft) => {
+    setValueEdited(true);
+    setProgram((current) => applyAiDraft(current, draft));
+    invalidate();
+  };
+
   const router = useRouter();
 
   // 전체 지우기 — 시작·종료만 남긴다.
@@ -430,6 +447,13 @@ export function ExperienceView() {
           />
         </div>
       </BlockDragProvider>
+      <AiAssistant
+        hideForRun={simulationPassed}
+        hintRequest={
+          simulationResult && !simulationResult.passed ? buildAiHintRequest(simulationResult) : null
+        }
+        onApplyDraft={applyAiDraftToProgram}
+      />
     </div>
   );
 }

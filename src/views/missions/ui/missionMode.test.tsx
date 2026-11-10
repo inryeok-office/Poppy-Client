@@ -33,6 +33,7 @@ function withQuery(ui: ReactNode) {
 afterEach(() => {
   push.mockReset();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe('미션 허용 블록', () => {
@@ -111,7 +112,17 @@ describe('미션 목록·상세', () => {
 });
 
 describe('편집기 미션 모드', () => {
-  it('고른 미션의 배너와 허용 블록만 보이고, 자유 체험으로 바꾸면 전부 보인다', async () => {
+  it('미션 기능이 꺼져 있으면(기본값) 저장된 선택을 무시하고 자유 체험으로 연다', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(rectFor);
+    writeSelectedMissionId(DELIVERY);
+    withQuery(<ExperienceView />);
+
+    expect(screen.queryByRole('region', { name: '진행 중인 미션' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '흐름' })).toBeInTheDocument();
+  });
+
+  it('미션 기능을 켜면(NEXT_PUBLIC_MISSIONS_ENABLED=true) 고른 미션의 배너와 허용 블록만 보이고, 자유 체험으로 바꾸면 전부 보인다', async () => {
+    vi.stubEnv('NEXT_PUBLIC_MISSIONS_ENABLED', 'true');
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(rectFor);
     writeSelectedMissionId(DELIVERY);
     withQuery(<ExperienceView />);
@@ -131,7 +142,17 @@ describe('편집기 미션 모드', () => {
 });
 
 describe('시작 화면', () => {
-  it('미션 도전은 /missions, 자유 체험은 고른 미션을 지우고 /experience', () => {
+  it('미션 기능이 꺼져 있으면(기본값) "미션 골라서 도전하기"가 안 보인다', () => {
+    withQuery(<IntroView />);
+    expect(screen.queryByRole('link', { name: '미션 골라서 도전하기' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /체험하러 가기/ })).toHaveAttribute(
+      'href',
+      '/experience',
+    );
+  });
+
+  it('미션 기능을 켜면 미션 도전은 /missions, 자유 체험은 고른 미션을 지우고 /experience', () => {
+    vi.stubEnv('NEXT_PUBLIC_MISSIONS_ENABLED', 'true');
     writeSelectedMissionId(DELIVERY);
     withQuery(<IntroView />);
     expect(screen.getByRole('link', { name: '미션 골라서 도전하기' })).toHaveAttribute(

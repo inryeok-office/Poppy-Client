@@ -16,6 +16,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 afterEach(() => {
   push.mockReset();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 function renderView() {
@@ -138,6 +139,7 @@ describe('첫 진입 끌어오기 손가락', () => {
 
 describe('미션 모드 — 목표 + 힌트 보기', () => {
   it('목표를 보여주고, 힌트는 처음 2개만, 더 보기로 전체', async () => {
+    vi.stubEnv('NEXT_PUBLIC_MISSIONS_ENABLED', 'true');
     writeSelectedMissionId('fca33818-b066-44de-be7d-8afd113e47a9'); // 사각 순찰대
     renderView();
 
