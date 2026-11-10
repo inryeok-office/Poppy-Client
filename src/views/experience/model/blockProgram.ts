@@ -482,11 +482,18 @@ export type BlockErrorCode =
   | 'unsupported-block'
   | 'empty-repeat'
   | 'invalid-value'
-  | 'not-allowed-in-mission';
+  | 'not-allowed-in-mission'
+  | 'sit-disabled';
 
 /** Poppy-Server 블록 계약에 대응 타입이 없는 종류 (toServerBlockProgram 참고 — 검증된 프리셋이
  *  없어 팔레트에서도 숨겼다). 여기 없는 종류만 저장·시뮬레이션을 진행한다. */
 const SERVER_UNSUPPORTED_KINDS: readonly BlockKind[] = ['roll', 'attack'];
+
+/** 앉기 블록이 운영 중 Agent 를 잠그는 문제가 있어 기본으로 막는다(행사 회고). 값을 "true"로
+ *  주면 다시 켤 수 있다. 팔레트(BlockPalette)·검증(validateBlockProgram)이 같은 기준을 쓴다. */
+export function isSitBlockEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_ENABLE_SIT_BLOCK === 'true';
+}
 
 /** 입(body)이 빈 반복 블록이 있는지 (반복 중첩은 금지라 한 단계만 본다). */
 export function isEmptyRepeat(node: BlockNode): boolean {
@@ -543,6 +550,12 @@ export function validateBlockProgram(
     errors.push({
       code: 'invalid-value',
       message: '허용 범위를 벗어난 값이 있어요. 빨간 칸을 고쳐 주세요.',
+    });
+  }
+  if (!isSitBlockEnabled() && countKind(allNodes, 'sit') > 0) {
+    errors.push({
+      code: 'sit-disabled',
+      message: '지금은 앉기를 쓸 수 없어요. 앉기 블록을 빼 주세요.',
     });
   }
   if (allowedKinds) {
