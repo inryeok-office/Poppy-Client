@@ -7,7 +7,7 @@ import {
 } from '@/features/simulation';
 
 // Figma node 21:520 (Dev 모드 좌표 그대로). 격자 박스(Rectangle 19) 기준 상대 좌표:
-//   격자선  Frame 19 세로줄 x=21..229 / Frame 20 가로줄 y=11..167 (둘 다 26px 간격)
+//   격자선  Figma 의 장식용 26px 격자 대신, 실물 매트와 같은 0.5m 격자를 공간 안에 그린다(#71).
 //   전체화면 아이콘 x=213 y=142 24×24 → 우/하 12px
 // 패널: 폭 313(좌측 구분선 1.5 + 좌패딩 30.5 + 콘텐츠 249 + 우패딩 32), 상패딩 18.
 // 제목/격자박스/스탯 세로 배치: 제목 y18(h16) → 격자박스 y46(h178) → 스탯 y256 (행 18 · 피치 34).
@@ -21,6 +21,18 @@ const toPx = ({ xM, yM }: ArenaPoint) => ({
   x: ARENA_LEFT_PX + xM * PX_PER_M,
   y: ARENA_TOP_PX + (ARENA.depthM - yM) * PX_PER_M,
 });
+
+/** 실물 트랙 매트의 격자 간격 (m). 미리보기 격자도 같은 간격으로 그린다(#71). */
+export const GRID_STEP_M = 0.5;
+
+/** 공간 안쪽 격자선 위치 (m, 경계 제외). 1m 마다 굵게 그린다. */
+function gridPositions(lengthM: number): { m: number; major: boolean }[] {
+  const count = Math.round(lengthM / GRID_STEP_M);
+  return Array.from({ length: count - 1 }, (_, index) => {
+    const m = (index + 1) * GRID_STEP_M;
+    return { m, major: Math.abs(m - Math.round(m)) < 1e-9 };
+  });
+}
 
 const POSTURE_LABEL: Record<Posture, string> = { standing: '서있기', sitting: '앉기' };
 
@@ -71,6 +83,7 @@ export function RobotPreview({
   const pathPx = path.map(toPx);
   const finalPx = pathPx[pathPx.length - 1];
   const failurePx = failurePoint ? toPx(failurePoint) : null;
+  const startPx = toPx({ xM: ARENA.startXM, yM: ARENA.startYM });
 
   return (
     <aside
@@ -105,21 +118,48 @@ export function RobotPreview({
       {/* 격자 박스 (Rectangle 19: 249×178 · radius 12). 제목 텍스트(하단 y32) 아래 14px → y46. */}
       <div
         role="img"
-        aria-label={`로봇 위치 미리보기 (${zoneLabel})`}
+        aria-label={`로봇 위치 미리보기 (${zoneLabel}, 격자 ${GRID_STEP_M}m)`}
         className="border-line bg-card relative mt-[14px] h-[178px] w-full overflow-hidden rounded-[12px] border"
       >
-        {/* 격자선: Frame 19 세로줄 x=21부터 · Frame 20 가로줄 y=11부터 · 26px 간격 (박스 기준 절대 위치). */}
-        <div
-          aria-hidden
-          className="absolute inset-0 bg-[linear-gradient(to_right,#e4ddd2_1px,transparent_1px),linear-gradient(to_bottom,#e4ddd2_1px,transparent_1px)] bg-size-[26px_26px] bg-position-[21px_11px] opacity-70"
-        />
-
         <span className="text-muted absolute top-3 right-3 w-[60px] text-right text-[12px] leading-tight">
           {zoneLabel}
         </span>
 
-        {/* 공간 경계·벽 여유·경로·최종 위치와 방향·실패 지점. */}
+        {/* 공간 경계·0.5m 격자·벽 여유·출발점·경로·최종 위치와 방향·실패 지점.
+            격자는 시뮬레이션 좌표(원점 왼쪽 아래, m)를 그대로 toPx 로 옮겨 실물 매트와 같은 0.5m 간격이다(#71). */}
         <svg aria-hidden viewBox="0 0 249 178" className="absolute inset-0 size-full">
+          <g data-testid="arena-grid" className="stroke-[#e4ddd2]">
+            {gridPositions(ARENA.widthM).map(({ m, major }) => {
+              const { x } = toPx({ xM: m, yM: 0 });
+              return (
+                <line
+                  key={`x${m}`}
+                  data-axis="x"
+                  data-m={m}
+                  x1={x}
+                  x2={x}
+                  y1={ARENA_TOP_PX}
+                  y2={ARENA_TOP_PX + ARENA.depthM * PX_PER_M}
+                  strokeWidth={major ? 1 : 0.5}
+                />
+              );
+            })}
+            {gridPositions(ARENA.depthM).map(({ m, major }) => {
+              const { y } = toPx({ xM: 0, yM: m });
+              return (
+                <line
+                  key={`y${m}`}
+                  data-axis="y"
+                  data-m={m}
+                  x1={ARENA_LEFT_PX}
+                  x2={ARENA_LEFT_PX + ARENA.widthM * PX_PER_M}
+                  y1={y}
+                  y2={y}
+                  strokeWidth={major ? 1 : 0.5}
+                />
+              );
+            })}
+          </g>
           <rect
             x={ARENA_LEFT_PX}
             y={ARENA_TOP_PX}
@@ -135,6 +175,22 @@ export function RobotPreview({
             strokeDasharray="4 3"
             className="stroke-muted fill-none"
           />
+          <circle
+            data-testid="arena-start"
+            cx={startPx.x}
+            cy={startPx.y}
+            r={4}
+            strokeWidth={1.5}
+            className="stroke-success fill-none"
+          />
+          <text
+            x={startPx.x - 6}
+            y={startPx.y - 6}
+            textAnchor="end"
+            className="fill-success text-[8px]"
+          >
+            출발
+          </text>
           <polyline
             data-testid="robot-path"
             points={pathPx.map(({ x, y }) => `${x},${y}`).join(' ')}
