@@ -7,8 +7,10 @@ import {
   sanitizeAiInput,
   useGenerateAiHint,
   useGenerateAiProgramDraft,
+  type AiFallbackReason,
   type AiHintRequest,
   type AiProgramDraft,
+  type AiSource,
 } from '@/features/ai';
 import { PillButton } from '@/shared/ui';
 
@@ -19,6 +21,15 @@ import { describeAiStep } from '../model/aiDraft';
 //   - 로봇 명령·실행 요청은 절대 보내지 않는다. 출력은 블록 초안 또는 힌트 문장뿐.
 //   - 초안은 "캔버스에 넣기"를 눌러야 반영된다(미리 보여주고 사용자가 확정).
 //   - off 모드면 아예 렌더하지 않는다.
+
+/** 결과가 어디서 왔는지 한 줄로 보여준다(#67 — remote 성공·실패·대체를 구분). */
+export function aiSourceLabel(source: AiSource, fallback?: AiFallbackReason): string {
+  if (source === 'remote') return 'AI 모델이 만들었어요';
+  if (fallback === 'rejected') return 'AI가 이 문장은 받지 않아서 기본 규칙으로 만들었어요';
+  if (fallback === 'invalid-response') return 'AI 답이 규칙에 맞지 않아 기본 규칙으로 만들었어요';
+  if (fallback) return 'AI 서버에 연결하지 못해 기본 규칙으로 만들었어요';
+  return '기본 규칙으로 만들었어요';
+}
 
 const EXAMPLES = ['네모를 그리면서 걸어 줘', '앞으로 1m 가고 왼쪽으로 돌아', '인사하고 하트 세 번'];
 
@@ -58,6 +69,7 @@ export function AiAssistant({ hideForRun, hintRequest, onApplyDraft }: AiAssista
   if (mode === 'off' || hideForRun) return null;
 
   const makeDraft = () => {
+    if (draftMutation.isPending) return;
     const clean = sanitizeAiInput(utterance);
     if (clean.length === 0) return;
     setNotice(null);
@@ -120,6 +132,9 @@ export function AiAssistant({ hideForRun, hintRequest, onApplyDraft }: AiAssista
           {draft && (
             <div className="border-line bg-page flex flex-col gap-2 rounded-lg border p-3">
               <p className="text-ink text-[13px]">{draft.explanation}</p>
+              <p className="text-muted text-[11px]" data-testid="ai-draft-source">
+                {aiSourceLabel(draft.source, draft.fallback)}
+              </p>
               <ol className="text-muted flex flex-col gap-1 text-[13px]">
                 {draft.steps.map((step, index) => (
                   <li key={index}>{describeAiStep(step)}</li>
@@ -140,6 +155,11 @@ export function AiAssistant({ hideForRun, hintRequest, onApplyDraft }: AiAssista
               <p className="text-ink text-[13px]">
                 {hintMutation.isPending ? '힌트를 생각하고 있어요…' : hintMutation.data?.message}
               </p>
+              {!hintMutation.isPending && hintMutation.data && (
+                <p className="text-muted mt-1 text-[11px]" data-testid="ai-hint-source">
+                  {aiSourceLabel(hintMutation.data.source, hintMutation.data.fallback)}
+                </p>
+              )}
             </div>
           )}
         </div>

@@ -1,4 +1,4 @@
-# AI 도우미 (소프트웨이브 신청용 틀)
+# AI 도우미
 
 체험자가 말(문장)로 블록 초안을 만들거나, 시뮬레이션이 실패했을 때 쉬운 힌트를 받는 보조
 기능. 이 문서는 Client 쪽 구현 원칙과 모드, 그리고 Server(Poppy-Server)가 실제 LLM 연동을
@@ -33,9 +33,44 @@
 | `remote` | Server를 먼저 시도한다. 호출 실패나 `validateAiSteps` 검증 실패 시 조용히
   `local`로 대체한다. |
 
+### 응답 출처 표시 (#67)
+
+초안·힌트 아래에 어디서 만들어졌는지 한 줄로 보인다(`aiSourceLabel`).
+
+| 상황 | `source` / `fallback` | 표시 |
+| --- | --- | --- |
+| Server(AI 모델) 성공 + 검증 통과 | `remote` | AI 모델이 만들었어요 |
+| local 모드 | `local` | 기본 규칙으로 만들었어요 |
+| remote 모드, 503·5xx·404·네트워크 오류·타임아웃 | `local` / `unavailable` | AI 서버에 연결하지 못해 기본 규칙으로 만들었어요 |
+| remote 모드, 400 (`AI_INPUT_INVALID`·`AI_INPUT_REJECTED`) | `local` / `rejected` | AI가 이 문장은 받지 않아서 기본 규칙으로 만들었어요 |
+| remote 모드, 200 이지만 블록·설명 검증 실패 | `local` / `invalid-response` | AI 답이 규칙에 맞지 않아 기본 규칙으로 만들었어요 |
+
+로딩 중에는 버튼이 "만드는 중…"(힌트는 "힌트를 생각하고 있어요…")으로 바뀌고 중복 요청을
+보내지 않는다. 어떤 출처든 "캔버스에 넣기"를 눌러야 반영되고, 반영 후에는 기존과 같이
+시뮬레이션(안전 검증)을 다시 통과해야 실행할 수 있다.
+
+### 출품 데모 운영 절차 (remote)
+
+1. Poppy-Server 에 S1(`/api/v1/ai/*`)이 배포되고 추론 서비스가 떠 있는지 확인한다
+   (Server 쪽 `GET {POPPY_AI_INFERENCE_URL}/health`, 또는 체험 화면에서 초안 출처가 "AI 모델"로 나오는지).
+2. Vercel 프로젝트 `poppy-client` 의 Production 환경 변수 `NEXT_PUBLIC_AI_MODE=remote` 로 바꾸고
+   다시 배포한다(`NEXT_PUBLIC_*` 는 빌드 때 박히므로 재배포가 필요하다).
+3. 행사 중 추론 서비스가 죽어도 화면은 "AI 서버에 연결하지 못해 기본 규칙으로…"로 계속 동작한다.
+   오래 걸리는 요청은 6초에서 끊고 로컬로 대신한다. 아예 끄려면 `NEXT_PUBLIC_AI_MODE=local`(또는 `off`)
+   로 바꾸고 재배포한다.
+4. 진행요원은 출처 문구로 지금 AI 모델이 동작 중인지 바로 구분할 수 있다.
+
 ## Server 계약
 
 브라우저는 아래 두 엔드포인트만 호출한다 (기존 `{success, data, error}` envelope).
+Server 쪽 확정 계약(오류 코드·타임아웃·503)은 Poppy-Server S1 문서(AI_API.md)를 따른다. 요약:
+
+- 오류: 400 `AI_INPUT_INVALID`·`AI_INPUT_REJECTED`, 503 `AI_UNAVAILABLE`(추론 서비스 없음·실패·타임아웃·
+  출력 검증 실패). Client 는 어느 경우든 로컬 규칙으로 대신한다.
+- 타임아웃: Server S1 전체 상한 5초, Client 요청 타임아웃 6초(`AI_REQUEST_TIMEOUT_MS`).
+- 힌트 요청 한도: `programLines` 최대 40줄·줄당 100자, `violationMessage` 300자. `violationCode` 는
+  `exceeds-safe-zone · exceeds-time · moves-while-sitting` 만 보낸다(`invalid-values` 는 빼고 보낸다).
+- `explanation`·`message` 는 1~200자. 비어 있으면 Client 는 응답 형식 오류로 보고 로컬로 대신한다.
 
 ### `POST /api/v1/ai/program-drafts`
 
