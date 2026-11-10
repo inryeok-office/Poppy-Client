@@ -7,6 +7,7 @@ import {
   DEFAULT_REPEAT_COUNT,
   DEFAULT_ROTATE_DEG,
   DEFAULT_WAIT_SECONDS,
+  isSitBlockEnabled,
   newBlock,
   type BlockKind,
 } from '../model/blockProgram';
@@ -88,7 +89,8 @@ type BlockPaletteProps = {
 };
 
 export function BlockPalette({ allowedKinds }: BlockPaletteProps = {}) {
-  const shows = (kind: BlockKind) => !allowedKinds || allowedKinds.has(kind);
+  const shows = (kind: BlockKind) =>
+    (!allowedKinds || allowedKinds.has(kind)) && (kind !== 'sit' || isSitBlockEnabled());
   const categories = CATEGORIES.filter((c) => CATEGORY_KINDS[c.label].some(shows));
   const [picked, setCategory] = useState<CategoryLabel>('흐름');
   // 고른 카테고리가 이 미션에 없으면 보이는 첫 카테고리를 쓴다.

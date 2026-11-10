@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   INITIAL_PROGRAM,
@@ -10,6 +10,7 @@ import {
   dropOnCanvas,
   dropOnSlot,
   isBlockProgramSnapshot,
+  isSitBlockEnabled,
   newBlock,
   serializeProgram,
   setBlockParam,
@@ -54,8 +55,38 @@ describe('INITIAL_PROGRAM — 시작 → (빈 자리) → 종료 고정 구조',
 });
 
 describe('validateBlockProgram', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('시작~종료가 이어지고 자유 블록이 없으면 오류가 없다', () => {
     expect(validateBlockProgram(connected)).toEqual([]);
+  });
+
+  it('앉기 블록이 기본(NEXT_PUBLIC_ENABLE_SIT_BLOCK 꺼짐)으로는 막힌다', () => {
+    expect(isSitBlockEnabled()).toBe(false);
+    const program: BlockProgram = {
+      stack: [node('start', 's'), node('sit', 'sit-1'), node('end', 'e')],
+      floating: [],
+    };
+    expect(validateBlockProgram(program).map((error) => error.code)).toContain('sit-disabled');
+  });
+
+  it('NEXT_PUBLIC_ENABLE_SIT_BLOCK=true 면 앉기 블록을 막지 않는다', () => {
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_SIT_BLOCK', 'true');
+    const program: BlockProgram = {
+      stack: [node('start', 's'), node('sit', 'sit-1'), node('end', 'e')],
+      floating: [],
+    };
+    expect(validateBlockProgram(program)).toEqual([]);
+  });
+
+  it('일어서기는 항상 허용된다', () => {
+    const program: BlockProgram = {
+      stack: [node('start', 's'), node('standUp', 'stand-1'), node('end', 'e')],
+      floating: [],
+    };
+    expect(validateBlockProgram(program)).toEqual([]);
   });
 
   it('자유 블록이 떠 있으면 미연결 오류', () => {

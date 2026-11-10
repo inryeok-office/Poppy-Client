@@ -187,7 +187,7 @@ export function Block({
       >
         <path d={s.path} />
       </svg>
-      <div className="absolute inset-x-0 top-0 flex h-[42px] items-center gap-1 pr-6 pl-8 text-[15px] text-white">
+      <div className="absolute inset-x-0 top-0 flex h-[42px] items-center gap-1 pr-6 pl-8 text-[15px] whitespace-nowrap text-white">
         {children}
       </div>
     </div>
@@ -221,7 +221,7 @@ export function CBlock({
         <path d={shape.path} />
       </svg>
       {/* 헤더 줄: 본체 상단 y0~38 */}
-      <div className="absolute inset-x-0 top-0 flex h-[38px] items-center gap-1 pl-8 text-[15px] text-white">
+      <div className="absolute inset-x-0 top-0 flex h-[38px] items-center gap-1 pl-8 text-[15px] whitespace-nowrap text-white">
         {header}
       </div>
       {/* 입: 좌측 팔(26px) 다음, y38~ */}
@@ -249,7 +249,7 @@ export function EmptyMouth({ invalid = false }: { invalid?: boolean }) {
         />
       </svg>
       <div
-        className={`absolute inset-x-0 top-0 flex h-[42px] items-center pr-6 pl-8 text-[13px] ${
+        className={`absolute inset-x-0 top-0 flex h-[42px] items-center pr-6 pl-8 text-[13px] whitespace-nowrap ${
           invalid ? 'text-danger' : 'text-muted'
         }`}
       >
@@ -277,7 +277,7 @@ export function GhostBlock({ children }: { children: ReactNode }) {
           strokeDasharray="4 3"
         />
       </svg>
-      <div className="text-muted absolute inset-x-0 top-0 flex h-[42px] items-center pr-6 pl-8 text-[14px]">
+      <div className="text-muted absolute inset-x-0 top-0 flex h-[42px] items-center pr-6 pl-8 text-[14px] whitespace-nowrap">
         {children}
       </div>
     </div>

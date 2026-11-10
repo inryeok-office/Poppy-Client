@@ -1,6 +1,7 @@
 export { getMission, getMissions } from './api/missionApi';
 export { useMission, useMissions } from './api/hooks';
 export { MOCK_MISSIONS, missionHandlers } from './api/mocks';
+export { isMissionsEnabled } from './lib/mode';
 export {
   clearSelectedMissionId,
   readSelectedMissionId,
