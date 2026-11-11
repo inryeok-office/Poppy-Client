@@ -11,6 +11,7 @@ import {
   dropOnSlot,
   isBlockProgramSnapshot,
   isSitBlockEnabled,
+  isStopBlockEnabled,
   newBlock,
   serializeProgram,
   setBlockParam,
@@ -70,6 +71,25 @@ describe('validateBlockProgram', () => {
       floating: [],
     };
     expect(validateBlockProgram(program).map((error) => error.code)).toContain('sit-disabled');
+  });
+
+  it('정지 블록은 기본으로 팔레트에서만 숨기고, 이미 들어 있는 프로그램은 막지 않는다', () => {
+    expect(isStopBlockEnabled()).toBe(false);
+    const program: BlockProgram = {
+      stack: [
+        node('start', 's'),
+        node('moveForward', 'm'),
+        node('stop', 'stop-1'),
+        node('end', 'e'),
+      ],
+      floating: [],
+    };
+    expect(validateBlockProgram(program)).toEqual([]);
+  });
+
+  it('NEXT_PUBLIC_ENABLE_STOP_BLOCK=true 면 정지 블록을 다시 켠다', () => {
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_STOP_BLOCK', 'true');
+    expect(isStopBlockEnabled()).toBe(true);
   });
 
   it('NEXT_PUBLIC_ENABLE_SIT_BLOCK=true 면 앉기 블록을 막지 않는다', () => {

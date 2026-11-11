@@ -27,6 +27,7 @@ function renderView() {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   push.mockReset();
 });
 
@@ -62,14 +63,33 @@ describe('문구·버튼 정리', () => {
     expect(push).not.toHaveBeenCalled();
   });
 
-  it('이동 블록 순서는 앞으로 → 뒤로 → 오른쪽 → 왼쪽 → 정지', () => {
+  const moveBlockNames = () => {
     renderView();
     fireEvent.click(screen.getByRole('button', { name: '이동' }));
     const palette = screen.getByRole('complementary', { name: '블록 팔레트' });
-    const names = within(palette)
-      .getAllByRole('button')
-      .map((b) => b.getAttribute('aria-label'))
-      .filter((n): n is string => n?.endsWith('꺼내기') ?? false);
+    return {
+      palette,
+      names: within(palette)
+        .getAllByRole('button')
+        .map((b) => b.getAttribute('aria-label'))
+        .filter((n): n is string => n?.endsWith('꺼내기') ?? false),
+    };
+  };
+
+  it('이동 블록 순서는 앞으로 → 뒤로 → 오른쪽 → 왼쪽 (정지는 기본으로 숨김)', () => {
+    const { names, palette } = moveBlockNames();
+    expect(names).toEqual([
+      '앞으로 이동 블록 꺼내기',
+      '뒤로 이동 블록 꺼내기',
+      '오른쪽으로 회전 블록 꺼내기',
+      '왼쪽으로 회전 블록 꺼내기',
+    ]);
+    expect(within(palette).queryByText('동작을 마치고 멈춰요 (비상정지 아님)')).toBeNull();
+  });
+
+  it('NEXT_PUBLIC_ENABLE_STOP_BLOCK=true 면 정지가 맨 끝에 다시 보인다', () => {
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_STOP_BLOCK', 'true');
+    const { names, palette } = moveBlockNames();
     expect(names).toEqual([
       '앞으로 이동 블록 꺼내기',
       '뒤로 이동 블록 꺼내기',
