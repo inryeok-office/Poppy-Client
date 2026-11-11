@@ -78,7 +78,7 @@ describe('validateBlockProgram', () => {
     const program: BlockProgram = {
       stack: [
         node('start', 's'),
-        node('moveForward', 'm'),
+        node('moveForward', 'm', { distanceM: 1 }),
         node('stop', 'stop-1'),
         node('end', 'e'),
       ],
