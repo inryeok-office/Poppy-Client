@@ -495,6 +495,14 @@ export function isSitBlockEnabled(): boolean {
   return process.env.NEXT_PUBLIC_ENABLE_SIT_BLOCK === 'true';
 }
 
+/** 정지 블록은 "여기서 프로그램을 끝낸다(뒤 블록은 실행하지 않는다)"는 뜻인데 체험자에게는 의미가
+ *  불분명해 기본으로 팔레트에서 숨긴다. **팔레트에서만** 숨기며 이미 저장된 프로그램·AI 초안(멈춰)·
+ *  시뮬레이션·Server 검증은 그대로다(Server 블록 카탈로그·미션이 이 블록을 전제로 한다). 미션 모드는
+ *  미션이 허용한 블록이라 계속 보인다. 값을 "true"로 주면 자유 모드에서도 다시 보인다. */
+export function isStopBlockEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_ENABLE_STOP_BLOCK === 'true';
+}
+
 /** 입(body)이 빈 반복 블록이 있는지 (반복 중첩은 금지라 한 단계만 본다). */
 export function isEmptyRepeat(node: BlockNode): boolean {
   return node.kind === 'repeat' && node.body.length === 0;
