@@ -30,10 +30,13 @@ import {
 import { robotBadgeKind, useRobotAvailability } from '@/features/robot';
 import { describeError, knownErrorMessage } from '@/shared/api';
 import {
+  ArenaProvider,
   countProgramBlocks,
   planMotion,
+  useArenaSettings,
   useRecordSimulationPass,
   useSimulateProgram,
+  type ArenaConfig,
 } from '@/features/simulation';
 
 import type { AiProgramDraft } from '@/features/ai';
@@ -107,7 +110,17 @@ const SAVE_BLOCKED_REASON: Record<BlockErrorCode, string> = {
   'sit-disabled': '앉기 블록을 빼면 저장돼요',
 };
 
+/** 체험 공간은 Server 설정을 따른다(조회 실패·로딩 중에는 6×6 기본값). 아래 모든 화면이 같은 값을 본다. */
 export function ExperienceView() {
+  const arena = useArenaSettings();
+  return (
+    <ArenaProvider arena={arena}>
+      <ExperienceViewContent arena={arena} />
+    </ArenaProvider>
+  );
+}
+
+function ExperienceViewContent({ arena }: { arena: ArenaConfig }) {
   const [{ program: startProgram, restoredDirty }] = useState(initialProgram);
   const [program, setProgram] = useState<BlockProgram>(startProgram);
   const [executionId, setExecutionId] = useState<string | null>(null);
@@ -135,8 +148,8 @@ export function ExperienceView() {
     [missionDetail],
   );
   const blockErrors = useMemo(
-    () => validateBlockProgram(program, allowedKinds),
-    [program, allowedKinds],
+    () => validateBlockProgram(program, allowedKinds, arena),
+    [program, allowedKinds, arena],
   );
 
   // 단계 안내 띠 — 접기 상태와 첫 진입 끌어오기 손가락은 이번 체험 동안만 기억한다(새 체험 시작 때 초기화).
@@ -157,8 +170,8 @@ export function ExperienceView() {
   // 로봇 미리보기 — 시뮬레이션을 돌리기 전에도 지금 프로그램으로 계산한다.
   const preview = useMemo(() => {
     const chain = serializeProgram(program).chain;
-    return { plan: planMotion(chain), blockCount: countProgramBlocks(chain) };
-  }, [program]);
+    return { plan: planMotion(chain, arena), blockCount: countProgramBlocks(chain) };
+  }, [program, arena]);
   const blockValid = blockErrors.length === 0;
 
   // ── 자동 저장 (명세 Session "프로젝트 자동 저장") ─────────────────────────────
@@ -288,7 +301,7 @@ export function ExperienceView() {
       currentVersion = await flushSave();
     }
 
-    const result = await simulation.mutateAsync({ program: serializeProgram(program) });
+    const result = await simulation.mutateAsync({ program: serializeProgram(program), arena });
     if (result.passed && session.data && currentVersion > 0) {
       await simulationPass.mutateAsync({
         sessionId: session.data.sessionId,
@@ -445,6 +458,7 @@ export function ExperienceView() {
             />
           )}
           <RobotPreview
+            arena={arena}
             blockCount={preview.blockCount}
             estimatedSeconds={preview.plan.totalSeconds}
             finalPosture={preview.plan.finalPosture}

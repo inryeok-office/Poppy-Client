@@ -1,6 +1,8 @@
 import {
-  ARENA,
+  DEFAULT_ARENA,
   describeHeading,
+  formatMeters,
+  type ArenaConfig,
   type ArenaPoint,
   type Posture,
   type SimulationStep,
@@ -16,11 +18,15 @@ import {
 // 격자 박스 안 공간 그림: 왼쪽 위 (12, 9) 부터 공간 전체를 160 px 정사각형으로 그린다. 오른쪽에는 안내 문구와 전체화면 버튼이 있다.
 const ARENA_LEFT_PX = 12;
 const ARENA_TOP_PX = 9;
-const PX_PER_M = 160 / ARENA.widthM;
-const toPx = ({ xM, yM }: ArenaPoint) => ({
-  x: ARENA_LEFT_PX + xM * PX_PER_M,
-  y: ARENA_TOP_PX + (ARENA.depthM - yM) * PX_PER_M,
-});
+/** 공간(Server 설정)에 맞춰 160 px 안에 들어오는 m → px 변환. 6×6 은 26.67 px/m 로 이전과 같다. */
+function projectionFor(arena: ArenaConfig) {
+  const pxPerM = Math.min(160 / arena.widthM, 160 / arena.depthM);
+  const toPx = ({ xM, yM }: ArenaPoint) => ({
+    x: ARENA_LEFT_PX + xM * pxPerM,
+    y: ARENA_TOP_PX + (arena.depthM - yM) * pxPerM,
+  });
+  return { pxPerM, toPx };
+}
 
 /** 실물 트랙 매트의 격자 간격 (m). 미리보기 격자도 같은 간격으로 그린다(#71). */
 export const GRID_STEP_M = 0.5;
@@ -37,6 +43,8 @@ function gridPositions(lengthM: number): { m: number; major: boolean }[] {
 const POSTURE_LABEL: Record<Posture, string> = { standing: '서있기', sitting: '앉기' };
 
 type RobotPreviewProps = {
+  /** 체험 공간(Server 설정). 없으면 6×6 기본값. */
+  arena?: ArenaConfig;
   /** 시작·종료를 뺀 블록 수 (반복은 한 번만 센다). */
   blockCount?: number;
   /** 예상 동작 시간 (s) — 이동 0.5 m/s, 회전 45°/s, 자세 3 s, 특수 동작 5 s, 대기값 합산. */
@@ -58,16 +66,19 @@ type RobotPreviewProps = {
 };
 
 export function RobotPreview({
+  arena = DEFAULT_ARENA,
   blockCount = 0,
   estimatedSeconds = 0,
   finalPosture = 'standing',
   headingDegrees = 0,
   estimatedDistanceM = 0,
-  path = [{ xM: ARENA.startXM, yM: ARENA.startYM }],
+  path: pathProp,
   failurePoint = null,
   steps,
   passed,
 }: RobotPreviewProps) {
+  const { pxPerM, toPx } = projectionFor(arena);
+  const path = pathProp ?? [{ xM: arena.startXM, yM: arena.startYM }];
   const stats = [
     { label: '자세', value: POSTURE_LABEL[finalPosture] },
     { label: '바라보는 방향', value: describeHeading(headingDegrees) },
@@ -79,11 +90,11 @@ export function RobotPreview({
   const doneCount = steps?.filter((s) => s.status === 'done').length ?? 0;
   const failedIndex = steps?.findIndex((s) => s.status === 'failed') ?? -1;
   const progressPct = total > 0 ? (doneCount / total) * 100 : 0;
-  const zoneLabel = `안전 구역 ${ARENA.widthM}m × ${ARENA.depthM}m`;
+  const zoneLabel = `안전 구역 ${formatMeters(arena.widthM)}m × ${formatMeters(arena.depthM)}m`;
   const pathPx = path.map(toPx);
   const finalPx = pathPx[pathPx.length - 1];
   const failurePx = failurePoint ? toPx(failurePoint) : null;
-  const startPx = toPx({ xM: ARENA.startXM, yM: ARENA.startYM });
+  const startPx = toPx({ xM: arena.startXM, yM: arena.startYM });
 
   return (
     <aside
@@ -129,7 +140,7 @@ export function RobotPreview({
             격자는 시뮬레이션 좌표(원점 왼쪽 아래, m)를 그대로 toPx 로 옮겨 실물 매트와 같은 0.5m 간격이다(#71). */}
         <svg aria-hidden viewBox="0 0 249 178" className="absolute inset-0 size-full">
           <g data-testid="arena-grid" className="stroke-[#e4ddd2]">
-            {gridPositions(ARENA.widthM).map(({ m, major }) => {
+            {gridPositions(arena.widthM).map(({ m, major }) => {
               const { x } = toPx({ xM: m, yM: 0 });
               return (
                 <line
@@ -139,12 +150,12 @@ export function RobotPreview({
                   x1={x}
                   x2={x}
                   y1={ARENA_TOP_PX}
-                  y2={ARENA_TOP_PX + ARENA.depthM * PX_PER_M}
+                  y2={ARENA_TOP_PX + arena.depthM * pxPerM}
                   strokeWidth={major ? 1 : 0.5}
                 />
               );
             })}
-            {gridPositions(ARENA.depthM).map(({ m, major }) => {
+            {gridPositions(arena.depthM).map(({ m, major }) => {
               const { y } = toPx({ xM: 0, yM: m });
               return (
                 <line
@@ -152,7 +163,7 @@ export function RobotPreview({
                   data-axis="y"
                   data-m={m}
                   x1={ARENA_LEFT_PX}
-                  x2={ARENA_LEFT_PX + ARENA.widthM * PX_PER_M}
+                  x2={ARENA_LEFT_PX + arena.widthM * pxPerM}
                   y1={y}
                   y2={y}
                   strokeWidth={major ? 1 : 0.5}
@@ -163,15 +174,15 @@ export function RobotPreview({
           <rect
             x={ARENA_LEFT_PX}
             y={ARENA_TOP_PX}
-            width={ARENA.widthM * PX_PER_M}
-            height={ARENA.depthM * PX_PER_M}
+            width={arena.widthM * pxPerM}
+            height={arena.depthM * pxPerM}
             className="stroke-ink fill-none"
           />
           <rect
-            x={ARENA_LEFT_PX + ARENA.marginM * PX_PER_M}
-            y={ARENA_TOP_PX + ARENA.marginM * PX_PER_M}
-            width={(ARENA.widthM - 2 * ARENA.marginM) * PX_PER_M}
-            height={(ARENA.depthM - 2 * ARENA.marginM) * PX_PER_M}
+            x={ARENA_LEFT_PX + arena.marginM * pxPerM}
+            y={ARENA_TOP_PX + arena.marginM * pxPerM}
+            width={(arena.widthM - 2 * arena.marginM) * pxPerM}
+            height={(arena.depthM - 2 * arena.marginM) * pxPerM}
             strokeDasharray="4 3"
             className="stroke-muted fill-none"
           />

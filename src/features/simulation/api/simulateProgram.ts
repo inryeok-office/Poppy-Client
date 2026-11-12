@@ -1,7 +1,8 @@
 import { api, sessionAuthHeaders, type ApiResponse } from '@/shared/api';
 import { sumOverBlockTree } from '@/shared/lib/blockTree';
 
-import { ARENA, MAX_TOTAL_SECONDS, type MotionViolationCode } from '../model/motionPlan';
+import { DEFAULT_ARENA, formatMeters, type ArenaConfig } from '../model/arena';
+import { MAX_TOTAL_SECONDS, type MotionViolationCode } from '../model/motionPlan';
 import { buildSimulationSteps, evaluateProgram } from '../model/safety';
 import type { SerializedBlockNode, SimulationRequest, SimulationResult } from '../model/types';
 
@@ -14,10 +15,10 @@ function countCommands(nodes: SerializedBlockNode[]): number {
 }
 
 /** 실행 규칙 위반 안내 (Agent controlled_motion_open 과 같은 규칙). */
-const violationMessage = (code: MotionViolationCode, index: number): string => {
+const violationMessage = (code: MotionViolationCode, index: number, arena: ArenaConfig): string => {
   switch (code) {
     case 'exceeds-safe-zone':
-      return `${index + 1}번째 블록에서 안전 구역(${ARENA.widthM}m×${ARENA.depthM}m) 밖으로 나가요. 거리를 줄이거나 방향을 바꿔 주세요.`;
+      return `${index + 1}번째 블록에서 안전 구역(${formatMeters(arena.widthM)}m×${formatMeters(arena.depthM)}m) 밖으로 나가요. 거리를 줄이거나 방향을 바꿔 주세요.`;
     case 'exceeds-time':
       return `동작 시간이 너무 길어요. 한 번에 ${MAX_TOTAL_SECONDS}초까지 움직일 수 있어요. 블록이나 반복 횟수를 줄여주세요.`;
     case 'moves-while-sitting':
@@ -26,20 +27,21 @@ const violationMessage = (code: MotionViolationCode, index: number): string => {
 };
 
 export async function simulateProgram(request: SimulationRequest): Promise<SimulationResult> {
-  const evaluation = evaluateProgram(request.program);
+  const arena = request.arena ?? DEFAULT_ARENA;
+  const evaluation = evaluateProgram(request.program, arena);
   const violations = !evaluation.valuesValid
     ? [{ code: 'invalid-values' as const, message: '블록 값이 올바르지 않아요.' }]
     : evaluation.violation
       ? [
           {
             code: evaluation.violation,
-            message: violationMessage(evaluation.violation, evaluation.violationIndex ?? 0),
+            message: violationMessage(evaluation.violation, evaluation.violationIndex ?? 0, arena),
           },
         ]
       : [];
   const steps =
     evaluation.structurallyValid && evaluation.valuesValid
-      ? buildSimulationSteps(request.program.chain)
+      ? buildSimulationSteps(request.program.chain, arena)
       : [];
   return {
     passed: evaluation.runnable,

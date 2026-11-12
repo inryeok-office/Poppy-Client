@@ -1,15 +1,17 @@
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 
-import { VALUE_RANGE_TEXT, isBlockValueValid, valueKindOf } from '@/features/simulation';
+import {
+  DEFAULT_ARENA,
+  isBlockValueValid,
+  moveRangeFor,
+  useArena,
+  valueKindOf,
+  valueRangeText,
+  type ArenaConfig,
+} from '@/features/simulation';
 import { Tooltip } from '@/shared/ui';
 
-import {
-  MOVE_RANGE,
-  REPEAT_RANGE,
-  ROTATE_RANGE,
-  WAIT_RANGE,
-  type BlockNode,
-} from '../model/blockProgram';
+import { REPEAT_RANGE, ROTATE_RANGE, WAIT_RANGE, type BlockNode } from '../model/blockProgram';
 import { Block, BlockInput, CBlock, EmptyMouth } from './Block';
 
 // 블록 체인(program.stack / floating 그룹)을 그대로 렌더한다.
@@ -26,6 +28,7 @@ export type BlockParamPatch = {
 };
 
 type RenderOptions = {
+  arena?: ArenaConfig;
   onParamChange?: (id: string, patch: BlockParamPatch) => void;
   onBlockPointerDown?: (node: BlockNode, event: ReactPointerEvent) => void;
   dimIds?: Set<string>;
@@ -70,12 +73,13 @@ function measuredBlock({
 }
 
 function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
-  const { onParamChange } = options;
+  const { onParamChange, arena } = options;
   const bind = (patch: (value: number) => BlockParamPatch) =>
     onParamChange ? (value: number) => onParamChange(node.id, patch(value)) : undefined;
-  const invalid = !isBlockValueValid(node);
+  const invalid = !isBlockValueValid(node, arena);
   const valueKind = valueKindOf(node.kind);
-  const rangeHint = valueKind ? VALUE_RANGE_TEXT[valueKind].hint : '';
+  const rangeHint = valueKind ? valueRangeText(valueKind, arena).hint : '';
+  const moveRange = moveRangeFor(arena ?? DEFAULT_ARENA);
 
   switch (node.kind) {
     case 'start':
@@ -113,7 +117,7 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
         suffix: 'm 이동',
         value: node.distanceM,
         onChange: bind((distanceM) => ({ distanceM })),
-        range: MOVE_RANGE,
+        range: moveRange,
         ariaLabel: '이동 거리 (미터)',
         invalid,
         rangeHint,
@@ -124,7 +128,7 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
         suffix: 'm 이동',
         value: node.distanceM,
         onChange: bind((distanceM) => ({ distanceM })),
-        range: MOVE_RANGE,
+        range: moveRange,
         ariaLabel: '이동 거리 (미터)',
         invalid,
         rangeHint,
@@ -206,11 +210,12 @@ function renderNode(node: BlockNode, options: RenderOptions): ReactNode {
 
 /** 편집 중인 블록 값이 허용 범위를 벗어났을 때 블록 바로 아래 한 줄 안내. */
 function ValueError({ node, editable }: { node: BlockNode; editable: boolean }) {
+  const arena = useArena();
   const valueKind = valueKindOf(node.kind);
-  if (!editable || !valueKind || isBlockValueValid(node)) return null;
+  if (!editable || !valueKind || isBlockValueValid(node, arena)) return null;
   return (
     <p role="alert" className="text-danger pt-2 pb-2 pl-8 text-[12px] leading-none">
-      {VALUE_RANGE_TEXT[valueKind].error}
+      {valueRangeText(valueKind, arena).error}
     </p>
   );
 }
@@ -232,7 +237,8 @@ function BlockList({
   onBlockPointerDown,
   dimIds,
 }: BlockListProps) {
-  const options = { onParamChange, onBlockPointerDown, dimIds };
+  const arena = useArena();
+  const options = { onParamChange, onBlockPointerDown, dimIds, arena };
   return (
     <ol ref={containerRef} className="flex flex-col -space-y-1.5">
       {nodes.map((node) => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { ARENA, countProgramBlocks, describeHeading, planMotion } from './motionPlan';
+import { DEFAULT_ARENA } from './arena';
+import { countProgramBlocks, describeHeading, planMotion } from './motionPlan';
 import { evaluateProgram } from './safety';
 import type { SerializedBlockNode } from './types';
 
@@ -74,7 +75,14 @@ describe('planMotion — 6m × 6m 공간 위치 검사 (Agent OpenMotionGuard �
   const finalPoint = (plan: ReturnType<typeof planMotion>) => plan.path[plan.path.length - 1];
 
   it('출발 위치는 오른쪽 아래 꼭짓점 안쪽, 벽 여유 0.4 m 를 뺀 영역의 모서리다', () => {
-    expect(ARENA).toEqual({ widthM: 6, depthM: 6, marginM: 0.4, startXM: 5.6, startYM: 0.4 });
+    expect(DEFAULT_ARENA).toMatchObject({
+      widthM: 6,
+      depthM: 6,
+      marginM: 0.4,
+      startXM: 5.6,
+      startYM: 0.4,
+      startHeadingDegrees: 0,
+    });
     expect(end().path).toEqual([{ xM: 5.6, yM: 0.4 }]);
   });
 
@@ -163,5 +171,79 @@ describe('표시 도우미', () => {
     expect(describeHeading(180)).toBe('뒤쪽');
     expect(describeHeading(270)).toBe('왼쪽 90°');
     expect(describeHeading(-30)).toBe('왼쪽 30°');
+  });
+});
+
+describe('planMotion — 3m × 3m 부스 (Server 설정 3x3-부스)', () => {
+  const booth = {
+    ...DEFAULT_ARENA,
+    presetCode: '3x3-부스',
+    widthM: 3,
+    depthM: 3,
+    marginM: 0.5,
+    startXM: 2.5,
+    startYM: 0.5,
+    maxMovePerCommandM: 1.2,
+    defaultMoveDistanceM: 0.5,
+  };
+  const run = (...body: SerializedBlockNode[]) => planMotion([S, ...body, E], booth);
+  const last = (plan: ReturnType<typeof planMotion>) => plan.path[plan.path.length - 1];
+
+  it('출발점은 (2.5, 0.5), 가용 영역은 0.5~2.5 m (2.0 × 2.0 m)', () => {
+    expect(run().path).toEqual([{ xM: 2.5, yM: 0.5 }]);
+  });
+
+  it('앞으로 2.0 m 는 가용 영역 끝(y=2.5)까지 가서 통과, 2.1 m 는 이탈', () => {
+    const ok = run(fwd(2.0));
+    expect(ok.violation).toBeNull();
+    expect(last(ok).yM).toBeCloseTo(2.5);
+    const out = run(fwd(2.1));
+    expect(out.violation?.code).toBe('exceeds-safe-zone');
+    expect(out.failurePoint?.yM).toBeCloseTo(2.5);
+  });
+
+  it('네모 걷기(앞으로 1 m + 왼쪽 90° ×4)는 가용 영역 2.0 m 안에 들어가고 출발점으로 돌아온다', () => {
+    // 출발점이 오른쪽 아래 모서리라서 왼쪽(시계 반대 방향)으로 돌아야 안쪽으로 간다.
+    // (2.5,0.5) → (2.5,1.5) → (1.5,1.5) → (1.5,0.5) → (2.5,0.5)
+    const plan = run(repeat(4, [fwd(1), left(90)]));
+    expect(plan.violation).toBeNull();
+    expect(plan.totalMeters).toBeCloseTo(4);
+    expect(last(plan).xM).toBeCloseTo(2.5);
+    expect(last(plan).yM).toBeCloseTo(0.5);
+    expect(
+      plan.path.map(({ xM, yM }) => [Math.round(xM * 10) / 10, Math.round(yM * 10) / 10]),
+    ).toEqual([
+      [2.5, 0.5],
+      [2.5, 1.5],
+      [1.5, 1.5],
+      [1.5, 0.5],
+      [2.5, 0.5],
+    ]);
+  });
+
+  it('오른쪽 회전 네모는 오른쪽 아래 출발점에서 벽 밖으로 나간다(6×6 도 같다)', () => {
+    const chain = [S, repeat(4, [fwd(1), right(90)]), E];
+    expect(planMotion(chain, booth).violation?.code).toBe('exceeds-safe-zone');
+    expect(planMotion(chain).violation?.code).toBe('exceeds-safe-zone');
+  });
+
+  it('ㄱ자 길(앞으로 2 m, 왼쪽 90°, 앞으로 2 m)은 위치상 2.0 m 안에 들어간다 — 막는 것은 1회 이동 한도다', () => {
+    const plan = run(fwd(2), left(90), fwd(2));
+    expect(plan.violation).toBeNull();
+    expect(last(plan).xM).toBeCloseTo(0.5);
+    expect(last(plan).yM).toBeCloseTo(2.5);
+  });
+
+  it('같은 프로그램이 6×6 기본값에서는 통과한다(공간만 바꾼 결과)', () => {
+    const chain = [S, fwd(2.5), E];
+    expect(planMotion(chain).violation).toBeNull();
+    expect(planMotion(chain, booth).violation?.code).toBe('exceeds-safe-zone');
+  });
+
+  it('출발 방향 +X 이면 앞으로 가는 쪽이 +x 다', () => {
+    const plan = planMotion([S, fwd(1), E], { ...booth, startXM: 0.5, startHeadingDegrees: 90 });
+    expect(last(plan).xM).toBeCloseTo(1.5);
+    expect(last(plan).yM).toBeCloseTo(0.5);
+    expect(plan.headingDegrees).toBe(90);
   });
 });

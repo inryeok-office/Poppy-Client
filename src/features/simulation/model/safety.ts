@@ -1,5 +1,6 @@
 import { sumOverBlockTree } from '@/shared/lib/blockTree';
 
+import { DEFAULT_ARENA, formatMeters, moveRangeFor, type ArenaConfig } from './arena';
 import { planMotion, type MotionViolationCode } from './motionPlan';
 import type { SerializedBlockNode, SerializedBlockProgram, SimulationStep } from './types';
 
@@ -23,7 +24,10 @@ const inRange = (raw: unknown, { min, max, step }: { min: number; max: number; s
   return Math.abs(value / step - Math.round(value / step)) < 1e-9;
 };
 
-/** 값 블록 종류별 허용 범위 표기 (입력칸 포커스 툴팁)·오류 문구. */
+/**
+ * 값 블록 종류별 허용 범위 표기 (입력칸 포커스 툴팁)·오류 문구 — 6×6 기본 공간 기준.
+ * 공간이 바뀌면 이동 블록 최대값이 달라지므로 화면은 valueRangeText(kind, arena) 를 쓴다.
+ */
 export const VALUE_RANGE_TEXT = {
   move: { hint: '0.1~3 m (0.1 단위)', error: '0.1~3 m 사이로 입력해 주세요' },
   rotate: { hint: '1~360°', error: '1~360° 사이로 입력해 주세요' },
@@ -32,6 +36,13 @@ export const VALUE_RANGE_TEXT = {
 } as const;
 
 type ValueKind = keyof typeof VALUE_RANGE_TEXT;
+
+/** 공간(arena)을 반영한 범위 표기. 이동 블록만 공간을 따른다. */
+export function valueRangeText(kind: ValueKind, arena: ArenaConfig = DEFAULT_ARENA) {
+  if (kind !== 'move') return VALUE_RANGE_TEXT[kind];
+  const max = formatMeters(moveRangeFor(arena).max);
+  return { hint: `0.1~${max} m (0.1 단위)`, error: `0.1~${max} m 사이로 입력해 주세요` };
+}
 
 /** 값 입력이 있는 블록이면 그 범위 표기 종류, 아니면 null. */
 export function valueKindOf(kind: SerializedBlockNode['kind']): ValueKind | null {
@@ -52,15 +63,18 @@ export function valueKindOf(kind: SerializedBlockNode['kind']): ValueKind | null
 }
 
 /** 블록 하나의 값이 허용 범위 안인지 (값 없는 블록은 true). */
-export function isBlockValueValid(node: SerializedBlockNode): boolean {
-  return isValueValid(node);
+export function isBlockValueValid(
+  node: SerializedBlockNode,
+  arena: ArenaConfig = DEFAULT_ARENA,
+): boolean {
+  return isValueValid(node, arena);
 }
 
-function isValueValid(node: SerializedBlockNode): boolean {
+function isValueValid(node: SerializedBlockNode, arena: ArenaConfig): boolean {
   switch (node.kind) {
     case 'move':
     case 'moveForward':
-      return inRange(node.distanceM, LIMITS.moveDistance);
+      return inRange(node.distanceM, moveRangeFor(arena));
     case 'wait':
       return inRange(node.seconds, LIMITS.waitSeconds);
     case 'repeat':
@@ -88,9 +102,9 @@ function isValueValid(node: SerializedBlockNode): boolean {
 const bodyOf = (node: SerializedBlockNode) => (node.kind === 'repeat' ? node.body : undefined);
 
 /** 블록별 값(반복 횟수·이동 거리·대기 시간)이 트리 어디서든 허용 범위 안인지. */
-function allValuesValid(nodes: SerializedBlockNode[]): boolean {
+function allValuesValid(nodes: SerializedBlockNode[], arena: ArenaConfig): boolean {
   const invalidCount = sumOverBlockTree(nodes, {
-    valueOf: (node) => (isValueValid(node) ? 0 : 1),
+    valueOf: (node) => (isValueValid(node, arena) ? 0 : 1),
     bodyOf,
     repeatCountOf: () => 1, // 구조적으로만 훑는다 — 반복 횟수를 곱해 개수를 부풀리지 않는다
   });
@@ -111,8 +125,11 @@ function totalDistance(nodes: SerializedBlockNode[]): number {
  * 앉은 상태 이동)을 실패, 그 앞은 완료, 그 뒤는 대기로 표시한다. 구조·값이 유효할 때만
  * 호출한다(evaluateProgram 참고).
  */
-export function buildSimulationSteps(chain: SerializedBlockNode[]): SimulationStep[] {
-  const plan = planMotion(chain);
+export function buildSimulationSteps(
+  chain: SerializedBlockNode[],
+  arena: ArenaConfig = DEFAULT_ARENA,
+): SimulationStep[] {
+  const plan = planMotion(chain, arena);
   const failedAt = plan.violation?.index ?? -1;
   return plan.steps.map(({ node }, index) => ({
     node,
@@ -136,9 +153,13 @@ export type ProgramEvaluation = {
   runnable: boolean;
 };
 
-export function evaluateProgram(program: SerializedBlockProgram): ProgramEvaluation {
-  const valuesValid = allValuesValid(program.chain) && allValuesValid(program.detached);
-  const plan = valuesValid ? planMotion(program.chain) : null;
+export function evaluateProgram(
+  program: SerializedBlockProgram,
+  arena: ArenaConfig = DEFAULT_ARENA,
+): ProgramEvaluation {
+  const valuesValid =
+    allValuesValid(program.chain, arena) && allValuesValid(program.detached, arena);
+  const plan = valuesValid ? planMotion(program.chain, arena) : null;
   const totalDistanceM = valuesValid ? totalDistance(program.chain) : 0;
   const structurallyValid = program.detached.length === 0 && program.chain.at(-1)?.kind === 'end';
   const violation = plan?.violation?.code ?? null;

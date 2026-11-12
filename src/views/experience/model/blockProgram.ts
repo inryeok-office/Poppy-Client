@@ -14,7 +14,7 @@
 // 서버·시뮬레이션·자동 저장은 블록별 파라미터를 그대로 보존한 SerializedBlockProgram 을 받는다
 // (블록마다 다른 반복 횟수·이동 거리·대기 시간을 가질 수 있어 첫 값만 뽑아 보내면 안 된다) → serializeProgram.
 
-import { LIMITS, isBlockValueValid } from '@/features/simulation';
+import { DEFAULT_ARENA, LIMITS, isBlockValueValid, type ArenaConfig } from '@/features/simulation';
 import type { SerializedBlockNode, SerializedBlockProgram } from '@/features/simulation';
 import { sumOverBlockTree } from '@/shared/lib/blockTree';
 
@@ -39,6 +39,7 @@ export type BlockKind =
 // 서버(features/simulation LIMITS)와 같은 값을 그대로 가져다 쓴다 — 입력칸 min·max 가
 // 서버 허용 범위와 따로 놀다 어긋나는 걸 막는다.
 export const REPEAT_RANGE = LIMITS.repeatCount;
+/** 6×6 기본 공간 기준. 공간이 바뀌면 화면은 moveRangeFor(arena) 를 쓴다. */
 export const MOVE_RANGE = LIMITS.moveDistance;
 export const WAIT_RANGE = LIMITS.waitSeconds;
 export const ROTATE_RANGE = LIMITS.rotateDegree;
@@ -523,6 +524,8 @@ export function validateBlockProgram(
   program: BlockProgram,
   /** 미션 모드면 그 미션이 허용한 블록 종류 (시작·종료 제외) */
   allowedKinds?: ReadonlySet<BlockKind>,
+  /** 체험 공간(Server 설정) — 이동 블록의 최대 거리가 공간을 따른다. 없으면 6×6 기본값. */
+  arena: ArenaConfig = DEFAULT_ARENA,
 ): BlockError[] {
   const errors: BlockError[] = [];
   const floatingKinds = program.floating.flatMap((g) => g.blocks.map((b) => b.kind));
@@ -550,7 +553,7 @@ export function validateBlockProgram(
     });
   }
   const invalidValues = sumOverBlockTree(allNodes, {
-    valueOf: (n) => (isBlockValueValid(n) ? 0 : 1),
+    valueOf: (n) => (isBlockValueValid(n, arena) ? 0 : 1),
     bodyOf,
     repeatCountOf: () => 1,
   });
