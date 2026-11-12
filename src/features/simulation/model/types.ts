@@ -1,3 +1,4 @@
+import type { ArenaConfig } from './arena';
 // 시뮬레이션 실행 계약 (기능명세서 Simulation "시뮬레이션 실행" · "안전 제한 검증").
 // 백엔드(Poppy-Server)가 확정되면 실제 응답 형태에 맞춰 조정한다.
 
@@ -34,6 +35,8 @@ export type SerializedBlockProgram = {
 
 export type SimulationRequest = {
   program: SerializedBlockProgram;
+  /** 체험 공간(Server 설정). 없으면 6×6 기본값. */
+  arena?: ArenaConfig;
 };
 
 export type ServerBlock = {

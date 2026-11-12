@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { ARENA, planMotion } from '@/features/simulation';
+import { DEFAULT_ARENA, planMotion } from '@/features/simulation';
 
 import { GRID_STEP_M, RobotPreview } from './RobotPreview';
 
@@ -82,10 +82,10 @@ describe('RobotPreview — 실물 매트와 같은 격자·출발점 (#71)', () 
   it('출발점은 시뮬레이션 출발 좌표(오른쪽 아래, 벽에서 0.4m)에 그리고, 경로 첫 점과 같다', () => {
     render(<RobotPreview />);
     const start = screen.getByTestId('arena-start');
-    const expected = toPx(ARENA.startXM, ARENA.startYM);
+    const expected = toPx(DEFAULT_ARENA.startXM, DEFAULT_ARENA.startYM);
     expect(Number(start.getAttribute('cx'))).toBeCloseTo(expected.x, 6);
     expect(Number(start.getAttribute('cy'))).toBeCloseTo(expected.y, 6);
-    expect(ARENA).toMatchObject({ startXM: 5.6, startYM: 0.4, marginM: 0.4 });
+    expect(DEFAULT_ARENA).toMatchObject({ startXM: 5.6, startYM: 0.4, marginM: 0.4 });
     const [px, py] = (screen.getByTestId('robot-path').getAttribute('points') ?? '')
       .split(/[ ,]+/)
       .map(Number);
@@ -132,5 +132,98 @@ describe('RobotPreview — 실물 매트와 같은 격자·출발점 (#71)', () 
     expect(points.at(-1)).toBeCloseTo(expected.y, 6);
     // 왼쪽 90° = 270 → SVG 화살표도 시계 방향 270° 회전(화면 왼쪽).
     expect(screen.getByTestId('robot-heading').getAttribute('transform')).toMatch(/rotate\(270\)$/);
+  });
+});
+
+describe('RobotPreview — 3m × 3m 부스 (Server 설정)', () => {
+  const booth = {
+    ...DEFAULT_ARENA,
+    presetCode: '3x3-부스',
+    widthM: 3,
+    depthM: 3,
+    marginM: 0.5,
+    startXM: 2.5,
+    startYM: 0.5,
+    maxMovePerCommandM: 1.2,
+    defaultMoveDistanceM: 0.5,
+  };
+  // 3 m 를 160 px 에 그린다 → 53.33 px/m, 원점은 왼쪽 아래(12, 9+160)
+  const PX = 160 / 3;
+  const toPx = (xM: number, yM: number) => ({ x: 12 + xM * PX, y: 9 + (3 - yM) * PX });
+
+  it('안전 구역 문구와 접근성 이름이 3m × 3m 이다', () => {
+    render(<RobotPreview arena={booth} />);
+    expect(screen.getByText('안전 구역 3m × 3m')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /안전 구역 3m × 3m/ })).toBeInTheDocument();
+    expect(screen.queryByText('안전 구역 6m × 6m')).not.toBeInTheDocument();
+  });
+
+  it('0.5 m 격자는 안쪽 선이 축마다 5개(0.5~2.5 m)다', () => {
+    render(<RobotPreview arena={booth} />);
+    const grid = screen.getByTestId('arena-grid');
+    const xs = [...grid.querySelectorAll('line[data-axis="x"]')].map((l) =>
+      Number(l.getAttribute('data-m')),
+    );
+    const ys = [...grid.querySelectorAll('line[data-axis="y"]')].map((l) =>
+      Number(l.getAttribute('data-m')),
+    );
+    expect(xs).toEqual([0.5, 1, 1.5, 2, 2.5]);
+    expect(ys).toEqual([0.5, 1, 1.5, 2, 2.5]);
+    const first = grid.querySelector('line[data-axis="x"]')!;
+    expect(Number(first.getAttribute('x1'))).toBeCloseTo(toPx(0.5, 0).x, 6);
+  });
+
+  it('출발점은 (2.5, 0.5) 위치에 그리고 경로 첫 점과 같다', () => {
+    render(<RobotPreview arena={booth} />);
+    const start = screen.getByTestId('arena-start');
+    const expected = toPx(2.5, 0.5);
+    expect(Number(start.getAttribute('cx'))).toBeCloseTo(expected.x, 6);
+    expect(Number(start.getAttribute('cy'))).toBeCloseTo(expected.y, 6);
+    const [px, py] = (screen.getByTestId('robot-path').getAttribute('points') ?? '')
+      .split(/[ ,]+/)
+      .map(Number);
+    expect(px).toBeCloseTo(expected.x, 6);
+    expect(py).toBeCloseTo(expected.y, 6);
+  });
+
+  it('벽 여유 사각형(점선)이 0.5 m 안쪽에 그려진다', () => {
+    const { container } = render(<RobotPreview arena={booth} />);
+    const rects = container.querySelectorAll('svg rect');
+    // 바깥 경계, 벽 여유 안쪽(점선)
+    const inner = [...rects].find((r) => r.getAttribute('stroke-dasharray'))!;
+    expect(Number(inner.getAttribute('x'))).toBeCloseTo(12 + 0.5 * PX, 6);
+    expect(Number(inner.getAttribute('width'))).toBeCloseTo(2 * PX, 6);
+    expect(Number(inner.getAttribute('height'))).toBeCloseTo(2 * PX, 6);
+  });
+
+  it('네모 걷기 경로를 3×3 공간 위에 그린다(출발점으로 돌아온다)', () => {
+    const plan = planMotion(
+      [
+        { id: 's', kind: 'start' },
+        {
+          id: 'r',
+          kind: 'repeat',
+          count: 4,
+          body: [
+            { id: 'f', kind: 'moveForward', distanceM: 1 },
+            { id: 'l', kind: 'rotateLeft', degrees: 90 },
+          ],
+        },
+        { id: 'e', kind: 'end' },
+      ],
+      booth,
+    );
+    expect(plan.violation).toBeNull();
+    render(<RobotPreview arena={booth} path={plan.path} headingDegrees={plan.headingDegrees} />);
+    const points = (screen.getByTestId('robot-path').getAttribute('points') ?? '').split(' ');
+    expect(points).toHaveLength(5);
+    const [lx, ly] = points[4].split(',').map(Number);
+    expect(lx).toBeCloseTo(toPx(2.5, 0.5).x, 6);
+    expect(ly).toBeCloseTo(toPx(2.5, 0.5).y, 6);
+  });
+
+  it('공간을 안 주면 이전과 같이 6m × 6m 로 그린다', () => {
+    render(<RobotPreview />);
+    expect(screen.getByText('안전 구역 6m × 6m')).toBeInTheDocument();
   });
 });

@@ -4,7 +4,27 @@ import type { ApiResponse } from '@/shared/api';
 
 import { getMockSession } from '@/features/session/api/mocks';
 
+/** 6×6 박람회 — Server 에 설정이 없을 때 돌려주는 값과 같다. */
+export const MOCK_ARENA_SETTINGS = {
+  presetCode: '6x6-박람회',
+  widthM: 6,
+  depthM: 6,
+  marginM: 0.4,
+  startXM: 5.6,
+  startYM: 0.4,
+  startHeading: '+Y',
+  limits: { usableWidthM: 5.2, usableDepthM: 5.2, maxMovePerCommandM: 3, defaultMoveDistanceM: 1 },
+  updatedAt: null,
+};
+
 export const simulationHandlers = [
+  http.get('*/api/v1/arena-settings', () =>
+    HttpResponse.json<ApiResponse<typeof MOCK_ARENA_SETTINGS>>({
+      success: true,
+      data: MOCK_ARENA_SETTINGS,
+      error: null,
+    }),
+  ),
   http.post('*/api/v1/sessions/:sessionId/simulation-passes', async ({ params, request }) => {
     const sessionId = String(params.sessionId);
     const session = getMockSession(sessionId);

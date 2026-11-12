@@ -1,3 +1,4 @@
+import { DEFAULT_ARENA, type ArenaConfig } from './arena';
 import type { SerializedBlockNode } from './types';
 
 // 블록 프로그램을 실제 실행 순서대로 펼쳐 이동 거리·동작 시간·자세·방향을 계산한다.
@@ -16,10 +17,10 @@ export const MOTION_TIMING = {
 } as const;
 
 /**
- * 체험 공간과 출발 자세 — Agent 의 POPPY_PHYSICAL_ARENA_* · POPPY_PHYSICAL_START_* 와 같은 값이다.
- * 좌표는 m, 원점은 왼쪽 아래 모서리, 출발 시 +y 방향을 본다.
+ * 체험 공간은 Server 설정(`GET /api/v1/arena-settings`)이 단일 출처다 — `arena.ts` 의 ArenaConfig.
+ * planMotion 은 호출한 쪽이 넘긴 공간을 쓰고, 안 넘기면 6×6 기본값(DEFAULT_ARENA)으로 계산한다.
+ * 좌표는 m, 원점은 왼쪽 아래 모서리.
  */
-export const ARENA = { widthM: 6, depthM: 6, marginM: 0.4, startXM: 5.6, startYM: 0.4 } as const;
 
 /** 실행 1회 총 동작 시간 상한 (s) — Agent 와 같다. */
 export const MAX_TOTAL_SECONDS = 120;
@@ -55,8 +56,8 @@ export type MotionPlan = {
 
 const EDGE_EPSILON = 1e-9;
 
-function insideArena({ xM, yM }: ArenaPoint): boolean {
-  const { widthM, depthM, marginM } = ARENA;
+function insideArena({ xM, yM }: ArenaPoint, arena: ArenaConfig): boolean {
+  const { widthM, depthM, marginM } = arena;
   return (
     xM >= marginM - EDGE_EPSILON &&
     xM <= widthM - marginM + EDGE_EPSILON &&
@@ -66,8 +67,8 @@ function insideArena({ xM, yM }: ArenaPoint): boolean {
 }
 
 /** 영역 안 from 에서 영역 밖 to 로 가는 구간이 허용 영역 경계를 처음 넘는 지점. */
-function exitPoint(from: ArenaPoint, to: ArenaPoint): ArenaPoint {
-  const { widthM, depthM, marginM } = ARENA;
+function exitPoint(from: ArenaPoint, to: ArenaPoint, arena: ArenaConfig): ArenaPoint {
+  const { widthM, depthM, marginM } = arena;
   const axisLimit = (start: number, end: number, low: number, high: number) => {
     if (end > high) return (high - start) / (end - start);
     if (end < low) return (low - start) / (end - start);
@@ -133,7 +134,10 @@ const needsStanding = (node: SerializedBlockNode) =>
   node.kind === 'rotateRight' ||
   PRESET_KINDS.has(node.kind);
 
-export function planMotion(chain: SerializedBlockNode[]): MotionPlan {
+export function planMotion(
+  chain: SerializedBlockNode[],
+  arena: ArenaConfig = DEFAULT_ARENA,
+): MotionPlan {
   const flat = flatten(chain);
   const stopAt = flat.findIndex((node) => node.kind === 'stop');
   // '정지'는 프로그램을 끝낸다 — 그 뒤 블록은 실행되지 않는다(종료 블록만 표시용으로 남긴다).
@@ -145,8 +149,9 @@ export function planMotion(chain: SerializedBlockNode[]): MotionPlan {
   let meters = 0;
   let seconds = 0;
   let posture: Posture = 'standing';
-  let heading = 0;
-  let position: ArenaPoint = { xM: ARENA.startXM, yM: ARENA.startYM };
+  // 누적 회전(오른쪽 +)에 출발 방향을 더해 절대 방향으로 계산한다 (+Y 출발이면 0 에서 시작).
+  let heading = arena.startHeadingDegrees;
+  let position: ArenaPoint = { xM: arena.startXM, yM: arena.startYM };
   let leftArena = false;
   let failurePoint: ArenaPoint | null = null;
   const path = [position];
@@ -170,11 +175,11 @@ export function planMotion(chain: SerializedBlockNode[]): MotionPlan {
         yM: position.yM + moved * Math.cos(radians),
       };
       // 허용 영역은 볼록하고 구간 시작점이 그 안이므로, 끝점이 안이면 구간 전체가 안이다.
-      if (insideArena(next)) {
+      if (insideArena(next, arena)) {
         position = next;
       } else {
         leftArena = true;
-        position = exitPoint(position, next);
+        position = exitPoint(position, next, arena);
         if (violation === null) {
           violation = { index, code: 'exceeds-safe-zone' };
           failurePoint = position;

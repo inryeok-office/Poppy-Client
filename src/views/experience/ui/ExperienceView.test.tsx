@@ -673,3 +673,54 @@ describe('ExperienceView', () => {
     expect(screen.getByRole('button', { name: /로봇 실행하기/ })).toHaveTextContent('잠김');
   });
 });
+
+describe('ExperienceView — 체험 공간은 Server 설정을 따른다', () => {
+  const booth = {
+    presetCode: '3x3-부스',
+    widthM: 3,
+    depthM: 3,
+    marginM: 0.5,
+    startXM: 2.5,
+    startYM: 0.5,
+    startHeading: '+Y',
+    limits: {
+      usableWidthM: 2,
+      usableDepthM: 2,
+      maxMovePerCommandM: 1.2,
+      defaultMoveDistanceM: 0.5,
+    },
+    updatedAt: '2026-11-12T01:00:00Z',
+  };
+
+  it('설정을 받지 못하면(500) 6m × 6m 로 이전과 똑같이 동작한다', async () => {
+    server.use(http.get('*/api/v1/arena-settings', () => new HttpResponse(null, { status: 500 })));
+    renderView();
+    expect(await screen.findByText('안전 구역 6m × 6m')).toBeInTheDocument();
+  });
+
+  it('Server 가 3×3 부스를 주면 미리보기가 3m × 3m 로 바뀐다', async () => {
+    server.use(
+      http.get('*/api/v1/arena-settings', () =>
+        HttpResponse.json({ success: true, data: booth, error: null }),
+      ),
+    );
+    renderView();
+    expect(await screen.findByText('안전 구역 3m × 3m')).toBeInTheDocument();
+    expect(screen.queryByText('안전 구역 6m × 6m')).not.toBeInTheDocument();
+  });
+
+  it('3×3 부스에서는 이동 블록 입력칸의 최대값이 1.2 m 이고 1.3 m 는 범위 오류다', async () => {
+    server.use(
+      http.get('*/api/v1/arena-settings', () =>
+        HttpResponse.json({ success: true, data: booth, error: null }),
+      ),
+    );
+    renderView();
+    await screen.findByText('안전 구역 3m × 3m');
+    const input = await screen.findByRole('spinbutton', { name: '이동 거리 (미터)' });
+    await waitFor(() => expect(input).toHaveAttribute('aria-valuemax', '1.2'));
+    fireEvent.change(input, { target: { value: '1.3' } });
+    fireEvent.blur(input);
+    expect(await screen.findByText('0.1~1.2 m 사이로 입력해 주세요')).toBeInTheDocument();
+  });
+});
